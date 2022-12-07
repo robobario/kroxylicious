@@ -11,6 +11,7 @@ import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.internal.filter.ApiVersionsFilter.ApiVersionsFilterConfig;
 import io.kroxylicious.proxy.internal.filter.BrokerAddressFilter.BrokerAddressFilterConfig;
 import io.kroxylicious.proxy.internal.filter.FetchResponseTransformationFilter.FetchResponseTransformationFilterConfig;
+import io.kroxylicious.proxy.internal.filter.KafkaInsightsFilter.KafkaInsightsFilterConfig;
 import io.kroxylicious.proxy.internal.filter.ProduceRequestTransformationFilter.ProduceRequestTransformationFilterConfig;
 
 public class BuiltinFilterContributor implements FilterContributor {
@@ -22,6 +23,8 @@ public class BuiltinFilterContributor implements FilterContributor {
                 return ApiVersionsFilterConfig.class;
             case "BrokerAddress":
                 return BrokerAddressFilterConfig.class;
+            case "KafkaInsights":
+                return KafkaInsightsFilterConfig.class;
             case "ProduceRequestTransformation":
                 return ProduceRequestTransformationFilterConfig.class;
             case "FetchResponseTransformation":
@@ -38,6 +41,8 @@ public class BuiltinFilterContributor implements FilterContributor {
                 return new ApiVersionsFilter();
             case "BrokerAddress":
                 return new BrokerAddressFilter(proxyConfig);
+            case "KafkaInsights":
+                return new KafkaInsightsFilter();
             case "ProduceRequestTransformation":
                 return new ProduceRequestTransformationFilter((ProduceRequestTransformationFilterConfig) filterConfig);
             case "FetchResponseTransformation":
