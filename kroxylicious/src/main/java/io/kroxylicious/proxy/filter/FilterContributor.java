@@ -12,5 +12,5 @@ public interface FilterContributor {
 
     Class<? extends FilterConfig> getConfigType(String shortName);
 
-    KrpcFilter getFilter(String shortName, ProxyConfig proxyConfig, FilterConfig filterConfig);
+    Object getFilter(String shortName, ProxyConfig proxyConfig, FilterConfig filterConfig);
 }

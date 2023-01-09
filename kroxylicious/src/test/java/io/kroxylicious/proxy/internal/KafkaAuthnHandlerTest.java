@@ -44,7 +44,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import io.kroxylicious.proxy.filter.KrpcFilter;
-import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.frame.BareSaslRequest;
 import io.kroxylicious.proxy.frame.BareSaslResponse;
 import io.kroxylicious.proxy.frame.DecodedRequestFrame;
@@ -202,13 +201,8 @@ public class KafkaAuthnHandlerTest {
 
         correlationManager.putBrokerRequest(body.apiKey(), apiVersion, downstreamCorrelationId, true, new KrpcFilter() {
             @Override
-            public void onRequest(DecodedRequestFrame<?> decodedFrame, KrpcFilterContext filterContext) {
-
-            }
-
-            @Override
-            public void onResponse(DecodedResponseFrame<?> decodedFrame, KrpcFilterContext filterContext) {
-
+            public boolean shouldDeserializeRequest(ApiKeys apiKey, short apiVersion) {
+                return true;
             }
 
             @Override

@@ -34,7 +34,7 @@ import org.apache.kafka.common.message.${messageSpec.name}Data;
  * A stateless filter for ${messageSpec.name}s.
  * The same instance may be invoked on multiple channels.
  */
-public interface ${filterClass} extends KrpcFilter {
+public interface ${filterClass} {
 
     /**
      * Handle the given {@code ${msgType}},

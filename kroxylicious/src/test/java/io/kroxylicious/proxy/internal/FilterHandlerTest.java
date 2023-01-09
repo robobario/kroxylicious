@@ -17,7 +17,10 @@ import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.filter.ApiVersionsRequestFilter;
 import io.kroxylicious.proxy.filter.ApiVersionsResponseFilter;
+import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
+import io.kroxylicious.proxy.filter.RequestTargeter;
+import io.kroxylicious.proxy.frame.DecodedRequestFrame;
 import io.kroxylicious.proxy.future.Future;
 import io.kroxylicious.proxy.future.Promise;
 
@@ -32,26 +35,53 @@ public class FilterHandlerTest extends FilterHarness {
     @Test
     public void testForwardRequest() {
         ApiVersionsRequestFilter filter = (request, context) -> context.forwardRequest(request);
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
         assertEquals(frame, propagated, "Expect it to be the frame that was sent");
     }
 
     @Test
-    public void testShouldNotDeserialiseRequest() {
-        ApiVersionsRequestFilter filter = new ApiVersionsRequestFilter() {
+    public void testForwardRequestWithKrpcImpl() {
+        KrpcFilter filter = new KrpcFilter() {
             @Override
             public boolean shouldDeserializeRequest(ApiKeys apiKey, short apiVersion) {
-                return false;
+                return true;
             }
 
             @Override
-            public void onApiVersionsRequest(ApiVersionsRequestData request, KrpcFilterContext context) {
-                fail("Should not be called");
+            public boolean shouldDeserializeResponse(ApiKeys apiKey, short apiVersion) {
+                return true;
+            }
+
+            @Override
+            public void onRequest(DecodedRequestFrame<?> decodedFrame, KrpcFilterContext filterContext) {
+                filterContext.forwardRequest(decodedFrame.body());
             }
         };
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
+        var frame = writeRequest(new ApiVersionsRequestData());
+        var propagated = channel.readOutbound();
+        assertEquals(frame, propagated, "Expect it to be the frame that was sent");
+    }
+
+    private static class NoDeserialiseFilter implements ApiVersionsRequestFilter, RequestTargeter {
+
+        @Override
+        public void onApiVersionsRequest(ApiVersionsRequestData request, KrpcFilterContext context) {
+            fail("should not be called due to shouldDeserializeRequest");
+        }
+
+        @Override
+        public boolean shouldDeserializeRequest(ApiKeys apiKey, short apiVersion) {
+            return false;
+        }
+    }
+
+    @Test
+    public void testShouldNotDeserialiseRequest() {
+        ApiVersionsRequestFilter filter = new NoDeserialiseFilter();
+        buildChannel(KrpcFilter.of(filter));
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
         assertEquals(frame, propagated, "Expect it to be the frame that was sent");
@@ -61,14 +91,37 @@ public class FilterHandlerTest extends FilterHarness {
     public void testDropRequest() {
         ApiVersionsRequestFilter filter = (request, context) -> {
             /* don't call forwardRequest => drop the request */ };
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
+        var frame = writeRequest(new ApiVersionsRequestData());
+    }
+
+    @Test
+    public void testDropRequestWithKrpcFilterImpl() {
+        KrpcFilter filter = new KrpcFilter() {
+
+            @Override
+            public boolean shouldDeserializeResponse(ApiKeys apiKey, short apiVersion) {
+                return apiKey == ApiKeys.API_VERSIONS;
+            }
+
+            @Override
+            public boolean shouldDeserializeRequest(ApiKeys apiKey, short apiVersion) {
+                return apiKey == ApiKeys.API_VERSIONS;
+            }
+
+            @Override
+            public void onRequest(DecodedRequestFrame<?> decodedFrame, KrpcFilterContext filterContext) {
+                /* don't call forwardRequest => drop the request */
+            }
+        };
+        buildChannel(KrpcFilter.of(filter));
         var frame = writeRequest(new ApiVersionsRequestData());
     }
 
     @Test
     public void testForwardResponse() {
         ApiVersionsResponseFilter filter = (response, context) -> context.forwardResponse(response);
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
         var frame = writeResponse(new ApiVersionsResponseData());
         var propagated = channel.readInbound();
         assertEquals(frame, propagated, "Expect it to be the frame that was sent");
@@ -76,18 +129,7 @@ public class FilterHandlerTest extends FilterHarness {
 
     @Test
     public void testShouldNotDeserializeResponse() {
-        ApiVersionsResponseFilter filter = new ApiVersionsResponseFilter() {
-            @Override
-            public boolean shouldDeserializeResponse(ApiKeys apiKey, short apiVersion) {
-                return false;
-            }
-
-            @Override
-            public void onApiVersionsResponse(ApiVersionsResponseData response, KrpcFilterContext context) {
-                fail("Should not be called");
-            }
-        };
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(new NoDeserialiseFilter()));
         var frame = writeResponse(new ApiVersionsResponseData());
         var propagated = channel.readInbound();
         assertEquals(frame, propagated, "Expect it to be the frame that was sent");
@@ -97,7 +139,7 @@ public class FilterHandlerTest extends FilterHarness {
     public void testDropResponse() {
         ApiVersionsResponseFilter filter = (response, context) -> {
             /* don't call forwardRequest => drop the request */ };
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
         var frame = writeResponse(new ApiVersionsResponseData());
     }
 
@@ -111,7 +153,7 @@ public class FilterHandlerTest extends FilterHarness {
             fut[0] = context.sendRequest((short) 3, body);
         };
 
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
 
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
@@ -146,7 +188,7 @@ public class FilterHandlerTest extends FilterHarness {
             fut[0] = context.sendRequest((short) 3, body);
         };
 
-        buildChannel(filter);
+        buildChannel(KrpcFilter.of(filter));
 
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
@@ -172,7 +214,7 @@ public class FilterHandlerTest extends FilterHarness {
             fut[0] = context.sendRequest((short) 3, body);
         };
 
-        buildChannel(filter, 50L);
+        buildChannel(KrpcFilter.of(filter), 50L);
 
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();

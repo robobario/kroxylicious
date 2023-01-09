@@ -7,7 +7,6 @@ package io.kroxylicious.proxy.internal.filter;
 
 import io.kroxylicious.proxy.config.ProxyConfig;
 import io.kroxylicious.proxy.filter.FilterContributor;
-import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.internal.filter.ApiVersionsFilter.ApiVersionsFilterConfig;
 import io.kroxylicious.proxy.internal.filter.BrokerAddressFilter.BrokerAddressFilterConfig;
 import io.kroxylicious.proxy.internal.filter.FetchResponseTransformationFilter.FetchResponseTransformationFilterConfig;
@@ -32,7 +31,7 @@ public class BuiltinFilterContributor implements FilterContributor {
     }
 
     @Override
-    public KrpcFilter getFilter(String shortName, ProxyConfig proxyConfig, FilterConfig filterConfig) {
+    public Object getFilter(String shortName, ProxyConfig proxyConfig, FilterConfig filterConfig) {
         switch (shortName) {
             case "ApiVersions":
                 return new ApiVersionsFilter();
