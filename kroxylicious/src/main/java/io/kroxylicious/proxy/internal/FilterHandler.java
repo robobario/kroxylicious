@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.proxy.filter.KrpcFilter;
+import io.kroxylicious.proxy.filter.TurboInvoker;
 import io.kroxylicious.proxy.frame.DecodedRequestFrame;
 import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 import io.kroxylicious.proxy.frame.OpaqueRequestFrame;
@@ -33,9 +34,11 @@ public class FilterHandler
     private static final Logger LOGGER = LoggerFactory.getLogger(FilterHandler.class);
     private final KrpcFilter filter;
     private final long timeoutMs;
+    private final TurboInvoker invoker;
 
     public FilterHandler(KrpcFilter filter, long timeoutMs) {
         this.filter = Objects.requireNonNull(filter);
+        this.invoker = new TurboInvoker(filter);
         this.timeoutMs = Assertions.requireStrictlyPositive(timeoutMs, "timeout");
     }
 
@@ -48,13 +51,13 @@ public class FilterHandler
         if (msg instanceof DecodedRequestFrame) {
             DecodedRequestFrame<?> decodedFrame = (DecodedRequestFrame<?>) msg;
             // Guard against invoking the filter unexpectedly
-            if (filter.shouldDeserializeRequest(decodedFrame.apiKey(), decodedFrame.apiVersion())) {
+            if (invoker.shouldDeserializeRequestOuter(decodedFrame.apiKey(), decodedFrame.apiVersion())) {
                 var filterContext = new DefaultFilterContext(filter, ctx, decodedFrame, promise, timeoutMs);
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("{}: Dispatching downstream {} request to filter{}: {}",
                             ctx.channel(), decodedFrame.apiKey(), filterDescriptor(), msg);
                 }
-                filter.onRequest(decodedFrame, filterContext);
+                invoker.onRequest(decodedFrame, filterContext);
             }
             else {
                 ctx.write(msg, promise);
@@ -93,13 +96,13 @@ public class FilterHandler
                     ctx.fireChannelRead(msg);
                 }
             }
-            else if (filter.shouldDeserializeResponse(decodedFrame.apiKey(), decodedFrame.apiVersion())) {
+            else if (invoker.shouldDeserializeResponseOuter(decodedFrame.apiKey(), decodedFrame.apiVersion())) {
                 var filterContext = new DefaultFilterContext(filter, ctx, decodedFrame, null, timeoutMs);
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("{}: Dispatching upstream {} response to filter {}: {}",
                             ctx.channel(), decodedFrame.apiKey(), filterDescriptor(), msg);
                 }
-                filter.onResponse(decodedFrame, filterContext);
+                invoker.onResponse(decodedFrame, filterContext);
             }
             else {
                 ctx.fireChannelRead(msg);

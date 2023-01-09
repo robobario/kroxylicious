@@ -120,16 +120,7 @@ public /* sealed */ interface KrpcFilter /* TODO permits ... */ {
      * @return
      */
     default boolean shouldDeserializeRequest(ApiKeys apiKey, short apiVersion) {
-        switch (apiKey) {
-<#list messageSpecs as messageSpec>
-<#if messageSpec.type?lower_case == 'request'>
-            case ${retrieveApiKey(messageSpec)}:
-                return this instanceof ${messageSpec.name}Filter;
-</#if>
-</#list>
-            default:
-                throw new IllegalStateException("Unsupported API key " + apiKey);
-        }
+        return true;
     }
 
     /**
@@ -149,16 +140,7 @@ public /* sealed */ interface KrpcFilter /* TODO permits ... */ {
      * @return
      */
     default boolean shouldDeserializeResponse(ApiKeys apiKey, short apiVersion) {
-        switch (apiKey) {
-<#list messageSpecs as messageSpec>
-<#if messageSpec.type?lower_case == 'response'>
-            case ${retrieveApiKey(messageSpec)}:
-                return this instanceof ${messageSpec.name}Filter;
-</#if>
-</#list>
-            default:
-                throw new IllegalStateException("Unsupported API key " + apiKey);
-        }
+        return true;
     }
 
 }
