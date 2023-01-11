@@ -27,6 +27,7 @@ import io.kroxylicious.proxy.future.Promise;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -39,6 +40,21 @@ public class FilterHandlerTest extends FilterHarness {
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
         assertEquals(frame, propagated, "Expect it to be the frame that was sent");
+    }
+
+    @Test
+    public void testModifyHeaderRequest() {
+        ApiVersionsRequestFilter filter = (request, context) -> {
+            request.header().setClientId("b");
+            context.forwardRequest(request.body());
+        };
+        buildChannel(KrpcFilter.of(filter));
+        var frame = createRequestFrame(new ApiVersionsRequestData());
+        frame.header().setClientId("a");
+        channel.writeOutbound(frame);
+        var propagated = channel.readOutbound();
+        assertSame(frame, propagated, "Expect it to be the frame that was sent");
+        assertEquals("b", frame.header().clientId(), "Expect clientId header to be mutated by Filter");
     }
 
     @Test
