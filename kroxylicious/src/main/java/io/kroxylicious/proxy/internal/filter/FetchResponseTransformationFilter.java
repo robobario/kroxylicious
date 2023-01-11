@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.proxy.filter.FetchResponseFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 import io.kroxylicious.proxy.internal.util.NettyMemoryRecords;
 
 /**
@@ -69,7 +70,8 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
     }
 
     @Override
-    public void onFetchResponse(FetchResponseData fetchResponse, KrpcFilterContext context) {
+    public void onFetchResponse(DecodedResponseFrame<FetchResponseData> fetchResponseFrame, KrpcFilterContext context) {
+        FetchResponseData fetchResponse = fetchResponseFrame.body();
         List<MetadataRequestData.MetadataRequestTopic> requestTopics = fetchResponse.responses().stream()
                 .filter(t -> t.topic().isEmpty())
                 .map(fetchableTopicResponse -> {

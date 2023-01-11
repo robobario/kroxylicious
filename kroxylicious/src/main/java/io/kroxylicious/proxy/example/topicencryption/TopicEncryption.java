@@ -12,6 +12,8 @@ import org.apache.kafka.common.message.ProduceRequestData;
 import io.kroxylicious.proxy.filter.FetchResponseFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.ProduceRequestFilter;
+import io.kroxylicious.proxy.frame.DecodedRequestFrame;
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 
 public class TopicEncryption implements ProduceRequestFilter, FetchResponseFilter {
 
@@ -19,7 +21,8 @@ public class TopicEncryption implements ProduceRequestFilter, FetchResponseFilte
     // but other filters will be interested in keeping track of metadata
 
     @Override
-    public void onProduceRequest(ProduceRequestData request, KrpcFilterContext context) {
+    public void onProduceRequest(DecodedRequestFrame<ProduceRequestData> requestFrame, KrpcFilterContext context) {
+        ProduceRequestData body = requestFrame.body();
         boolean fragmented = false;
         if (fragmented) {
             // TODO forward the fragments
@@ -28,12 +31,13 @@ public class TopicEncryption implements ProduceRequestFilter, FetchResponseFilte
             return;
         }
         else {
-            context.forwardRequest(request);
+            context.forwardRequest(body);
         }
     }
 
     @Override
-    public void onFetchResponse(FetchResponseData response, KrpcFilterContext context) {
+    public void onFetchResponse(DecodedResponseFrame<FetchResponseData> responseFrame, KrpcFilterContext context) {
+        FetchResponseData response = responseFrame.body();
         for (var topicResponse : response.responses()) {
             String topicName = topicResponse.topic();
             if (topicName == null) {

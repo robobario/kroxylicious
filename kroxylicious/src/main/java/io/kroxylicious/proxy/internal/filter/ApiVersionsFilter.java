@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.proxy.filter.ApiVersionsResponseFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 
 /**
  * Changes an API_VERSIONS response so that a client sees the intersection of supported version ranges for each
@@ -66,8 +67,8 @@ public class ApiVersionsFilter implements ApiVersionsResponseFilter {
     }
 
     @Override
-    public void onApiVersionsResponse(ApiVersionsResponseData data, KrpcFilterContext context) {
-        intersectApiVersions(context.channelDescriptor(), data);
-        context.forwardResponse(data);
+    public void onApiVersionsResponse(DecodedResponseFrame<ApiVersionsResponseData> data, KrpcFilterContext context) {
+        intersectApiVersions(context.channelDescriptor(), data.body());
+        context.forwardResponse(data.body());
     }
 }

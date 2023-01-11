@@ -29,7 +29,11 @@
 package io.kroxylicious.proxy.filter;
 
 import org.apache.kafka.common.message.${messageSpec.name}Data;
-
+<#if messageSpec.type?lower_case == 'request'>
+import io.kroxylicious.proxy.frame.DecodedRequestFrame;
+<#else>
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
+</#if>
 /**
  * A stateless filter for ${messageSpec.name}s.
  * The same instance may be invoked on multiple channels.
@@ -47,6 +51,10 @@ public interface ${filterClass} {
      * @return the {@code ${msgType}} to be passed to the next filter.
      * If null is returned then the given {@code ${msgType}} will be used.
      */
-    public void on${messageSpec.name}(${dataClass} ${msgType}, KrpcFilterContext context);
+<#if messageSpec.type?lower_case == 'request'>
+    public void on${messageSpec.name}(DecodedRequestFrame<${dataClass}> ${msgType}, KrpcFilterContext context);
+<#else>
+    public void on${messageSpec.name}(DecodedResponseFrame<${dataClass}> ${msgType}, KrpcFilterContext context);
+</#if>
 
 }

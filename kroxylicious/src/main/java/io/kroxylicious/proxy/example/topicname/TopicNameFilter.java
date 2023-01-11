@@ -17,6 +17,7 @@ import io.kroxylicious.proxy.filter.CreateTopicsResponseFilter;
 import io.kroxylicious.proxy.filter.DeleteTopicsResponseFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.MetadataResponseFilter;
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 
 /**
  * Maintains a local mapping of topic id to topic name
@@ -27,32 +28,35 @@ public class TopicNameFilter
     private final Map<Uuid, String> topicNames = new HashMap<>();
 
     @Override
-    public void onMetadataResponse(MetadataResponseData response, KrpcFilterContext context) {
-        if (response.topics() != null) {
-            for (var topic : response.topics()) {
+    public void onMetadataResponse(DecodedResponseFrame<MetadataResponseData> response, KrpcFilterContext context) {
+        MetadataResponseData responseData = response.body();
+        if (responseData.topics() != null) {
+            for (var topic : responseData.topics()) {
                 topicNames.put(topic.topicId(), topic.name());
             }
         }
         // TODO how can we expose this state to other filters?
         // TODO filterContext.put("topicNames", topicNames);
-        context.forwardResponse(response);
+        context.forwardResponse(responseData);
     }
 
     // We don't implement DeleteTopicsRequestFilter because we don't know whether
     // a delete topics request will succeed.
     @Override
-    public void onDeleteTopicsResponse(DeleteTopicsResponseData response, KrpcFilterContext context) {
-        for (var resp : response.responses()) {
+    public void onDeleteTopicsResponse(DecodedResponseFrame<DeleteTopicsResponseData> response, KrpcFilterContext context) {
+        DeleteTopicsResponseData body = response.body();
+        for (var resp : body.responses()) {
             topicNames.remove(resp.topicId());
         }
-        context.forwardResponse(response);
+        context.forwardResponse(body);
     }
 
     @Override
-    public void onCreateTopicsResponse(CreateTopicsResponseData response, KrpcFilterContext context) {
-        for (var topic : response.topics()) {
+    public void onCreateTopicsResponse(DecodedResponseFrame<CreateTopicsResponseData> response, KrpcFilterContext context) {
+        CreateTopicsResponseData body = response.body();
+        for (var topic : body.topics()) {
             topicNames.put(topic.topicId(), topic.name());
         }
-        context.forwardResponse(response);
+        context.forwardResponse(body);
     }
 }

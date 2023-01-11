@@ -34,7 +34,7 @@ public class FilterHandlerTest extends FilterHarness {
 
     @Test
     public void testForwardRequest() {
-        ApiVersionsRequestFilter filter = (request, context) -> context.forwardRequest(request);
+        ApiVersionsRequestFilter filter = (request, context) -> context.forwardRequest(request.body());
         buildChannel(KrpcFilter.of(filter));
         var frame = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
@@ -68,7 +68,7 @@ public class FilterHandlerTest extends FilterHarness {
     private static class NoDeserialiseFilter implements ApiVersionsRequestFilter, RequestTargeter {
 
         @Override
-        public void onApiVersionsRequest(ApiVersionsRequestData request, KrpcFilterContext context) {
+        public void onApiVersionsRequest(DecodedRequestFrame<ApiVersionsRequestData> request, KrpcFilterContext context) {
             fail("should not be called due to shouldDeserializeRequest");
         }
 
@@ -120,7 +120,7 @@ public class FilterHandlerTest extends FilterHarness {
 
     @Test
     public void testForwardResponse() {
-        ApiVersionsResponseFilter filter = (response, context) -> context.forwardResponse(response);
+        ApiVersionsResponseFilter filter = (response, context) -> context.forwardResponse(response.body());
         buildChannel(KrpcFilter.of(filter));
         var frame = writeResponse(new ApiVersionsResponseData());
         var propagated = channel.readInbound();

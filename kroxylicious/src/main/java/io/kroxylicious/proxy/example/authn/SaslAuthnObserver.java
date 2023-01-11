@@ -16,6 +16,8 @@ import io.kroxylicious.proxy.filter.SaslAuthenticateRequestFilter;
 import io.kroxylicious.proxy.filter.SaslAuthenticateResponseFilter;
 import io.kroxylicious.proxy.filter.SaslHandshakeRequestFilter;
 import io.kroxylicious.proxy.filter.SaslHandshakeResponseFilter;
+import io.kroxylicious.proxy.frame.DecodedRequestFrame;
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 
 public class SaslAuthnObserver
         implements SaslHandshakeRequestFilter,
@@ -29,15 +31,17 @@ public class SaslAuthnObserver
     private long sessionLifetimeMs;
 
     @Override
-    public void onSaslHandshakeRequest(SaslHandshakeRequestData request,
+    public void onSaslHandshakeRequest(DecodedRequestFrame<SaslHandshakeRequestData> requestFrame,
                                        KrpcFilterContext context) {
+        SaslHandshakeRequestData request = requestFrame.body();
         this.mechanism = request.mechanism();
         context.forwardRequest(request);
     }
 
     @Override
-    public void onSaslHandshakeResponse(SaslHandshakeResponseData response,
+    public void onSaslHandshakeResponse(DecodedResponseFrame<SaslHandshakeResponseData> responseFrame,
                                         KrpcFilterContext context) {
+        SaslHandshakeResponseData response = responseFrame.body();
         if (response.errorCode() != Errors.NONE.code()) {
             this.mechanism = null;
         }
@@ -45,8 +49,9 @@ public class SaslAuthnObserver
     }
 
     @Override
-    public void onSaslAuthenticateRequest(SaslAuthenticateRequestData request,
+    public void onSaslAuthenticateRequest(DecodedRequestFrame<SaslAuthenticateRequestData> requestFrame,
                                           KrpcFilterContext context) {
+        SaslAuthenticateRequestData request = requestFrame.body();
         byte[] bytes = request.authBytes();
         switch (mechanism) {
             case "PLAIN":
@@ -63,8 +68,9 @@ public class SaslAuthnObserver
     }
 
     @Override
-    public void onSaslAuthenticateResponse(SaslAuthenticateResponseData response,
+    public void onSaslAuthenticateResponse(DecodedResponseFrame<SaslAuthenticateResponseData> responseFrame,
                                            KrpcFilterContext context) {
+        SaslAuthenticateResponseData response = responseFrame.body();
         if (response.errorCode() == Errors.NONE.code()) {
             authenticated = true;
             sessionLifetimeMs = response.sessionLifetimeMs();

@@ -77,7 +77,7 @@ switch (decodedFrame.apiKey()) {
 <#list messageSpecs as messageSpec>
     <#if messageSpec.type?lower_case == 'request'>
         case ${retrieveApiKey(messageSpec)}:
-        ${messageSpec.name}Filter.on${messageSpec.name}((${messageSpec.name}Data) decodedFrame.body(), filterContext);
+        ${messageSpec.name}Filter.on${messageSpec.name}((DecodedRequestFrame<${messageSpec.name}Data>) decodedFrame, filterContext);
         break;
     </#if>
 </#list>
@@ -92,7 +92,7 @@ switch (decodedFrame.apiKey()) {
 <#list messageSpecs as messageSpec>
     <#if messageSpec.type?lower_case == 'response'>
         case ${retrieveApiKey(messageSpec)}:
-        ${messageSpec.name}Filter.on${messageSpec.name}((${messageSpec.name}Data) decodedFrame.body(), filterContext);
+        ${messageSpec.name}Filter.on${messageSpec.name}((DecodedResponseFrame<${messageSpec.name}Data>) decodedFrame, filterContext);
         break;
     </#if>
 </#list>

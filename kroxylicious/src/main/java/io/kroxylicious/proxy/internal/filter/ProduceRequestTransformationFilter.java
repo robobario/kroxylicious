@@ -22,6 +22,7 @@ import org.apache.kafka.common.record.TimestampType;
 
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.ProduceRequestFilter;
+import io.kroxylicious.proxy.frame.DecodedRequestFrame;
 import io.kroxylicious.proxy.internal.util.NettyMemoryRecords;
 
 /**
@@ -68,7 +69,8 @@ public class ProduceRequestTransformationFilter implements ProduceRequestFilter 
     }
 
     @Override
-    public void onProduceRequest(ProduceRequestData data, KrpcFilterContext context) {
+    public void onProduceRequest(DecodedRequestFrame<ProduceRequestData> dataFrame, KrpcFilterContext context) {
+        ProduceRequestData data = dataFrame.body();
         applyTransformation(context, data);
         context.forwardRequest(data);
     }

@@ -24,6 +24,7 @@ import io.kroxylicious.proxy.filter.DescribeClusterResponseFilter;
 import io.kroxylicious.proxy.filter.FindCoordinatorResponseFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.MetadataResponseFilter;
+import io.kroxylicious.proxy.frame.DecodedResponseFrame;
 
 /**
  * A filter that rewrites broker addresses in all relevant responses to the corresponding proxy address.
@@ -72,27 +73,30 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
     }
 
     @Override
-    public void onMetadataResponse(MetadataResponseData data, KrpcFilterContext context) {
-        for (MetadataResponseBroker broker : data.brokers()) {
+    public void onMetadataResponse(DecodedResponseFrame<MetadataResponseData> data, KrpcFilterContext context) {
+        MetadataResponseData body = data.body();
+        for (MetadataResponseBroker broker : body.brokers()) {
             apply(context, broker, MetadataResponseBroker::host, MetadataResponseBroker::port, MetadataResponseBroker::setHost, MetadataResponseBroker::setPort);
         }
-        context.forwardResponse(data);
+        context.forwardResponse(body);
     }
 
     @Override
-    public void onDescribeClusterResponse(DescribeClusterResponseData data, KrpcFilterContext context) {
-        for (DescribeClusterBroker broker : data.brokers()) {
+    public void onDescribeClusterResponse(DecodedResponseFrame<DescribeClusterResponseData> data, KrpcFilterContext context) {
+        DescribeClusterResponseData body = data.body();
+        for (DescribeClusterBroker broker : body.brokers()) {
             apply(context, broker, DescribeClusterBroker::host, DescribeClusterBroker::port, DescribeClusterBroker::setHost, DescribeClusterBroker::setPort);
         }
-        context.forwardResponse(data);
+        context.forwardResponse(body);
     }
 
     @Override
-    public void onFindCoordinatorResponse(FindCoordinatorResponseData data, KrpcFilterContext context) {
-        for (Coordinator coordinator : data.coordinators()) {
+    public void onFindCoordinatorResponse(DecodedResponseFrame<FindCoordinatorResponseData> data, KrpcFilterContext context) {
+        FindCoordinatorResponseData body = data.body();
+        for (Coordinator coordinator : body.coordinators()) {
             apply(context, coordinator, Coordinator::host, Coordinator::port, Coordinator::setHost, Coordinator::setPort);
         }
-        context.forwardResponse(data);
+        context.forwardResponse(body);
     }
 
     private <T> void apply(KrpcFilterContext context, T broker, Function<T, String> hostGetter, ToIntFunction<T> portGetter, BiConsumer<T, String> hostSetter,
