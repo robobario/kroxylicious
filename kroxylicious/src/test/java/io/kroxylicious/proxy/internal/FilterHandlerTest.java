@@ -58,6 +58,36 @@ public class FilterHandlerTest extends FilterHarness {
     }
 
     @Test
+    public void testModifyHeaderAllMessages() {
+        KrpcFilter filter = new KrpcFilter() {
+
+            @Override
+            public void onRequest(DecodedRequestFrame<?> request, KrpcFilterContext context) {
+                request.header().setClientId("b");
+                context.forwardRequest(request.body());
+            }
+
+            @Override
+            public boolean shouldDeserializeRequest(ApiKeys apiKey, short apiVersion) {
+                return true;
+            }
+
+            @Override
+            public boolean shouldDeserializeResponse(ApiKeys apiKey, short apiVersion) {
+                return false;
+            }
+
+        };
+        buildChannel(KrpcFilter.of(filter));
+        var frame = createRequestFrame(new ApiVersionsRequestData());
+        frame.header().setClientId("a");
+        channel.writeOutbound(frame);
+        var propagated = channel.readOutbound();
+        assertSame(frame, propagated, "Expect it to be the frame that was sent");
+        assertEquals("b", frame.header().clientId(), "Expect clientId header to be mutated by Filter");
+    }
+
+    @Test
     public void testForwardRequestWithKrpcImpl() {
         KrpcFilter filter = new KrpcFilter() {
             @Override
