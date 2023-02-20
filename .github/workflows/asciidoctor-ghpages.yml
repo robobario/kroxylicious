@@ -1,13 +1,13 @@
 name: GitHub Pages Publish
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
       - name: asciidoctor-ghpages
-        uses: manoelcampos/asciidoctor-ghpages-action@v2
+        uses: manoelcampos/asciidoctor-ghpages-action@9527ff583929b1000c23c209123bba4e98a21f08 # pin@v2
         with:
           source_dir: docs/
