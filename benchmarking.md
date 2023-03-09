@@ -144,5 +144,4 @@ new ProduceRecordTransformationFilter(
 280286 records sent, 56057.2 records/sec (54.74 MB/sec), 2.7 ms avg latency, 59.0 ms max latency.
 287880 records sent, 57576.0 records/sec (56.23 MB/sec), 1.5 ms avg latency, 16.0 ms max latency.
 10000000 records sent, 60679.611650 records/sec (59.26 MB/sec), 25.00 ms avg latency, 1080.00 ms max latency, 1 ms 50th, 170 ms 95th, 601 ms 99th, 992 ms 99.9th.
-
 ```
