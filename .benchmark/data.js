@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1681189299930,
+  "lastUpdate": 1681249039416,
   "repoUrl": "https://github.com/robobario/kproxy",
   "entries": {
     "kafka producer perf test Benchmark": [
@@ -36,6 +36,43 @@ window.BENCHMARK_DATA = {
           {
             "name": "99th Latency",
             "value": 302,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Robert Young",
+            "username": "robobario",
+            "email": "robeyoun@redhat.com"
+          },
+          "committer": {
+            "name": "Robert Young",
+            "username": "robobario",
+            "email": "robeyoun@redhat.com"
+          },
+          "id": "ebb6839ef7013282f6d679830683c2eda85b09a4",
+          "message": "Stop kroxy running to test change",
+          "timestamp": "2023-04-11T21:29:16Z",
+          "url": "https://github.com/robobario/kproxy/commit/ebb6839ef7013282f6d679830683c2eda85b09a4"
+        },
+        "date": 1681249038410,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "AVG Latency",
+            "value": 6.57,
+            "unit": "ms"
+          },
+          {
+            "name": "95th Latency",
+            "value": 4,
+            "unit": "ms"
+          },
+          {
+            "name": "99th Latency",
+            "value": 171,
             "unit": "ms"
           }
         ]
