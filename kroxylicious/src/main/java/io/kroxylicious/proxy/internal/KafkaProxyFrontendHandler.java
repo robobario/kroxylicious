@@ -34,6 +34,7 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SniCompletionEvent;
 
+import io.kroxylicious.proxy.ContextualProxyMetrics;
 import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.filter.NetFilter;
 import io.kroxylicious.proxy.frame.DecodedRequestFrame;
@@ -65,6 +66,7 @@ public class KafkaProxyFrontendHandler
 
     private final boolean logNetwork;
     private final boolean logFrames;
+    private final ContextualProxyMetrics metrics;
 
     private ChannelHandlerContext outboundCtx;
     private KafkaProxyBackendHandler backendHandler;
@@ -127,11 +129,13 @@ public class KafkaProxyFrontendHandler
     KafkaProxyFrontendHandler(NetFilter filter,
                               SaslDecodePredicate dp,
                               boolean logNetwork,
-                              boolean logFrames) {
+                              boolean logFrames,
+                              ContextualProxyMetrics metrics) {
         this.filter = filter;
         this.dp = dp;
         this.logNetwork = logNetwork;
         this.logFrames = logFrames;
+        this.metrics = metrics;
     }
 
     private IllegalStateException illegalState(String msg) {
@@ -282,7 +286,7 @@ public class KafkaProxyFrontendHandler
     private void addFiltersToPipeline(KrpcFilter[] filters, ChannelPipeline pipeline) {
         for (var filter : filters) {
             // TODO configurable timeout
-            pipeline.addFirst(filter.toString(), new FilterHandler(filter, 20000, sniHostname));
+            pipeline.addFirst(filter.toString(), new FilterHandler(filter, 20000, sniHostname, metrics));
         }
     }
 

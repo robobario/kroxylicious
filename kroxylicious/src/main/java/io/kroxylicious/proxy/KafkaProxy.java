@@ -126,6 +126,8 @@ public final class KafkaProxy implements AutoCloseable {
             LOGGER.info("{}: Proxying local {} to remote {}",
                     name, endpointProvider.getClusterBootstrapAddress(), targetBootstrapServers);
 
+            DefaultContextualProxyMetrics metrics = new DefaultContextualProxyMetrics(name, Metrics.globalRegistry, virtualCluster);
+
             var sslContext = keyStoreFile.map(ksf -> {
                 try (var is = new FileInputStream(ksf)) {
                     var password = keyStorePassword.map(String::toCharArray).orElse(null);
@@ -147,7 +149,8 @@ public final class KafkaProxy implements AutoCloseable {
                             filterChainFactory),
                     virtualCluster.isLogNetwork(),
                     virtualCluster.isLogFrames(),
-                    sslContext);
+                    sslContext,
+                    metrics);
 
             // Configure the bootstrap.
             var virtualHostEventGroup = buildNettyEventGroups(availableCores, virtualCluster.isUseIoUring());

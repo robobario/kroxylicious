@@ -22,6 +22,7 @@ import io.netty.handler.ssl.SniHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.DomainWildcardMappingBuilder;
 
+import io.kroxylicious.proxy.ContextualProxyMetrics;
 import io.kroxylicious.proxy.filter.NetFilter;
 import io.kroxylicious.proxy.internal.codec.KafkaRequestDecoder;
 import io.kroxylicious.proxy.internal.codec.KafkaResponseEncoder;
@@ -36,19 +37,22 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
     private final Map<KafkaAuthnHandler.SaslMechanism, AuthenticateCallbackHandler> authnHandlers;
     private final NetFilter netFilter;
     private final Optional<SslContext> sslContext;
+    private final ContextualProxyMetrics metrics;
 
     public KafkaProxyInitializer(boolean haproxyProtocol,
                                  Map<KafkaAuthnHandler.SaslMechanism, AuthenticateCallbackHandler> authnMechanismHandlers,
                                  NetFilter netFilter,
                                  boolean logNetwork,
                                  boolean logFrames,
-                                 Optional<SslContext> sslContext) {
+                                 Optional<SslContext> sslContext,
+                                 ContextualProxyMetrics metrics) {
         this.haproxyProtocol = haproxyProtocol;
         this.authnHandlers = authnMechanismHandlers != null ? authnMechanismHandlers : Map.of();
         this.netFilter = netFilter;
         this.logNetwork = logNetwork;
         this.logFrames = logFrames;
         this.sslContext = sslContext;
+        this.metrics = metrics;
     }
 
     @Override
@@ -89,7 +93,7 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
             pipeline.addLast(new KafkaAuthnHandler(ch, authnHandlers));
         }
 
-        pipeline.addLast("netHandler", new KafkaProxyFrontendHandler(netFilter, dp, logNetwork, logFrames));
+        pipeline.addLast("netHandler", new KafkaProxyFrontendHandler(netFilter, dp, logNetwork, logFrames, metrics));
         LOGGER.debug("{}: Initial pipeline: {}", ch, pipeline);
     }
 

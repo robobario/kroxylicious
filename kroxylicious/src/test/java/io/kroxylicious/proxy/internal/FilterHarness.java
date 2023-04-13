@@ -13,8 +13,11 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.junit.jupiter.api.AfterEach;
 
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.netty.channel.embedded.EmbeddedChannel;
 
+import io.kroxylicious.proxy.ContextualProxyMetrics;
 import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.frame.DecodedRequestFrame;
 import io.kroxylicious.proxy.frame.DecodedResponseFrame;
@@ -47,7 +50,17 @@ public abstract class FilterHarness {
      */
     protected void buildChannel(KrpcFilter filter, long timeoutMs) {
         this.filter = filter;
-        filterHandler = new FilterHandler(filter, timeoutMs, null);
+        filterHandler = new FilterHandler(filter, timeoutMs, null, new ContextualProxyMetrics() {
+            @Override
+            public CompositeMeterRegistry getGlobalRegistry() {
+                return Metrics.globalRegistry;
+            }
+
+            @Override
+            public CompositeMeterRegistry getVirtualClusterTagged() {
+                return Metrics.globalRegistry;
+            }
+        });
         channel = new EmbeddedChannel(filterHandler);
     }
 

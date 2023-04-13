@@ -22,6 +22,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 
+import io.kroxylicious.proxy.ContextualProxyMetrics;
 import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.frame.DecodedFrame;
@@ -41,19 +42,22 @@ class DefaultFilterContext implements KrpcFilterContext {
     private final KrpcFilter filter;
     private final long timeoutMs;
     private final String sniHostname;
+    private final ContextualProxyMetrics metrics;
 
     DefaultFilterContext(KrpcFilter filter,
                          ChannelHandlerContext channelContext,
                          DecodedFrame<?, ?> decodedFrame,
                          ChannelPromise promise,
                          long timeoutMs,
-                         String sniHostname) {
+                         String sniHostname,
+                         ContextualProxyMetrics metrics) {
         this.filter = filter;
         this.channelContext = channelContext;
         this.decodedFrame = decodedFrame;
         this.promise = promise;
         this.timeoutMs = timeoutMs;
         this.sniHostname = sniHostname;
+        this.metrics = metrics;
     }
 
     /**
@@ -177,6 +181,11 @@ class DefaultFilterContext implements KrpcFilterContext {
             LOGGER.debug("{}: Forwarding response: {}", channelDescriptor(), decodedFrame);
         }
         channelContext.fireChannelRead(decodedFrame);
+    }
+
+    @Override
+    public ContextualProxyMetrics metrics() {
+        return metrics;
     }
 
 }

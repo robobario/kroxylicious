@@ -10,6 +10,8 @@ import java.util.concurrent.CompletionStage;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.utils.ByteBufferOutputStream;
 
+import io.kroxylicious.proxy.ContextualProxyMetrics;
+
 /**
  * A context to allow filters to interact with other filters and the pipeline.
  */
@@ -60,6 +62,8 @@ public interface KrpcFilterContext {
      * @param response The response to forward to the client.
      */
     void forwardResponse(ApiMessage response);
+
+    ContextualProxyMetrics metrics();
 
     // TODO an API to allow a filter to add/remove another filter from the pipeline
 }

@@ -23,6 +23,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -34,6 +36,7 @@ import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
 import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.handler.ssl.SniCompletionEvent;
 
+import io.kroxylicious.proxy.ContextualProxyMetrics;
 import io.kroxylicious.proxy.filter.KrpcFilter;
 import io.kroxylicious.proxy.filter.NetFilter;
 import io.kroxylicious.proxy.frame.DecodedRequestFrame;
@@ -155,7 +158,17 @@ class KafkaProxyFrontendHandlerTest {
             return null;
         }).when(filter).selectServer(valueCapture.capture());
 
-        var handler = new KafkaProxyFrontendHandler(filter, dp, false, false) {
+        var handler = new KafkaProxyFrontendHandler(filter, dp, false, false, new ContextualProxyMetrics() {
+            @Override
+            public CompositeMeterRegistry getGlobalRegistry() {
+                return Metrics.globalRegistry;
+            }
+
+            @Override
+            public CompositeMeterRegistry getVirtualClusterTagged() {
+                return Metrics.globalRegistry;
+            }
+        }) {
             @Override
             ChannelFuture initConnection(String remoteHost, int remotePort, Bootstrap b) {
                 // This is ugly... basically the EmbeddedChannel doesn't seem to handle the case

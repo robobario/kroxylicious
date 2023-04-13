@@ -70,7 +70,7 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
                            ObjIntConsumer<T> portSetter) {
         String incomingHost = hostGetter.apply(broker);
         int incomingPort = portGetter.applyAsInt(broker);
-
+        context.metrics().getVirtualClusterTagged().counter("broker_address_applications").increment();
         var downstreamAddress = endpointProvider.getBrokerAddress(nodeIdGetter.apply(broker));
 
         LOGGER.trace("{}: Rewriting broker address in response {}:{} -> {}", context, incomingHost, incomingPort, downstreamAddress);
