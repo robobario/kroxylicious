@@ -32,6 +32,26 @@
             <version>${kroxyliciousApi.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.apicurio</groupId>
+            <artifactId>apicurio-registry-schema-validation-jsonschema</artifactId>
+            <version>0.0.4.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>io.apicurio</groupId>
+            <artifactId>apicurio-registry-serdes-jsonschema-serde</artifactId>
+            <version>2.4.2.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>io.apicurio</groupId>
+            <artifactId>apicurio-registry-serde-common</artifactId>
+            <version>2.4.2.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>io.apicurio</groupId>
+            <artifactId>apicurio-registry-schema-resolver</artifactId>
+            <version>2.4.2.Final</version>
+        </dependency>
+        <dependency>
             <groupId>io.kroxylicious</groupId>
             <artifactId>kroxylicious-filter-api</artifactId>
             <version>${kroxyliciousApi.version}</version>
@@ -40,12 +60,12 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-        <!-- Test dependencies -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <scope>test</scope>
+            <scope>runtime</scope>
         </dependency>
+        <!-- Test dependencies -->
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
@@ -82,4 +102,38 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>io.kroxylicious:kroxylicious-filter-api</exclude>
+                                    <exclude>io.kroxylicious:kroxylicious-api</exclude>
+                                    <exclude>org.apache.kafka:*</exclude>
+                                    <exclude>com.fasterxml.jackson*:*</exclude>
+                                    <exclude>org.xerial.snappy:*</exclude>
+                                    <exclude>org.lz4:*</exclude>
+                                    <exclude>io.micrometer:*</exclude>
+                                    <exclude>org.slf4j:*</exclude>
+                                    <exclude>org.hdrhistogram:*</exclude>
+                                    <exclude>org.latencyutils:*</exclude>
+                                </excludes>
+                            </artifactSet>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

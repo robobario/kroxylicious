@@ -6,6 +6,9 @@
 
 package io.kroxylicious.proxy.filter.schema.validation.record;
 
+import org.apache.kafka.common.header.Header;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.apache.kafka.common.record.Record;
 
 import io.kroxylicious.proxy.filter.schema.validation.Result;
@@ -42,6 +45,10 @@ public class KeyAndValueRecordValidator implements RecordValidator {
             return new Result(false, "Value was invalid: " + valueValid.errorMessage());
         }
         return Result.VALID;
+    }
+
+    private Headers toHeaders(Header[] headers) {
+        return new RecordHeaders(headers);
     }
 
     /**

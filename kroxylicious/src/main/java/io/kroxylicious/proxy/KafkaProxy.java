@@ -223,6 +223,7 @@ public final class KafkaProxy implements AutoCloseable, VirtualClusterResolver {
         if (!running.get()) {
             throw new IllegalStateException("This proxy is not running");
         }
+        Thread.sleep(Long.MAX_VALUE);
         while (!acceptorChannels.isEmpty()) {
             Channel channel = acceptorChannels.peek();
             if (channel != null) {

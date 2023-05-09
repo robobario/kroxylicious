@@ -6,6 +6,8 @@
 
 package io.kroxylicious.proxy.filter.schema.validation.bytebuf;
 
+import java.util.Map;
+
 /**
  * Static factory methods for creating/getting ${@link BytebufValidator} instances
  */
@@ -34,6 +36,17 @@ public class BytebufValidators {
      */
     public static BytebufValidator nullEmptyValidator(boolean nullValid, boolean emptyValid, BytebufValidator delegate) {
         return new NullEmptyBytebufValidator(nullValid, emptyValid, delegate);
+    }
+
+    /**
+     * Get validator that validates if a ByteBuf conforms to a JsonSchema stored in an apicurio registry. Currently, it is assumed that
+     * the buffer will contain a magic byte followed by 8 bytes which make up the schema identifier.
+     * @param registryUrl url of the apicurio registry
+     * @param apicurioConfiguration further apicurio configuration, such as security configuration for connections to the registry
+     * @return validator
+     */
+    public static BytebufValidator apicurioJsonSchemaValidator(String registryUrl, Map<String, Object> apicurioConfiguration) {
+        return new ApicurioJsonSchemaBytebufValidator(registryUrl, apicurioConfiguration);
     }
 
     /**

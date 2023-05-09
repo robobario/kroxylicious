@@ -6,8 +6,12 @@
 
 package io.kroxylicious.proxy.filter.schema;
 
+import java.util.Optional;
+
+import io.kroxylicious.proxy.filter.schema.config.ApicurioJsonSchemaConfig;
 import io.kroxylicious.proxy.filter.schema.config.BytebufValidation;
 import io.kroxylicious.proxy.filter.schema.config.RecordValidationRule;
+import io.kroxylicious.proxy.filter.schema.config.SyntacticallyCorrectJsonConfig;
 import io.kroxylicious.proxy.filter.schema.config.ValidationConfig;
 import io.kroxylicious.proxy.filter.schema.validation.bytebuf.BytebufValidator;
 import io.kroxylicious.proxy.filter.schema.validation.bytebuf.BytebufValidators;
@@ -52,8 +56,19 @@ public class ProduceValidationFilterBuilder {
     }
 
     private static BytebufValidator toValidator(BytebufValidation valueRule) {
-        return valueRule.getSyntacticallyCorrectJsonConfig().map(config -> BytebufValidators.jsonSyntaxValidator(config.isValidateObjectKeysUnique()))
-                .orElse(BytebufValidators.allValid());
+        Optional<SyntacticallyCorrectJsonConfig> syntacticallyCorrectJsonConfig = valueRule.getSyntacticallyCorrectJsonConfig();
+        Optional<ApicurioJsonSchemaConfig> jsonSchemaConfig = valueRule.getApicurioJsonSchemaConfig();
+        if (syntacticallyCorrectJsonConfig.isPresent()) {
+            SyntacticallyCorrectJsonConfig config = syntacticallyCorrectJsonConfig.get();
+            return BytebufValidators.jsonSyntaxValidator(config.isValidateObjectKeysUnique());
+        }
+        else if (jsonSchemaConfig.isPresent()) {
+            ApicurioJsonSchemaConfig config = jsonSchemaConfig.get();
+            return BytebufValidators.apicurioJsonSchemaValidator(config.getApicurioRegistryUrl(), config.getRegistryConfiguration());
+        }
+        else {
+            return BytebufValidators.allValid();
+        }
     }
 
 }
