@@ -9,7 +9,6 @@ package io.kroxylicious.proxy.filter.schema.validation.bytebuf;
 import java.nio.ByteBuffer;
 
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -23,8 +22,7 @@ import io.kroxylicious.proxy.filter.schema.validation.Result;
 class JsonSyntaxBytebufValidator implements BytebufValidator {
     private final boolean validateObjectKeysUnique;
 
-    static final ObjectMapper mapper = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-            .enable(DeserializationFeature.FAIL_ON_READING_DUP_TREE_KEY);
+    static final ObjectMapper mapper = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
     JsonSyntaxBytebufValidator(boolean validateObjectKeysUnique) {
         this.validateObjectKeysUnique = validateObjectKeysUnique;
@@ -40,14 +38,11 @@ class JsonSyntaxBytebufValidator implements BytebufValidator {
         }
         byte[] bytes = new byte[size];
         buffer.get(bytes);
-        JsonObjectWatcher watcher = JsonObjectWatcher.NOOP;
-        if (validateObjectKeysUnique) {
-            watcher = new JsonFieldUniquenessWatcher();
-        }
         try (JsonParser parser = mapper.getFactory().createParser(bytes)) {
-            JsonToken token;
-            while ((token = parser.nextToken()) != null) {
-                watcher.onToken(parser, token);
+            if (validateObjectKeysUnique) {
+                parser.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+            }
+            while (parser.nextToken() != null) {
             }
             return Result.VALID;
         }

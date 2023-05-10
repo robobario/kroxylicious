@@ -20,7 +20,6 @@ import io.kroxylicious.proxy.filter.schema.validation.Result;
 import io.kroxylicious.proxy.filter.schema.validation.bytebuf.BytebufValidator;
 import io.kroxylicious.proxy.filter.schema.validation.bytebuf.BytebufValidators;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,7 +48,7 @@ class JsonSyntaxBytebufValidatorTest {
         BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(true);
         Result result = validate(record, validator);
         assertFalse(result.valid());
-        assertEquals("value was not syntactically correct JSON: JSON object at $ contained duplicate key: a", result.errorMessage());
+        assertTrue(result.errorMessage().contains("value was not syntactically correct JSON: Duplicate field"));
     }
 
     @Test
@@ -58,7 +57,7 @@ class JsonSyntaxBytebufValidatorTest {
         BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(true);
         Result result = validate(record, validator);
         assertFalse(result.valid());
-        assertEquals("value was not syntactically correct JSON: JSON object at $.inner contained duplicate key: a", result.errorMessage());
+        assertTrue(result.errorMessage().contains("value was not syntactically correct JSON: Duplicate field"));
     }
 
     @Test
@@ -67,7 +66,7 @@ class JsonSyntaxBytebufValidatorTest {
         BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(true);
         Result result = validate(record, validator);
         assertFalse(result.valid());
-        assertEquals("value was not syntactically correct JSON: JSON object at $[0] contained duplicate key: a", result.errorMessage());
+        assertTrue(result.errorMessage().contains("value was not syntactically correct JSON: Duplicate field"));
     }
 
     @Test
@@ -100,7 +99,7 @@ class JsonSyntaxBytebufValidatorTest {
         BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(true);
         Result result = validate(record, validator);
         assertFalse(result.valid());
-        assertEquals("value was not syntactically correct JSON: JSON object at $[0].a contained duplicate key: a", result.errorMessage());
+        assertTrue(result.errorMessage().contains("value was not syntactically correct JSON: Duplicate field"));
     }
 
     @Test
@@ -109,7 +108,7 @@ class JsonSyntaxBytebufValidatorTest {
         BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(true);
         Result result = validate(record, validator);
         assertFalse(result.valid());
-        assertEquals("value was not syntactically correct JSON: JSON object at $[0][0][0].a.b[3] contained duplicate key: duplicate", result.errorMessage());
+        assertTrue(result.errorMessage().contains("value was not syntactically correct JSON: Duplicate field"));
     }
 
     @Test

@@ -17,7 +17,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * be applied to a ${@link org.apache.kafka.common.record.Record} to validate its contents.
  */
 public class RecordValidationRule {
+
+    /**
+     * rule to apply to record key
+     */
     protected final BytebufValidation keyRule;
+
+    /**
+     * rule to apply to record value
+     */
     protected final BytebufValidation valueRule;
 
     /**
