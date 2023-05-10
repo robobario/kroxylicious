@@ -21,7 +21,7 @@ public class TopicMatchingRecordValidationRule extends RecordValidationRule {
 
     /**
      * Construct a new TopicPatternRecordValidationRule
-     * @param topicNames required topic name regex pattern, topics with names matching this pattern are eligible to have this rule applied to them
+     * @param topicNames required topic names topics with these names are eligible to have this rule applied to them
      * @param keyRule optional validation to apply to Record's key
      * @param valueRule optional validation to apply to Record's value
      */
