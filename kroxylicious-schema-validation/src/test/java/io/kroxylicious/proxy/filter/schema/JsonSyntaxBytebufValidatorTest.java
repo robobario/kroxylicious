@@ -168,6 +168,14 @@ class JsonSyntaxBytebufValidatorTest {
     }
 
     @Test
+    public void testKeyValidated() {
+        Record record = createRecord("\"abc\"", "123");
+        BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(true);
+        Result result = validator.validate(record.key(), record.keySize());
+        assertTrue(result.valid());
+    }
+
+    @Test
     public void testEmptyStringThrows() {
         Record record = createRecord("a", "");
         BytebufValidator validator = BytebufValidators.jsonSyntaxValidator(false);

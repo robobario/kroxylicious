@@ -6,7 +6,10 @@
 
 package io.kroxylicious.proxy.filter.schema.validation.bytebuf;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
+
+import org.apache.kafka.common.utils.ByteBufferInputStream;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -36,9 +39,8 @@ class JsonSyntaxBytebufValidator implements BytebufValidator {
         if (size < 1) {
             throw new IllegalArgumentException("size is less than 1");
         }
-        byte[] bytes = new byte[size];
-        buffer.get(bytes);
-        try (JsonParser parser = mapper.getFactory().createParser(bytes)) {
+        try (InputStream inputStream = new ByteBufferInputStream(buffer);
+                JsonParser parser = mapper.getFactory().createParser(inputStream)) {
             if (validateObjectKeysUnique) {
                 parser.enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
             }
