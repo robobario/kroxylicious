@@ -33,11 +33,11 @@ public class KeyAndValueRecordValidator implements RecordValidator {
 
     @Override
     public Result validate(Record record) {
-        Result keyValid = keyValidator.validate(record.key(), record.keySize());
+        Result keyValid = keyValidator.validate(record.key(), record.keySize(), record, true);
         if (!keyValid.valid()) {
             return new Result(false, "Key was invalid: " + keyValid.errorMessage());
         }
-        Result valueValid = valueValidator.validate(record.value(), record.valueSize());
+        Result valueValid = valueValidator.validate(record.value(), record.valueSize(), record, false);
         if (!valueValid.valid()) {
             return new Result(false, "Value was invalid: " + valueValid.errorMessage());
         }

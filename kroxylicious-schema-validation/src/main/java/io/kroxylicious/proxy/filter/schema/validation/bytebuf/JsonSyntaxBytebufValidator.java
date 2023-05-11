@@ -9,6 +9,7 @@ package io.kroxylicious.proxy.filter.schema.validation.bytebuf;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
+import org.apache.kafka.common.record.Record;
 import org.apache.kafka.common.utils.ByteBufferInputStream;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -32,7 +33,7 @@ class JsonSyntaxBytebufValidator implements BytebufValidator {
     }
 
     @Override
-    public Result validate(ByteBuffer buffer, int size) {
+    public Result validate(ByteBuffer buffer, int size, Record record, boolean isKey) {
         if (buffer == null) {
             throw new IllegalArgumentException("buffer is null");
         }

@@ -8,6 +8,8 @@ package io.kroxylicious.proxy.filter.schema.validation.bytebuf;
 
 import java.nio.ByteBuffer;
 
+import org.apache.kafka.common.record.Record;
+
 import io.kroxylicious.proxy.filter.schema.validation.Result;
 
 class NullEmptyBytebufValidator implements BytebufValidator {
@@ -26,14 +28,14 @@ class NullEmptyBytebufValidator implements BytebufValidator {
     }
 
     @Override
-    public Result validate(ByteBuffer buffer, int length) {
+    public Result validate(ByteBuffer buffer, int length, Record record, boolean isKey) {
         if (buffer == null) {
             return result(nullValid, "Null buffer invalid");
         }
         else if (length == 0) {
             return result(emptyValid, "Empty buffer invalid");
         }
-        return delegate.validate(buffer, length);
+        return delegate.validate(buffer, length, record, isKey);
     }
 
     private Result result(boolean allowed, String message) {

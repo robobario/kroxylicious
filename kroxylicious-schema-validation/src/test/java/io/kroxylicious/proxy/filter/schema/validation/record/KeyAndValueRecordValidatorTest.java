@@ -21,8 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class KeyAndValueRecordValidatorTest {
 
     public static final String FAIL_MESSAGE = "fail";
-    public static final BytebufValidator INVALID = (buffer, length) -> new Result(false, FAIL_MESSAGE);
-    public static final BytebufValidator VALID = (buffer, length) -> Result.VALID;
+    public static final BytebufValidator INVALID = (buffer, length, record, isKey) -> new Result(false, FAIL_MESSAGE);
+    public static final BytebufValidator VALID = (buffer, length, record, isKey) -> Result.VALID;
 
     @Test
     void testInvalidKey() {
