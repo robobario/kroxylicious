@@ -44,19 +44,21 @@ class DefaultFilterContext implements KrpcFilterContext {
     private final KrpcFilter filter;
     private final long timeoutMs;
     private final String sniHostname;
+    private final CompletableFuture<Void> last;
 
     DefaultFilterContext(KrpcFilter filter,
                          ChannelHandlerContext channelContext,
                          DecodedFrame<?, ?> decodedFrame,
                          ChannelPromise promise,
                          long timeoutMs,
-                         String sniHostname) {
+                         String sniHostname, CompletableFuture<Void> last) {
         this.filter = filter;
         this.channelContext = channelContext;
         this.decodedFrame = decodedFrame;
         this.promise = promise;
         this.timeoutMs = timeoutMs;
         this.sniHostname = sniHostname;
+        this.last = last;
     }
 
     /**
@@ -96,14 +98,17 @@ class DefaultFilterContext implements KrpcFilterContext {
     @Override
     public void forwardRequest(RequestHeaderData header, ApiMessage message) {
         if (decodedFrame.body() != message) {
+            last.complete(null);
             throw new IllegalStateException();
         }
         if (decodedFrame.header() != header) {
+            last.complete(null);
             throw new IllegalStateException();
         }
         // check it's a request
         String name = message.getClass().getName();
         if (!name.endsWith("RequestData")) {
+            last.complete(null);
             throw new AssertionError("Attempt to use forwardRequest with a non-request: " + name);
         }
 
@@ -112,6 +117,7 @@ class DefaultFilterContext implements KrpcFilterContext {
         }
         // TODO check we've not forwarded it already
         channelContext.write(decodedFrame, promise);
+        last.complete(null);
     }
 
     @Override
@@ -164,6 +170,8 @@ class DefaultFilterContext implements KrpcFilterContext {
             LOGGER.debug("{}: Timing out {} request after {}ms", channelContext, apiKey, timeoutMs);
             filterPromise.completeExceptionally(new TimeoutException());
         }, timeoutMs, TimeUnit.MILLISECONDS);
+
+        last.complete(null);
         return filterStage;
     }
 
@@ -180,6 +188,7 @@ class DefaultFilterContext implements KrpcFilterContext {
         try {
             String name = response.getClass().getName();
             if (!name.endsWith("ResponseData")) {
+                last.complete(null);
                 throw new AssertionError("Attempt to use forwardResponse with a non-response: " + name);
             }
             if (decodedFrame instanceof RequestFrame) {
@@ -188,9 +197,11 @@ class DefaultFilterContext implements KrpcFilterContext {
             else {
                 // TODO check we've not forwarded it already
                 if (decodedFrame.body() != response) {
+                    last.complete(null);
                     throw new AssertionError();
                 }
                 if (decodedFrame.header() != header) {
+                    last.complete(null);
                     throw new AssertionError();
                 }
                 if (LOGGER.isDebugEnabled()) {
@@ -205,6 +216,7 @@ class DefaultFilterContext implements KrpcFilterContext {
                 channelContext.fireChannelReadComplete();
             }
         }
+        last.complete(null);
     }
 
     @Override
@@ -222,7 +234,7 @@ class DefaultFilterContext implements KrpcFilterContext {
         // TODO increment an error metric.
         LOGGER.warn("Channel {} closed by filter {}", this.channelContext.channel(), this.filter, t);
         this.channelContext.fireExceptionCaught(t);
-
+        last.complete(null);
     }
 
     /**
@@ -235,6 +247,7 @@ class DefaultFilterContext implements KrpcFilterContext {
      */
     private void forwardShortCircuitResponse(ResponseHeaderData header, ApiMessage response) {
         if (response.apiKey() != decodedFrame.apiKey().id) {
+            last.complete(null);
             throw new AssertionError(
                     "Attempt to respond with ApiMessage of type " + ApiKeys.forId(response.apiKey()) + " but request is of type " + decodedFrame.apiKey());
         }
@@ -245,6 +258,7 @@ class DefaultFilterContext implements KrpcFilterContext {
         channelContext.fireChannelRead(responseFrame);
         // required to flush the message back to the client
         channelContext.fireChannelReadComplete();
+        last.complete(null);
     }
 
 }
