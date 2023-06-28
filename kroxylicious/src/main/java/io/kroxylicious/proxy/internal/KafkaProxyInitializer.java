@@ -31,10 +31,12 @@ import io.kroxylicious.proxy.filter.FilterAndInvoker;
 import io.kroxylicious.proxy.internal.codec.KafkaRequestDecoder;
 import io.kroxylicious.proxy.internal.codec.KafkaResponseEncoder;
 import io.kroxylicious.proxy.internal.filter.BrokerAddressFilter;
+import io.kroxylicious.proxy.internal.filter.MetadataAndCloseFilter;
 import io.kroxylicious.proxy.internal.net.Endpoint;
 import io.kroxylicious.proxy.internal.net.EndpointReconciler;
 import io.kroxylicious.proxy.internal.net.VirtualClusterBinding;
 import io.kroxylicious.proxy.internal.net.VirtualClusterBindingResolver;
+import io.kroxylicious.proxy.internal.net.VirtualClusterBrokerBinding;
 
 public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
 
@@ -172,7 +174,16 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
 
             var filters = new ArrayList<>(filterChainFactory.createFilters());
             // Add internal filters.
-            filters.addAll(FilterAndInvoker.build(new BrokerAddressFilter(virtualCluster, endpointReconciler)));
+            var isUninitialized = false;
+            if (binding instanceof VirtualClusterBrokerBinding vcbb) {
+                isUninitialized = vcbb.uninitializedBrokers();
+            }
+            if (!isUninitialized) {
+                filters.addAll(FilterAndInvoker.build(new BrokerAddressFilter(virtualCluster, endpointReconciler)));
+            }
+            else {
+                filters.addAll(FilterAndInvoker.build(new MetadataAndCloseFilter(virtualCluster, endpointReconciler)));
+            }
 
             var target = binding.upstreamTarget();
             if (target == null) {

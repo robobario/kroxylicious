@@ -20,6 +20,8 @@ import io.kroxylicious.proxy.config.BaseConfig;
 import io.kroxylicious.proxy.service.ClusterNetworkAddressConfigProvider;
 import io.kroxylicious.proxy.service.HostPort;
 
+import static java.util.stream.Collectors.toSet;
+
 /**
  * A ClusterNetworkAddressConfigProvider implementation that uses a separate port per broker endpoint.
  * <br/>
@@ -89,6 +91,11 @@ public class PortPerBrokerClusterNetworkAddressConfigProvider implements Cluster
     @Override
     public Set<Integer> getExclusivePorts() {
         return this.exclusivePorts;
+    }
+
+    @Override
+    public Set<Integer> prebindBrokerIds() {
+        return IntStream.range(0, numberOfBrokerPorts).boxed().collect(toSet());
     }
 
     /**

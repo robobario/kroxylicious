@@ -55,7 +55,7 @@ import io.kroxylicious.proxy.service.HostPort;
  *    <li>The registry provides an {@link VirtualClusterBindingResolver}.  The {@link VirtualClusterBindingResolver#resolve(Endpoint, String)} method accepts
  * connection metadata (port, SNI etc) and resolves this to a @{@link VirtualClusterBootstrapBinding}.  This allows
  * Kroxylicious to determine the destination of any incoming connection.</li>
- *    <li>The registry provides a {@link EndpointReconciler}. The {@link EndpointReconciler#reconcile(VirtualCluster, Map)} method accepts a map describing
+ *    <li>The registry provides a {@link EndpointReconciler}. The {@link EndpointReconciler#reconcile(VirtualCluster, Map, boolean)} method accepts a map describing
  *    the target cluster's broker topology.  The job of the reconciler is to make adjustments to the network bindings (binding/unbinding ports) to
  *    fully expose the brokers of the target cluster through the virtual cluster.</li>
  * </ul>
@@ -94,10 +94,11 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
 
     private record SniRoutingKey(String sniHostname) implements RoutingKey {
 
-    private SniRoutingKey(String sniHostname) {
+        private SniRoutingKey(String sniHostname) {
             Objects.requireNonNull(sniHostname);
             this.sniHostname = sniHostname.toLowerCase(Locale.ROOT);
-        }}
+        }
+    }
 
     protected static final AttributeKey<Map<RoutingKey, VirtualClusterBinding>> CHANNEL_BINDINGS = AttributeKey.newInstance("channelBindings");
 
@@ -107,26 +108,28 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
             Objects.requireNonNull(reconciliationStage);
         }
 
-    public static ReconciliationRecord createEmptyReconcileRecord() {
+        public static ReconciliationRecord createEmptyReconcileRecord() {
             return ReconciliationRecord.createReconcileRecord(Map.of(), CompletableFuture.completedStage(null));
         }
 
-    private static ReconciliationRecord createReconcileRecord(Map<Integer, HostPort> upstreamNodeMap, CompletionStage<Void> future) {
+        private static ReconciliationRecord createReconcileRecord(Map<Integer, HostPort> upstreamNodeMap, CompletionStage<Void> future) {
             return new ReconciliationRecord(upstreamNodeMap, future);
         }
 
     }
 
-    private record VirtualClusterRecord(CompletionStage<Endpoint> registrationStage, AtomicReference<ReconciliationRecord> reconciliationRecord, AtomicReference<CompletionStage<Void>> deregistrationStage) {
+    private record VirtualClusterRecord(CompletionStage<Endpoint> registrationStage, AtomicReference<ReconciliationRecord> reconciliationRecord,
+                                        AtomicReference<CompletionStage<Void>> deregistrationStage) {
         private VirtualClusterRecord {
             Objects.requireNonNull(registrationStage);
             Objects.requireNonNull(reconciliationRecord);
             Objects.requireNonNull(deregistrationStage);
         }
 
-    private static VirtualClusterRecord create(CompletionStage<Endpoint> stage) {
-        return new VirtualClusterRecord(stage, new AtomicReference<>(), new AtomicReference<>());
-    }}
+        private static VirtualClusterRecord create(CompletionStage<Endpoint> stage) {
+            return new VirtualClusterRecord(stage, new AtomicReference<>(), new AtomicReference<>());
+        }
+    }
 
     /** Registry of virtual clusters that have been registered */
     private final Map<VirtualCluster, VirtualClusterRecord> registeredVirtualClusters = new ConcurrentHashMap<>();
@@ -137,9 +140,10 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
             Objects.requireNonNull(unbindingStage);
         }
 
-    public static ListeningChannelRecord create(CompletionStage<Channel> stage) {
+        public static ListeningChannelRecord create(CompletionStage<Channel> stage) {
             return new ListeningChannelRecord(stage, new AtomicReference<>());
-        }}
+        }
+    }
 
     /** Registry of endpoints and their underlying Netty Channel */
     private final Map<Endpoint, ListeningChannelRecord> listeningChannels = new ConcurrentHashMap<>();
@@ -180,6 +184,16 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
 
         vcr.reconciliationRecord().set(ReconciliationRecord.createEmptyReconcileRecord());
 
+        // prebind all broker ids to the bootstrap address
+        if (!virtualCluster.prebindBrokerIds().isEmpty()) {
+            bootstrapEndpointFuture = bootstrapEndpointFuture.thenCompose(endpoint -> {
+                CompletionStage<Void> reconcile = reconcile(virtualCluster,
+                        virtualCluster.prebindBrokerIds().stream().collect(Collectors.toMap(o -> o, o -> upstreamBootstrap)), true);
+                return reconcile.thenApply(unused -> endpoint);
+            });
+        }
+
+        CompletableFuture<Endpoint> finalBootstrapEndpointFuture = bootstrapEndpointFuture;
         var unused = bootstrapEndpointFuture.whenComplete((u, t) -> {
             var future = vcr.registrationStage.toCompletableFuture();
             if (t != null) {
@@ -197,7 +211,7 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
             }
             else {
                 try {
-                    future.complete(bootstrapEndpointFuture.get());
+                    future.complete(finalBootstrapEndpointFuture.get());
                 }
                 catch (Throwable t1) {
                     future.completeExceptionally(t1);
@@ -258,12 +272,13 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
     /**
      * Reconciles the current set of bindings for this virtual cluster against those required by the current set of nodes.
      *
-     * @param virtualCluster virtual cluster
-     * @param upstreamNodes  current map of node id to upstream host ports
+     * @param virtualCluster       virtual cluster
+     * @param upstreamNodes        current map of node id to upstream host ports
+     * @param uninitializedBrokers
      * @return CompletionStage yielding true if binding alterations were made, or false otherwise.
      */
     @Override
-    public CompletionStage<Void> reconcile(VirtualCluster virtualCluster, Map<Integer, HostPort> upstreamNodes) {
+    public CompletionStage<Void> reconcile(VirtualCluster virtualCluster, Map<Integer, HostPort> upstreamNodes, boolean uninitializedBrokers) {
         Objects.requireNonNull(virtualCluster, "virtualCluster cannot be null");
         Objects.requireNonNull(upstreamNodes, "upstreamNodes cannot be null");
 
@@ -296,7 +311,7 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
                 var cand = ReconciliationRecord.createReconcileRecord(upstreamNodes, new CompletableFuture<>());
                 if (vcr.reconciliationRecord().compareAndSet(rec, cand)) {
                     // reconcile - work out which bindings are to be registered and which are to be removed.
-                    doReconcile(virtualCluster, upstreamNodes, cand.reconciliationStage().toCompletableFuture(), vcr);
+                    doReconcile(virtualCluster, upstreamNodes, cand.reconciliationStage().toCompletableFuture(), vcr, uninitializedBrokers);
                     return cand.reconciliationStage();
                 }
                 else if ((updated = vcr.reconciliationRecord().get()).upstreamNodeMap().equals(upstreamNodes)) {
@@ -305,16 +320,16 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
                 }
                 else {
                     // another thread has since reconciled to a different set of nodes.
-                    return reconcile(virtualCluster, upstreamNodes);
+                    return reconcile(virtualCluster, upstreamNodes, uninitializedBrokers);
                 }
             });
         }
     }
 
-    private void doReconcile(VirtualCluster virtualCluster, Map<Integer, HostPort> upstreamNodes, CompletableFuture<Void> future, VirtualClusterRecord vcr) {
+    private void doReconcile(VirtualCluster virtualCluster, Map<Integer, HostPort> upstreamNodes, CompletableFuture<Void> future, VirtualClusterRecord vcr, boolean uninitializedBrokers) {
         var bindingAddress = virtualCluster.getBindAddress();
 
-        var creations = upstreamNodes.entrySet().stream().map(e -> new VirtualClusterBrokerBinding(virtualCluster, e.getValue(), e.getKey()))
+        var creations = upstreamNodes.entrySet().stream().map(e -> new VirtualClusterBrokerBinding(virtualCluster, e.getValue(), e.getKey(), uninitializedBrokers))
                 .collect(Collectors.toCollection(ConcurrentHashMap::newKeySet));
 
         // first assemble the stream of de-registrations (and by side effect: update creations)
@@ -340,11 +355,11 @@ public class EndpointRegistry implements EndpointReconciler, VirtualClusterBindi
 
         // chain any binding registrations and organise for the reconciliations entry to complete
         var unused = deregs.thenCompose(u1 -> allOfStage(creations.stream()
-                .map(vcbb -> {
-                    var brokerAddress = virtualCluster.getBrokerAddress(vcbb.nodeId());
-                    var endpoint = Endpoint.createEndpoint(bindingAddress, brokerAddress.port(), virtualCluster.isUseTls());
-                    return registerBinding(endpoint, brokerAddress.host(), vcbb);
-                })))
+                        .map(vcbb -> {
+                            var brokerAddress = virtualCluster.getBrokerAddress(vcbb.nodeId());
+                            var endpoint = Endpoint.createEndpoint(bindingAddress, brokerAddress.port(), virtualCluster.isUseTls());
+                            return registerBinding(endpoint, brokerAddress.host(), vcbb);
+                        })))
                 .whenComplete((u2, t) -> {
                     if (t != null) {
                         // if the reconciliation fails, we want to retry the next time a caller reconciles the same set of brokers.

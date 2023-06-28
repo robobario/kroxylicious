@@ -6,6 +6,7 @@
 package io.kroxylicious.proxy.model;
 
 import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -150,5 +151,9 @@ public class VirtualCluster implements ClusterNetworkAddressConfigProvider {
 
     public Optional<SslContext> getUpstreamSslContext() {
         return upstreamSslContext;
+    }
+
+    public Set<Integer> prebindBrokerIds() {
+        return clusterNetworkAddressConfigProvider.prebindBrokerIds();
     }
 }
