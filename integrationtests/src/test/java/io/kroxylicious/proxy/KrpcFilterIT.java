@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.kroxylicious.proxy.config.ConfigurationBuilder;
 import io.kroxylicious.proxy.config.FilterDefinitionBuilder;
 import io.kroxylicious.proxy.filter.CreateTopicRejectFilter;
 import io.kroxylicious.proxy.internal.filter.ByteBufferTransformation;
@@ -133,11 +134,12 @@ public class KrpcFilterIT {
 
     @Test
     public void shouldPassThroughRecordUnchanged(KafkaCluster cluster, Admin admin) throws Exception {
-        var proxyAddress = HostPort.parse("localhost:9192");
-
         admin.createTopics(List.of(new NewTopic(TOPIC_1, 1, (short) 1))).all().get();
 
-        try (var tester = kroxyliciousTester(withDefaultFilters(proxy(cluster)));
+        ConfigurationBuilder builder = proxy(cluster);
+        builder.addToFilters(new FilterDefinitionBuilder("SendAdditionalMetadataRequests").build());
+        builder.addToFilters(new FilterDefinitionBuilder("FixedClientId").withConfig("clientId", "fixed").build());
+        try (var tester = kroxyliciousTester(builder);
                 var producer = tester.producer(Map.of(CLIENT_ID_CONFIG, "shouldPassThroughRecordUnchanged", DELIVERY_TIMEOUT_MS_CONFIG, 3_600_000));
                 var consumer = tester.consumer()) {
             producer.send(new ProducerRecord<>(TOPIC_1, "my-key", "Hello, world!")).get();

@@ -12,6 +12,7 @@ public class TestFilterContributor extends BaseContributor<KrpcFilter> implement
 
     public static final BaseContributorBuilder<KrpcFilter> FILTERS = BaseContributor.<KrpcFilter> builder()
             .add("FixedClientId", FixedClientIdFilter.FixedClientIdFilterConfig.class, FixedClientIdFilter::new)
+            .add("SendAdditionalMetadataRequests", SendAdditionalMetadataRequestFilter::new)
             .add("CompositePrefixingFixedClientId", CompositePrefixingFixedClientIdFilterConfig.class, CompositePrefixingFixedClientIdFilter::new)
             .add("CreateTopicRejectFilter", CreateTopicRejectFilter::new);
 
