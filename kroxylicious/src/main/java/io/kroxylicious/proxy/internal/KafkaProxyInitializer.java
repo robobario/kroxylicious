@@ -30,6 +30,7 @@ import io.kroxylicious.proxy.config.Configuration;
 import io.kroxylicious.proxy.filter.FilterAndInvoker;
 import io.kroxylicious.proxy.internal.codec.KafkaRequestDecoder;
 import io.kroxylicious.proxy.internal.codec.KafkaResponseEncoder;
+import io.kroxylicious.proxy.internal.filter.ApiVersionsFilter;
 import io.kroxylicious.proxy.internal.filter.BrokerAddressFilter;
 import io.kroxylicious.proxy.internal.net.Endpoint;
 import io.kroxylicious.proxy.internal.net.EndpointReconciler;
@@ -171,6 +172,9 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
             var filterChainFactory = new FilterChainFactory(config);
 
             var filters = new ArrayList<>(filterChainFactory.createFilters());
+            if (!dp.isAuthenticationOffloadEnabled()) {
+                filters.addAll(0, FilterAndInvoker.build(new ApiVersionsFilter()));
+            }
             // Add internal filters.
             filters.addAll(FilterAndInvoker.build(new BrokerAddressFilter(virtualCluster, endpointReconciler)));
 
