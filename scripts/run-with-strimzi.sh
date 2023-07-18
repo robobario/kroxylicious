@@ -28,7 +28,7 @@ function cleanTmpDir {
 }
 trap cleanTmpDir EXIT
 
-if [[ -z "${QUAY_ORG}" ]]; then
+if ! [ -v QUAY_ORG ]; then
   echo "Please set QUAY_ORG, exiting"
   exit 1
 fi
