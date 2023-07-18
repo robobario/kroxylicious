@@ -21,7 +21,7 @@ resolveCommand () {
   fi
 }
 
-if [[ -z ${CONTAINER_ENGINE+x}  ]]; then
+if [[ -z ${CONTAINER_ENGINE+x} ]]; then
   echo "Setting CONTAINER_ENGINE to default: docker"
   CONTAINER_ENGINE=$(resolveCommand docker)
   export CONTAINER_ENGINE
