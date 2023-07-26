@@ -5,6 +5,8 @@
  */
 package io.kroxylicious.proxy.example.authn;
 
+import java.util.concurrent.CompletionStage;
+
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.message.SaslAuthenticateRequestData;
@@ -13,7 +15,9 @@ import org.apache.kafka.common.message.SaslHandshakeRequestData;
 import org.apache.kafka.common.message.SaslHandshakeResponseData;
 import org.apache.kafka.common.protocol.Errors;
 
+import io.kroxylicious.proxy.filter.FilterResult;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
+import io.kroxylicious.proxy.filter.ResponseFilterResult;
 import io.kroxylicious.proxy.filter.SaslAuthenticateRequestFilter;
 import io.kroxylicious.proxy.filter.SaslAuthenticateResponseFilter;
 import io.kroxylicious.proxy.filter.SaslHandshakeRequestFilter;
@@ -31,28 +35,28 @@ public class SaslAuthnObserver
     private long sessionLifetimeMs;
 
     @Override
-    public void onSaslHandshakeRequest(short apiVersion,
-                                       RequestHeaderData header,
-                                       SaslHandshakeRequestData request,
-                                       KrpcFilterContext context) {
+    public CompletionStage<? extends FilterResult> onSaslHandshakeRequest(short apiVersion,
+                                                                          RequestHeaderData header,
+                                                                          SaslHandshakeRequestData request,
+                                                                          KrpcFilterContext context) {
         this.mechanism = request.mechanism();
-        context.forwardRequest(header, request);
+        return context.completedForwardRequest(header, request);
     }
 
     @Override
-    public void onSaslHandshakeResponse(short apiVersion, ResponseHeaderData header, SaslHandshakeResponseData response,
-                                        KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult> onSaslHandshakeResponse(short apiVersion, ResponseHeaderData header, SaslHandshakeResponseData response,
+                                                                         KrpcFilterContext context) {
         if (response.errorCode() != Errors.NONE.code()) {
             this.mechanism = null;
         }
-        context.forwardResponse(header, response);
+        return context.completedForwardResponse(header, response);
     }
 
     @Override
-    public void onSaslAuthenticateRequest(short apiVersion,
-                                          RequestHeaderData header,
-                                          SaslAuthenticateRequestData request,
-                                          KrpcFilterContext context) {
+    public CompletionStage<? extends FilterResult> onSaslAuthenticateRequest(short apiVersion,
+                                                                             RequestHeaderData header,
+                                                                             SaslAuthenticateRequestData request,
+                                                                             KrpcFilterContext context) {
         byte[] bytes = request.authBytes();
         switch (mechanism) {
             case "PLAIN":
@@ -65,12 +69,12 @@ public class SaslAuthnObserver
                 principalName = "baz";
                 break;
         }
-        context.forwardRequest(header, request);
+        return context.completedForwardRequest(header, request);
     }
 
     @Override
-    public void onSaslAuthenticateResponse(short apiVersion, ResponseHeaderData header, SaslAuthenticateResponseData response,
-                                           KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult> onSaslAuthenticateResponse(short apiVersion, ResponseHeaderData header, SaslAuthenticateResponseData response,
+                                                                            KrpcFilterContext context) {
         if (response.errorCode() == Errors.NONE.code()) {
             authenticated = true;
             sessionLifetimeMs = response.sessionLifetimeMs();
@@ -81,7 +85,7 @@ public class SaslAuthnObserver
         // response.authBytes();
         // response.errorCode();
         // response.errorMessage();
-        context.forwardResponse(header, response);
+        return context.completedForwardResponse(header, response);
     }
 
 }

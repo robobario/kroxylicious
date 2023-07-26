@@ -5,6 +5,8 @@
  */
 package io.kroxylicious.proxy.example.topicencryption;
 
+import java.util.concurrent.CompletionStage;
+
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.ProduceRequestData;
@@ -12,8 +14,10 @@ import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
 
 import io.kroxylicious.proxy.filter.FetchResponseFilter;
+import io.kroxylicious.proxy.filter.FilterResult;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.ProduceRequestFilter;
+import io.kroxylicious.proxy.filter.ResponseFilterResult;
 
 public class TopicEncryption implements ProduceRequestFilter, FetchResponseFilter {
 
@@ -21,21 +25,21 @@ public class TopicEncryption implements ProduceRequestFilter, FetchResponseFilte
     // but other filters will be interested in keeping track of metadata
 
     @Override
-    public void onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request, KrpcFilterContext context) {
+    public CompletionStage<? extends FilterResult> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request, KrpcFilterContext context) {
         boolean fragmented = false;
         if (fragmented) {
             // TODO forward the fragments
             // TODO context.forwardRequest();
             // drop the original message
-            return;
+            throw new IllegalStateException("FIXME");
         }
         else {
-            context.forwardRequest(header, request);
+            return context.completedForwardRequest(header, request);
         }
     }
 
     @Override
-    public void onFetchResponse(short apiVersion, ResponseHeaderData header, FetchResponseData response, KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult> onFetchResponse(short apiVersion, ResponseHeaderData header, FetchResponseData response, KrpcFilterContext context) {
         for (var topicResponse : response.responses()) {
             String topicName = topicResponse.topic();
             if (topicName == null) {
@@ -43,7 +47,7 @@ public class TopicEncryption implements ProduceRequestFilter, FetchResponseFilte
             }
             // TODO the rest of it
         }
-        context.forwardResponse(header, response);
+        return context.completedForwardResponse(header, response);
     }
 
     private String lookupTopic(Uuid topicId) {

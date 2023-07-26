@@ -7,6 +7,7 @@ package io.kroxylicious.proxy.example.topicname;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletionStage;
 
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.CreateTopicsResponseData;
@@ -18,6 +19,7 @@ import io.kroxylicious.proxy.filter.CreateTopicsResponseFilter;
 import io.kroxylicious.proxy.filter.DeleteTopicsResponseFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.MetadataResponseFilter;
+import io.kroxylicious.proxy.filter.ResponseFilterResult;
 
 /**
  * Maintains a local mapping of topic id to topic name
@@ -28,7 +30,8 @@ public class TopicNameFilter
     private final Map<Uuid, String> topicNames = new HashMap<>();
 
     @Override
-    public void onMetadataResponse(short apiVersion, ResponseHeaderData header, MetadataResponseData response, KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult> onMetadataResponse(short apiVersion, ResponseHeaderData header, MetadataResponseData response,
+                                                                    KrpcFilterContext context) {
         if (response.topics() != null) {
             for (var topic : response.topics()) {
                 topicNames.put(topic.topicId(), topic.name());
@@ -36,24 +39,26 @@ public class TopicNameFilter
         }
         // TODO how can we expose this state to other filters?
         // TODO filterContext.put("topicNames", topicNames);
-        context.forwardResponse(header, response);
+        return context.completedForwardResponse(header, response);
     }
 
     // We don't implement DeleteTopicsRequestFilter because we don't know whether
     // a delete topics request will succeed.
     @Override
-    public void onDeleteTopicsResponse(short apiVersion, ResponseHeaderData header, DeleteTopicsResponseData response, KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult> onDeleteTopicsResponse(short apiVersion, ResponseHeaderData header, DeleteTopicsResponseData response,
+                                                                        KrpcFilterContext context) {
         for (var resp : response.responses()) {
             topicNames.remove(resp.topicId());
         }
-        context.forwardResponse(header, response);
+        return context.completedForwardResponse(header, response);
     }
 
     @Override
-    public void onCreateTopicsResponse(short apiVersion, ResponseHeaderData header, CreateTopicsResponseData response, KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult> onCreateTopicsResponse(short apiVersion, ResponseHeaderData header, CreateTopicsResponseData response,
+                                                                        KrpcFilterContext context) {
         for (var topic : response.topics()) {
             topicNames.put(topic.topicId(), topic.name());
         }
-        context.forwardResponse(header, response);
+        return context.completedForwardResponse(header, response);
     }
 }
