@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.internal;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.slf4j.Logger;
@@ -77,7 +79,12 @@ public class FilterHandler extends ChannelDuplexHandler {
             }
 
             var stage = invoker.onRequest(decodedFrame.apiKey(), decodedFrame.apiVersion(), decodedFrame.header(),
-                    decodedFrame.body(), filterContext);
+                    decodedFrame.body(), filterContext).toCompletableFuture();
+            if (!stage.isDone()) {
+                ctx.executor().schedule(() -> {
+                    stage.completeExceptionally(new TimeoutException());
+                }, timeoutMs, TimeUnit.MILLISECONDS);
+            }
             return stage.whenComplete((filterResult, t) -> {
                 // maybe better to run the whole thing on the netty thread.
 
@@ -100,7 +107,6 @@ public class FilterHandler extends ChannelDuplexHandler {
                 if (filterResult.closeConnection()) {
                     filterContext.closeConnection();
                 }
-
             }).toCompletableFuture().thenApply(filterResult -> null);
 
         }
@@ -148,8 +154,12 @@ public class FilterHandler extends ChannelDuplexHandler {
                         ctx.channel(), decodedFrame.apiKey(), filterDescriptor(), msg);
             }
             var stage = invoker.onResponse(decodedFrame.apiKey(), decodedFrame.apiVersion(),
-                    decodedFrame.header(), decodedFrame.body(), filterContext);
-
+                    decodedFrame.header(), decodedFrame.body(), filterContext).toCompletableFuture();
+            if (!stage.isDone()) {
+                ctx.executor().schedule(() -> {
+                    stage.completeExceptionally(new TimeoutException());
+                }, timeoutMs, TimeUnit.MILLISECONDS);
+            }
             return stage.whenComplete((rfr, t) -> {
                 if (t != null) {
                     filterContext.closeConnection();
@@ -163,7 +173,7 @@ public class FilterHandler extends ChannelDuplexHandler {
                     filterContext.closeConnection();
                 }
 
-            }).toCompletableFuture().thenApply(responseFilterResult -> null);
+            }).thenApply(responseFilterResult -> null);
         }
         else {
             if (!(msg instanceof OpaqueResponseFrame)) {
