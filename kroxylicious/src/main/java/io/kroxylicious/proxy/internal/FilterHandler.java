@@ -85,8 +85,8 @@ public class FilterHandler extends ChannelDuplexHandler {
             var stage = invoker.onRequest(decodedFrame.apiKey(), decodedFrame.apiVersion(), decodedFrame.header(),
                     decodedFrame.body(), filterContext).toCompletableFuture();
             var withTimeout = handleDeferredStage(ctx, stage);
-            return withTimeout.whenComplete((filterResult, t) -> {
-                // maybe better to run the whole thing on the netty thread.
+            var onNettyThread = switchBackToNettyIfRequired(ctx, withTimeout);
+            return onNettyThread.whenComplete((filterResult, t) -> {
 
                 if (t != null) {
                     filterContext.closeConnection();
@@ -120,6 +120,24 @@ public class FilterHandler extends ChannelDuplexHandler {
             ctx.write(msg, promise);
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    private <T> CompletableFuture<T> switchBackToNettyIfRequired(ChannelHandlerContext ctx, CompletableFuture<T> future) {
+        if (ctx.executor().inEventLoop()) {
+            return future;
+        }
+        CompletableFuture<T> nettyDrivenFuture = new CompletableFuture<>();
+        future.whenComplete((t, throwable) -> {
+            ctx.executor().execute(() -> {
+                if (throwable != null) {
+                    nettyDrivenFuture.completeExceptionally(throwable);
+                }
+                else {
+                    nettyDrivenFuture.complete(t);
+                }
+            });
+        });
+        return nettyDrivenFuture;
     }
 
     private <T extends FilterResult> CompletableFuture<T> handleDeferredStage(ChannelHandlerContext ctx, CompletableFuture<T> stage) {
@@ -172,7 +190,8 @@ public class FilterHandler extends ChannelDuplexHandler {
             var stage = invoker.onResponse(decodedFrame.apiKey(), decodedFrame.apiVersion(),
                     decodedFrame.header(), decodedFrame.body(), filterContext).toCompletableFuture();
             var withTimeout = handleDeferredStage(ctx, stage);
-            return withTimeout.whenComplete((rfr, t) -> {
+            var onNettyThread = switchBackToNettyIfRequired(ctx, withTimeout);
+            return onNettyThread.whenComplete((rfr, t) -> {
                 if (t != null) {
                     filterContext.closeConnection();
                     return;
