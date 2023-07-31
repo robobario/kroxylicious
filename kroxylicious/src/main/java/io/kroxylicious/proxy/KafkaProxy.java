@@ -121,7 +121,7 @@ public final class KafkaProxy implements AutoCloseable {
 
         CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
 
-        // Pre-register counters/summaries to avoid creating them on first request and thus skewing the request latency
+        // Pre-register counters/summaries to avoid creating them on first request and thus skewing the message latency
         // TODO add a virtual host tag to metrics
         Metrics.inboundDownstreamMessagesCounter();
         Metrics.inboundDownstreamDecodedMessagesCounter();
