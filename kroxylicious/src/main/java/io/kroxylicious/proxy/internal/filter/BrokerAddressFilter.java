@@ -50,7 +50,8 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onMetadataResponse(short apiVersion, ResponseHeaderData header, MetadataResponseData data, KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<MetadataResponseData>> onMetadataResponse(short apiVersion, ResponseHeaderData header, MetadataResponseData data,
+                                                                                          KrpcFilterContext<MetadataResponseData> context) {
         var nodeMap = new HashMap<Integer, HostPort>();
         for (MetadataResponseBroker broker : data.brokers()) {
             nodeMap.put(broker.nodeId(), new HostPort(broker.host(), broker.port()));
@@ -61,8 +62,9 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onDescribeClusterResponse(short apiVersion, ResponseHeaderData header, DescribeClusterResponseData data,
-                                                                           KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<DescribeClusterResponseData>> onDescribeClusterResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                        DescribeClusterResponseData data,
+                                                                                                        KrpcFilterContext<DescribeClusterResponseData> context) {
         var nodeMap = new HashMap<Integer, HostPort>();
         for (DescribeClusterBroker broker : data.brokers()) {
             nodeMap.put(broker.brokerId(), new HostPort(broker.host(), broker.port()));
@@ -73,8 +75,9 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onFindCoordinatorResponse(short apiVersion, ResponseHeaderData header, FindCoordinatorResponseData data,
-                                                                           KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<FindCoordinatorResponseData>> onFindCoordinatorResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                        FindCoordinatorResponseData data,
+                                                                                                        KrpcFilterContext<FindCoordinatorResponseData> context) {
         // Version 4+
         for (Coordinator coordinator : data.coordinators()) {
             // If the coordinator is not yet available, the server returns a nodeId of -1.
@@ -90,9 +93,10 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
         return context.responseFilterResultBuilder().withHeader(header).withMessage(data).completedFilterResult();
     }
 
-    private <T> void apply(KrpcFilterContext context, T broker, Function<T, Integer> nodeIdGetter, Function<T, String> hostGetter, ToIntFunction<T> portGetter,
-                           BiConsumer<T, String> hostSetter,
-                           ObjIntConsumer<T> portSetter) {
+    private <T, S extends ApiMessage> void apply(KrpcFilterContext<S> context, T broker, Function<T, Integer> nodeIdGetter, Function<T, String> hostGetter,
+                                                 ToIntFunction<T> portGetter,
+                                                 BiConsumer<T, String> hostSetter,
+                                                 ObjIntConsumer<T> portSetter) {
         String incomingHost = hostGetter.apply(broker);
         int incomingPort = portGetter.applyAsInt(broker);
 
@@ -103,8 +107,9 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
         portSetter.accept(broker, downstreamAddress.port());
     }
 
-    private CompletionStage<ResponseFilterResult> doReconcileThenForwardResponse(ResponseHeaderData header, ApiMessage data, KrpcFilterContext context,
-                                                                                 Map<Integer, HostPort> nodeMap) {
+    private <T extends ApiMessage> CompletionStage<ResponseFilterResult<T>> doReconcileThenForwardResponse(ResponseHeaderData header, T data,
+                                                                                                           KrpcFilterContext<T> context,
+                                                                                                           Map<Integer, HostPort> nodeMap) {
         // https://github.com/kroxylicious/kroxylicious/issues/351
         // Using synchronous approach for now
         reconciler.reconcile(virtualCluster, nodeMap).toCompletableFuture().join();

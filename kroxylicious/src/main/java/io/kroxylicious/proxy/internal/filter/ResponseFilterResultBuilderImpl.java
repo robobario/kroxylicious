@@ -13,8 +13,8 @@ import org.apache.kafka.common.protocol.ApiMessage;
 import io.kroxylicious.proxy.filter.ResponseFilterResult;
 import io.kroxylicious.proxy.filter.ResponseFilterResultBuilder;
 
-public class ResponseFilterResultBuilderImpl extends FilterResultBuilderImpl<ResponseFilterResultBuilder, ResponseFilterResult>
-        implements ResponseFilterResultBuilder {
+public class ResponseFilterResultBuilderImpl<T extends ApiMessage> extends FilterResultBuilderImpl<ResponseFilterResultBuilder<T>, ResponseFilterResult<T>, T>
+        implements ResponseFilterResultBuilder<T> {
 
     private static final String RESPONSE_DATA_NAME_SUFFIX = "ResponseData";
 
@@ -35,15 +35,16 @@ public class ResponseFilterResultBuilderImpl extends FilterResultBuilderImpl<Res
     }
 
     @Override
-    public ResponseFilterResult build() {
-        return new ResponseFilterResult() {
+    public ResponseFilterResult<T> build() {
+        return new ResponseFilterResult<>() {
+
             @Override
             public ApiMessage header() {
                 return ResponseFilterResultBuilderImpl.this.header();
             }
 
             @Override
-            public ApiMessage message() {
+            public T message() {
                 return ResponseFilterResultBuilderImpl.this.message();
             }
 

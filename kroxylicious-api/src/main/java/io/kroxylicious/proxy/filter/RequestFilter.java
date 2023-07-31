@@ -43,8 +43,8 @@ public interface RequestFilter extends KrpcFilter {
      * @param body          body of the request
      * @param filterContext context containing methods to continue the filter chain and other contextual data
      */
-    CompletionStage<RequestFilterResult> onRequest(ApiKeys apiKey,
-                                                   RequestHeaderData header,
-                                                   ApiMessage body,
-                                                   KrpcFilterContext filterContext);
+    CompletionStage<RequestFilterResult<ApiMessage>> onRequest(ApiKeys apiKey,
+                                                               RequestHeaderData header,
+                                                               ApiMessage body,
+                                                               KrpcFilterContext<ApiMessage> filterContext);
 }

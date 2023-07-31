@@ -45,7 +45,8 @@ public class EagerMetadataLearner implements RequestFilter {
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onRequest(ApiKeys apiKey, RequestHeaderData header, ApiMessage body, KrpcFilterContext filterContext) {
+    public CompletionStage<RequestFilterResult<ApiMessage>> onRequest(ApiKeys apiKey, RequestHeaderData header, ApiMessage body,
+                                                                      KrpcFilterContext<ApiMessage> filterContext) {
         if (KAFKA_PRELUDE.contains(apiKey)) {
             return filterContext.requestFilterResultBuilder().withHeader(header).withMessage(body).completedFilterResult();
         }
@@ -56,18 +57,19 @@ public class EagerMetadataLearner implements RequestFilter {
             boolean useClientRequest = apiKey.equals(ApiKeys.METADATA) && apiVersion == header.requestApiVersion();
             var request = useClientRequest ? (MetadataRequestData) body : new MetadataRequestData();
 
-            var future = new CompletableFuture<RequestFilterResult>();
+            var future = new CompletableFuture<RequestFilterResult<ApiMessage>>();
             var unused = filterContext.<MetadataResponseData> sendRequest(apiVersion, request)
                     .thenAccept(metadataResponseData -> {
                         // closing the connection is important. This client connection is connected to bootstrap (it could
                         // be any broker or maybe not something else). we must close the connection to force the client to
                         // connect again.
-                        var builder = filterContext.requestFilterResultBuilder().asRequestShortCircuitResponse().withCloseConnection(true);
+                        var builder = filterContext.requestFilterResultBuilder();
                         if (useClientRequest) {
                             // The client's requested matched our out-of-band message, so we may as well return the
                             // response.
-                            builder.withMessage(metadataResponseData);
+                            builder = builder.withShortCircuitResponse(metadataResponseData);
                         }
+                        builder.withCloseConnection(true);
                         future.complete(builder.build());
                         LOGGER.info("Closing upstream bootstrap connection {} now that endpoint reconciliation is complete.", filterContext.channelDescriptor());
                     });

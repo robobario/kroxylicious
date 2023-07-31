@@ -9,6 +9,7 @@ package io.kroxylicious.proxy.internal.filter;
 import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.ResponseHeaderData;
+import org.apache.kafka.common.protocol.ApiMessage;
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.filter.ResponseFilterResultBuilder;
@@ -18,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ResponseFilterResultBuilderTest {
 
-    private ResponseFilterResultBuilder builder = new ResponseFilterResultBuilderImpl();
+    private ResponseFilterResultBuilder<ApiMessage> builder = new ResponseFilterResultBuilderImpl();
 
     @Test
     public void responseResult() {

@@ -86,7 +86,7 @@ public class InvokerDispatchBenchmark {
         String invoker;
 
         private RequestHeaderData requestHeaders;
-        private KrpcFilterContext filterContext;
+        private KrpcFilterContext<ApiMessage> filterContext;
         private Map.Entry<ApiKeys, ApiMessage>[] apiMessages;
 
         @SuppressWarnings("unchecked")
@@ -145,7 +145,7 @@ public class InvokerDispatchBenchmark {
     }
 
     private static void invokeHandleRequest(FilterInvoker[] filters, Map.Entry<ApiKeys, ApiMessage>[] apiMessages, RequestHeaderData requestHeaders,
-                                            KrpcFilterContext filterContext) {
+                                            KrpcFilterContext<ApiMessage> filterContext) {
         for (Map.Entry<ApiKeys, ApiMessage> entry : apiMessages) {
             final ApiKeys apiKey = entry.getKey();
             final short apiVersion = apiKey.latestVersion();
@@ -157,7 +157,7 @@ public class InvokerDispatchBenchmark {
         }
     }
 
-    private static class StubFilterContext implements KrpcFilterContext {
+    private static class StubFilterContext implements KrpcFilterContext<ApiMessage> {
         @Override
         public String channelDescriptor() {
             return null;
@@ -179,20 +179,20 @@ public class InvokerDispatchBenchmark {
         }
 
         @Override
-        public ResponseFilterResultBuilder responseFilterResultBuilder() {
+        public ResponseFilterResultBuilder<ApiMessage> responseFilterResultBuilder() {
             return null;
         }
 
         @Override
-        public RequestFilterResultBuilder requestFilterResultBuilder() {
+        public RequestFilterResultBuilder<ApiMessage> requestFilterResultBuilder() {
             return null;
         }
 
-        public CompletionStage<RequestFilterResult> completedRequestFilterResult(RequestHeaderData header, ApiMessage request) {
+        public CompletionStage<RequestFilterResult<ApiMessage>> completedRequestFilterResult(RequestHeaderData header, ApiMessage request) {
             return null;
         }
 
-        public CompletionStage<ResponseFilterResult> completedResponseFilterResult(ResponseHeaderData header, ApiMessage response) {
+        public CompletionStage<ResponseFilterResult<ApiMessage>> completedResponseFilterResult(ResponseHeaderData header, ApiMessage response) {
             return null;
         }
     }

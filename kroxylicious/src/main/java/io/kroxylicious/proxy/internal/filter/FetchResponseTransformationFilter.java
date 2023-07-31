@@ -74,8 +74,8 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onFetchResponse(short apiVersion, ResponseHeaderData header, FetchResponseData fetchResponse,
-                                                                 KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<FetchResponseData>> onFetchResponse(short apiVersion, ResponseHeaderData header, FetchResponseData fetchResponse,
+                                                                                    KrpcFilterContext<FetchResponseData> context) {
         List<MetadataRequestData.MetadataRequestTopic> requestTopics = fetchResponse.responses().stream()
                 .filter(t -> t.topic().isEmpty())
                 .map(fetchableTopicResponse -> {
@@ -86,7 +86,7 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
                 .collect(Collectors.toList());
         if (!requestTopics.isEmpty()) {
             LOGGER.debug("Fetch response contains {} unknown topic ids, lookup via Metadata request: {}", requestTopics.size(), requestTopics);
-            var future = new CompletableFuture<ResponseFilterResult>();
+            var future = new CompletableFuture<ResponseFilterResult<FetchResponseData>>();
             // TODO Can't necessarily use HIGHEST_SUPPORTED_VERSION, must use highest supported version
             context.<MetadataResponseData> sendRequest(MetadataRequestData.HIGHEST_SUPPORTED_VERSION,
                     new MetadataRequestData()
@@ -112,7 +112,7 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
         }
     }
 
-    private void applyTransformation(KrpcFilterContext context, FetchResponseData responseData) {
+    private void applyTransformation(KrpcFilterContext<FetchResponseData> context, FetchResponseData responseData) {
         for (FetchableTopicResponse topicData : responseData.responses()) {
             for (PartitionData partitionData : topicData.partitions()) {
                 MemoryRecords records = (MemoryRecords) partitionData.records();

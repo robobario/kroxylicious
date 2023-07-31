@@ -67,9 +67,9 @@ public class RequestDecoderTest extends AbstractCodecTest {
                                     }
 
                                     @Override
-                                    public CompletionStage<RequestFilterResult> onApiVersionsRequest(short apiVersion, RequestHeaderData header,
-                                                                                                     ApiVersionsRequestData request,
-                                                                                                     KrpcFilterContext context) {
+                                    public CompletionStage<RequestFilterResult<ApiVersionsRequestData>> onApiVersionsRequest(short apiVersion, RequestHeaderData header,
+                                                                                                                             ApiVersionsRequestData request,
+                                                                                                                             KrpcFilterContext<ApiVersionsRequestData> context) {
                                         return context.requestFilterResultBuilder().withMessage(request).withHeader(header).completedFilterResult();
                                     }
                                 }))),

@@ -6,7 +6,14 @@
 
 package io.kroxylicious.proxy.filter;
 
-public interface RequestFilterResult extends FilterResult {
+import org.apache.kafka.common.protocol.ApiMessage;
 
-    boolean shortCircuitResponse();
+public interface RequestFilterResult<T extends ApiMessage> extends FilterResult<T> {
+
+    ApiMessage shortCircuitResponse();
+
+    static RequestFilterResult<ApiMessage> asApiMessageResult(RequestFilterResult<?> result) {
+        // TODO find some less ugly way to convert between specific and general? Could wrap in another implementation
+        return (RequestFilterResult<ApiMessage>) result;
+    }
 }

@@ -26,26 +26,29 @@ import io.kroxylicious.proxy.filter.ResponseFilterResult;
 public class FourInterfaceFilter implements ProduceResponseFilter, ProduceRequestFilter, CreateTopicsRequestFilter, CreateTopicsResponseFilter {
 
     @Override
-    public CompletionStage<RequestFilterResult> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request, KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<ProduceRequestData>> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request,
+                                                                                     KrpcFilterContext<ProduceRequestData> context) {
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
-                                                                   KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<ProduceResponseData>> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
+                                                                                        KrpcFilterContext<ProduceResponseData> context) {
         return null;
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onCreateTopicsRequest(short apiVersion, RequestHeaderData header, CreateTopicsRequestData request,
-                                                                      KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<CreateTopicsRequestData>> onCreateTopicsRequest(short apiVersion, RequestHeaderData header,
+                                                                                               CreateTopicsRequestData request,
+                                                                                               KrpcFilterContext<CreateTopicsRequestData> context) {
 
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onCreateTopicsResponse(short apiVersion, ResponseHeaderData header, CreateTopicsResponseData response,
-                                                                        KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<CreateTopicsResponseData>> onCreateTopicsResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                  CreateTopicsResponseData response,
+                                                                                                  KrpcFilterContext<CreateTopicsResponseData> context) {
 
         return null;
     }

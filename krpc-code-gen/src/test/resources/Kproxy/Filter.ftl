@@ -53,7 +53,7 @@ public interface ${filterClass} extends Krpc${msgType?cap_first}Filter {
      * @return the {@code ${msgType}} to be passed to the next filter.
      * If null is returned then the given {@code ${msgType}} will be used.
      */
-    public KrpcFilterState on${messageSpec.name}(${dataClass} ${msgType}, KrpcFilterContext context);
+    public KrpcFilterState on${messageSpec.name}(${dataClass} ${msgType}, KrpcFilterContext<ApiMessage> context);
 
     <#-- TODO this is completely wrong, since it assumes a 1-to-1 relationship between down- and upstream requests
     // (or up- and downstream responses).

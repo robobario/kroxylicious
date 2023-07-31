@@ -10,6 +10,7 @@ import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
+import org.apache.kafka.common.protocol.ApiMessage;
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.filter.RequestFilterResult;
@@ -20,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RequestFilterResultBuilderTest {
 
-    private RequestFilterResultBuilder builder = new RequestFilterResultBuilderImpl();
+    private RequestFilterResultBuilder<ApiMessage> builder = new RequestFilterResultBuilderImpl();
 
     @Test
     public void requestResult() {
@@ -65,10 +66,11 @@ class RequestFilterResultBuilderTest {
     @Test
     public void shortCircuitResult() {
         var res = new FetchResponseData();
-        builder.asRequestShortCircuitResponse().withMessage(res);
+        builder.withShortCircuitResponse(res);
         var result = builder.build();
         assertThat(result).isInstanceOf(RequestFilterResult.class);
-        assertThat(result.message()).isEqualTo(res);
+        assertThat(result.shortCircuitResponse()).isEqualTo(res);
+        assertThat(result.message()).isNull();
         assertThat(result.header()).isNull();
         assertThat(result.closeConnection()).isFalse();
     }
@@ -76,13 +78,14 @@ class RequestFilterResultBuilderTest {
     @Test
     public void shortCircuitRejectsRequestData() {
         var req = new FetchRequestData();
-        assertThatThrownBy(() -> builder.asRequestShortCircuitResponse().withMessage(req)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> builder.withShortCircuitResponse(req)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     public void shortCircuitRejectsRequestHeaderData() {
         var header = new RequestHeaderData();
-        assertThatThrownBy(() -> builder.asRequestShortCircuitResponse().withHeader(header)).isInstanceOf(IllegalArgumentException.class);
+        var req = new FetchRequestData();
+        assertThatThrownBy(() -> builder.withShortCircuitResponse(req).withHeader(header)).isInstanceOf(IllegalArgumentException.class);
     }
 
 }

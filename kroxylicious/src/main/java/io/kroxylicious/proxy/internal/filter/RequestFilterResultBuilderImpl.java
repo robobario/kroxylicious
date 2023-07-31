@@ -13,12 +13,13 @@ import org.apache.kafka.common.protocol.ApiMessage;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
 import io.kroxylicious.proxy.filter.RequestFilterResultBuilder;
 
-public class RequestFilterResultBuilderImpl extends FilterResultBuilderImpl<RequestFilterResultBuilder, RequestFilterResult>
-        implements RequestFilterResultBuilder {
+public class RequestFilterResultBuilderImpl<T extends ApiMessage> extends FilterResultBuilderImpl<RequestFilterResultBuilder<T>, RequestFilterResult<T>, T>
+        implements RequestFilterResultBuilder<T> {
 
     private static final String REQUEST_DATA_NAME_SUFFIX = "RequestData";
     private static final String RESPONSE_DATA_NAME_SUFFIX = "ResponseData";
     private boolean shortCircuitResponse;
+    private ApiMessage shortCircuitResponseMessage;
 
     public RequestFilterResultBuilderImpl() {
     }
@@ -43,7 +44,11 @@ public class RequestFilterResultBuilderImpl extends FilterResultBuilderImpl<Requ
     }
 
     @Override
-    public RequestFilterResultBuilder asRequestShortCircuitResponse() {
+    public RequestFilterResultBuilder<T> withShortCircuitResponse(ApiMessage response) {
+        var expectedClassNameSuffix = RESPONSE_DATA_NAME_SUFFIX;
+        if (response != null && !response.getClass().getSimpleName().endsWith(expectedClassNameSuffix)) {
+            throw new IllegalArgumentException("class name " + response.getClass().getName() + " does not have expected suffix " + expectedClassNameSuffix);
+        }
         if (this.message() != null) {
             throw new IllegalStateException("cannot call asRequestShortCircuitResponse after message has been assigned");
         }
@@ -51,16 +56,17 @@ public class RequestFilterResultBuilderImpl extends FilterResultBuilderImpl<Requ
             throw new IllegalStateException("cannot call asRequestShortCircuitResponse after header has been assigned");
         }
         this.shortCircuitResponse = true;
+        this.shortCircuitResponseMessage = response;
         return this;
     }
 
     @Override
-    public RequestFilterResult build() {
-        return new RequestFilterResult() {
+    public RequestFilterResult<T> build() {
+        return new RequestFilterResult<>() {
 
             @Override
-            public boolean shortCircuitResponse() {
-                return message() != null && message().getClass().getSimpleName().endsWith(RESPONSE_DATA_NAME_SUFFIX);
+            public ApiMessage shortCircuitResponse() {
+                return shortCircuitResponse ? shortCircuitResponseMessage : null;
             }
 
             @Override
@@ -69,7 +75,7 @@ public class RequestFilterResultBuilderImpl extends FilterResultBuilderImpl<Requ
             }
 
             @Override
-            public ApiMessage message() {
+            public T message() {
                 return RequestFilterResultBuilderImpl.this.message();
             }
 

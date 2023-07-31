@@ -74,12 +74,13 @@ public class ProduceRequestTransformationFilter implements ProduceRequestFilter 
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData data, KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<ProduceRequestData>> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData data,
+                                                                                     KrpcFilterContext<ProduceRequestData> context) {
         applyTransformation(context, data);
         return context.requestFilterResultBuilder().withMessage(data).withHeader(header).completedFilterResult();
     }
 
-    private void applyTransformation(KrpcFilterContext ctx, ProduceRequestData req) {
+    private void applyTransformation(KrpcFilterContext<ProduceRequestData> ctx, ProduceRequestData req) {
         req.topicData().forEach(topicData -> {
             for (PartitionProduceData partitionData : topicData.partitionData()) {
                 MemoryRecords records = (MemoryRecords) partitionData.records();

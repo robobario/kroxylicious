@@ -62,7 +62,7 @@ public /* sealed */ interface KrpcRequestFilter extends KrpcFilter /* TODO permi
      * @return The state of the filter.
      */
     public default KrpcFilterState apply(DecodedRequestFrame<?> decodedFrame,
-                                         KrpcFilterContext filterContext) {
+                                         KrpcFilterContext<ApiMessage> filterContext) {
         KrpcFilterState state;
         switch (decodedFrame.apiKey()) {
 <#list messageSpecs as messageSpec>

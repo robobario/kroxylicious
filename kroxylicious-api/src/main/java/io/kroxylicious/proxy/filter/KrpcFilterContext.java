@@ -13,7 +13,7 @@ import org.apache.kafka.common.utils.ByteBufferOutputStream;
 /**
  * A context to allow filters to interact with other filters and the pipeline.
  */
-public interface KrpcFilterContext {
+public interface KrpcFilterContext<T extends ApiMessage> {
     /**
      * A description of this channel.
      * @return A description of this channel (typically used for logging).
@@ -43,7 +43,7 @@ public interface KrpcFilterContext {
     // */
     // void forwardRequest(RequestHeaderData header, ApiMessage request);
 
-    RequestFilterResultBuilder requestFilterResultBuilder();
+    RequestFilterResultBuilder<T> requestFilterResultBuilder();
 
     /**
      * Send a message from a filter towards the broker, invoking upstream filters
@@ -84,7 +84,7 @@ public interface KrpcFilterContext {
     // */
     // void forwardResponse(ApiMessage response);
 
-    ResponseFilterResultBuilder responseFilterResultBuilder();
+    ResponseFilterResultBuilder<T> responseFilterResultBuilder();
 
     // /**
     // * Allows a filter to decide to close the connection. The client will be disconnected. The client is free
@@ -93,4 +93,9 @@ public interface KrpcFilterContext {
     // void closeConnection();
 
     // TODO an API to allow a filter to add/remove another filter from the pipeline
+
+    static <T extends ApiMessage> KrpcFilterContext<T> toSpecificContext(KrpcFilterContext<ApiMessage> context) {
+        // TODO find less ugly way? You can alternatively make a wrapper KrpcFilterContext
+        return (KrpcFilterContext<T>) context;
+    }
 }

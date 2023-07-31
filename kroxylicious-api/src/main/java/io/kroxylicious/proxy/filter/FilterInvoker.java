@@ -85,8 +85,8 @@ public interface FilterInvoker {
      * @param filterContext contains methods to continue the filter chain and other contextual data
      * @return
      */
-    default CompletionStage<RequestFilterResult> onRequest(ApiKeys apiKey, short apiVersion, RequestHeaderData header, ApiMessage body,
-                                                           KrpcFilterContext filterContext) {
+    default CompletionStage<RequestFilterResult<ApiMessage>> onRequest(ApiKeys apiKey, short apiVersion, RequestHeaderData header, ApiMessage body,
+                                                                       KrpcFilterContext<ApiMessage> filterContext) {
         return filterContext.requestFilterResultBuilder().withHeader(header).withMessage(body).completedFilterResult();
     }
 
@@ -105,8 +105,8 @@ public interface FilterInvoker {
      * @param filterContext contains methods to continue the filter chain and other contextual data
      * @return
      */
-    default CompletionStage<ResponseFilterResult> onResponse(ApiKeys apiKey, short apiVersion, ResponseHeaderData header, ApiMessage body,
-                                                             KrpcFilterContext filterContext) {
+    default CompletionStage<ResponseFilterResult<ApiMessage>> onResponse(ApiKeys apiKey, short apiVersion, ResponseHeaderData header, ApiMessage body,
+                                                                         KrpcFilterContext<ApiMessage> filterContext) {
         return filterContext.responseFilterResultBuilder().withHeader(header).withMessage(body).completedFilterResult();
     }
 

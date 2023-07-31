@@ -62,8 +62,9 @@ public class FilterHandlerTest extends FilterHarness {
             }
 
             @Override
-            public CompletionStage<RequestFilterResult> onApiVersionsRequest(short apiVersion, RequestHeaderData header, ApiVersionsRequestData request,
-                                                                             KrpcFilterContext context) {
+            public CompletionStage<RequestFilterResult<ApiVersionsRequestData>> onApiVersionsRequest(short apiVersion, RequestHeaderData header,
+                                                                                                     ApiVersionsRequestData request,
+                                                                                                     KrpcFilterContext<ApiVersionsRequestData> context) {
                 fail("Should not be called");
                 return null;
             }
@@ -135,8 +136,9 @@ public class FilterHandlerTest extends FilterHarness {
             }
 
             @Override
-            public CompletionStage<ResponseFilterResult> onApiVersionsResponse(short apiVersion, ResponseHeaderData header, ApiVersionsResponseData response,
-                                                                               KrpcFilterContext context) {
+            public CompletionStage<ResponseFilterResult<ApiVersionsResponseData>> onApiVersionsResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                        ApiVersionsResponseData response,
+                                                                                                        KrpcFilterContext<ApiVersionsResponseData> context) {
                 fail("Should not be called");
                 return null;
             }

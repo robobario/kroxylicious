@@ -8,7 +8,7 @@
 <#assign
   dataClass="${messageSpec.name}Data"
   filterClass="${messageSpec.name}Filter"
-  filterResultClass="CompletionStage<${messageSpec.type?lower_case?cap_first}FilterResult>"
+  filterResultClass="CompletionStage<${messageSpec.type?lower_case?cap_first}FilterResult<${dataClass}>>"
   headerClass="${messageSpec.type?lower_case?cap_first}HeaderData"
   msgType=messageSpec.type?lower_case
 />
@@ -70,6 +70,6 @@ public interface ${filterClass} extends KrpcFilter {
      * @return CompletionStage that will yield a <#if messageSpec.type?lower_case == 'response'>{@link ResponseFilterResult}<#else>{@link FilterResult}</#if>
      *         containing the ${messageSpec.type?lower_case} to be forwarded.
      */
-     ${filterResultClass} on${messageSpec.name}(short apiVersion, ${headerClass} header, ${dataClass} ${msgType}, KrpcFilterContext context);
+     ${filterResultClass} on${messageSpec.name}(short apiVersion, ${headerClass} header, ${dataClass} ${msgType}, KrpcFilterContext<${dataClass}> context);
 
 }

@@ -22,13 +22,14 @@ import io.kroxylicious.proxy.filter.ResponseFilterResult;
 public class TwoInterfaceFilter implements ProduceResponseFilter, ProduceRequestFilter {
 
     @Override
-    public CompletionStage<RequestFilterResult> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request, KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<ProduceRequestData>> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request,
+                                                                                     KrpcFilterContext<ProduceRequestData> context) {
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
-                                                                   KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<ProduceResponseData>> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
+                                                                                        KrpcFilterContext<ProduceResponseData> context) {
         return null;
     }
 }

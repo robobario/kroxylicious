@@ -35,54 +35,61 @@ public class EightInterfaceFilter implements ProduceResponseFilter, ProduceReque
         DeleteTopicsRequestFilter, DeleteTopicsResponseFilter, DescribeGroupsRequestFilter, DescribeGroupsResponseFilter {
 
     @Override
-    public CompletionStage<RequestFilterResult> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request, KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<ProduceRequestData>> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request,
+                                                                                     KrpcFilterContext<ProduceRequestData> context) {
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
-                                                                   KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<ProduceResponseData>> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
+                                                                                        KrpcFilterContext<ProduceResponseData> context) {
         return null;
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onCreateTopicsRequest(short apiVersion, RequestHeaderData header, CreateTopicsRequestData request,
-                                                                      KrpcFilterContext context) {
-
-        return null;
-    }
-
-    @Override
-    public CompletionStage<ResponseFilterResult> onCreateTopicsResponse(short apiVersion, ResponseHeaderData header, CreateTopicsResponseData response,
-                                                                        KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<CreateTopicsRequestData>> onCreateTopicsRequest(short apiVersion, RequestHeaderData header,
+                                                                                               CreateTopicsRequestData request,
+                                                                                               KrpcFilterContext<CreateTopicsRequestData> context) {
 
         return null;
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onDeleteTopicsRequest(short apiVersion, RequestHeaderData header, DeleteTopicsRequestData request,
-                                                                      KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<CreateTopicsResponseData>> onCreateTopicsResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                  CreateTopicsResponseData response,
+                                                                                                  KrpcFilterContext<CreateTopicsResponseData> context) {
 
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onDeleteTopicsResponse(short apiVersion, ResponseHeaderData header, DeleteTopicsResponseData response,
-                                                                        KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<DeleteTopicsRequestData>> onDeleteTopicsRequest(short apiVersion, RequestHeaderData header,
+                                                                                               DeleteTopicsRequestData request,
+                                                                                               KrpcFilterContext<DeleteTopicsRequestData> context) {
 
         return null;
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onDescribeGroupsRequest(short apiVersion, RequestHeaderData header, DescribeGroupsRequestData request,
-                                                                        KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<DeleteTopicsResponseData>> onDeleteTopicsResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                  DeleteTopicsResponseData response,
+                                                                                                  KrpcFilterContext<DeleteTopicsResponseData> context) {
 
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onDescribeGroupsResponse(short apiVersion, ResponseHeaderData header, DescribeGroupsResponseData response,
-                                                                          KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<DescribeGroupsRequestData>> onDescribeGroupsRequest(short apiVersion, RequestHeaderData header,
+                                                                                                   DescribeGroupsRequestData request,
+                                                                                                   KrpcFilterContext<DescribeGroupsRequestData> context) {
+
+        return null;
+    }
+
+    @Override
+    public CompletionStage<ResponseFilterResult<DescribeGroupsResponseData>> onDescribeGroupsResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                      DescribeGroupsResponseData response,
+                                                                                                      KrpcFilterContext<DescribeGroupsResponseData> context) {
 
         return null;
     }

@@ -49,9 +49,9 @@ import static org.mockito.Mockito.when;
 class EagerMetadataLearnerTest {
 
     @Mock
-    KrpcFilterContext context;
+    KrpcFilterContext<ApiMessage> context;
     @Mock(answer = Answers.RETURNS_SELF)
-    RequestFilterResultBuilder builder;
+    RequestFilterResultBuilder<ApiMessage> builder;
     private EagerMetadataLearner learner;
 
     @BeforeEach
@@ -98,7 +98,8 @@ class EagerMetadataLearnerTest {
         if (apiKey == ApiKeys.METADATA) {
             // if caller's message is a metadata message, then the filter must forward it with fidelity
             verify(context).sendRequest(eq(header.requestApiVersion()), eq(request));
-            assertThat(result.message()).isEqualTo(metadataResponse);
+            assertThat(result.shortCircuitResponse()).isEqualTo(metadataResponse);
+            assertThat(result.message()).isNull();
         }
         else {
             verify(context).sendRequest(anyShort(), isA(MetadataRequestData.class));

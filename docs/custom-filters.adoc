@@ -85,7 +85,7 @@ public class FetchRequestClientIdFilter implements FetchRequestFilter {
     public void onFetchRequest(short apiVersion,
                                RequestHeaderData header,
                                FetchRequestData request,
-                               KrpcFilterContext context) {
+                               KrpcFilterContext<ApiMessage> context) {
         header.setClientId("fetch-client!");
         context.forwardRequest(header, request);
     }
@@ -103,7 +103,7 @@ public class FetchRequestClientIdFilter implements FetchResponseFilter {
     public void onFetchResponse(short apiVersion,
                                 ResponseHeaderData header,
                                 FetchResponseData response,
-                                KrpcFilterContext context) {
+                                KrpcFilterContext<ApiMessage> context) {
         mutateResponse(response),
         context.forwardResponse(header, response);
     }
@@ -123,7 +123,7 @@ public class FetchRequestClientIdFilter implements FetchRequestFilter, FetchResp
     public void onFetchRequest(short apiVersion,
                                RequestHeaderData header,
                                FetchRequestData request,
-                               KrpcFilterContext context) {
+                               KrpcFilterContext<ApiMessage> context) {
         header.setClientId("fetch-client!");
         context.forwardRequest(header, request);
     }
@@ -132,7 +132,7 @@ public class FetchRequestClientIdFilter implements FetchRequestFilter, FetchResp
     public void onFetchResponse(short apiVersion,
                                 ResponseHeaderData header,
                                 FetchResponseData response,
-                                KrpcFilterContext context) {
+                                KrpcFilterContext<ApiMessage> context) {
         mutateResponse(response),
         context.forwardResponse(header, response);
     }
@@ -164,7 +164,7 @@ public class FixedClientIdFilter implements RequestFilter {
     public void onRequest(ApiKeys apiKey,
                           RequestHeaderData header,
                           ApiMessage body,
-                          KrpcFilterContext filterContext) {
+                          KrpcFilterContext<ApiMessage> filterContext) {
         header.setClientId("example!");
         filterContext.forwardRequest(header, body);
     }
@@ -257,7 +257,7 @@ public class SampleFetchResponseFilter implements FetchResponseFilter {
     public void onFetchResponse(short apiVersion,
                                 ResponseHeaderData header,
                                 FetchResponseData response,
-                                KrpcFilterContext context) {
+                                KrpcFilterContext<ApiMessage> context) {
         mutateResponse(response, context); //<1>
         context.forwardResponse(header, response); //<2>
     }
@@ -310,7 +310,7 @@ public class ApiVersionsErrorFilter implements ApiVersionsRequestFilter {
     public void onApiVersionsRequest(short apiVersion,
                                      RequestHeaderData header,
                                      ApiVersionsRequestData request,
-                                     KrpcFilterContext context) {
+                                     KrpcFilterContext<ApiMessage> context) {
         ApiVersionsResponseData response = new ApiVersionsResponseData(); //<1>
         response.setErrorCode(Errors.UNKNOWN_SERVER_ERROR.code());
         context.forwardResponse(response);//<2>
@@ -340,7 +340,7 @@ public class FetchFilter implements FetchRequestFilter{
     public void onFetchRequest(short apiVersion,
                                RequestHeaderData header,
                                FetchRequestData request,
-                               KrpcFilterContext context) {
+                               KrpcFilterContext<ApiMessage> context) {
         MetadataRequestData metadataRequest = new MetadataRequestData(); //<1>
         var topic = new MetadataRequestData.MetadataRequestTopic();
         topic.setTopicId(Uuid.randomUuid());
@@ -395,7 +395,7 @@ public class FetchFilter implements FetchRequestFilter{
     public void onFetchRequest(short apiVersion,
                                RequestHeaderData header,
                                FetchRequestData request,
-                               KrpcFilterContext context) {
+                               KrpcFilterContext<ApiMessage> context) {
         context.forwardRequest(header, request);
     }
 }

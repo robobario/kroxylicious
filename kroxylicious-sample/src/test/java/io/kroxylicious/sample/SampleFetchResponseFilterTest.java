@@ -51,13 +51,13 @@ class SampleFetchResponseFilterTest {
     private static final String CONFIG_FIND_VALUE = "from";
     private static final String CONFIG_REPLACE_VALUE = "to";
     @Mock
-    private KrpcFilterContext context;
+    private KrpcFilterContext<ApiMessage> context;
 
     @Mock(answer = Answers.RETURNS_SELF)
-    private ResponseFilterResultBuilder responseFilterResultBuilder;
+    private ResponseFilterResultBuilder<ApiMessage> responseFilterResultBuilder;
 
     @Mock
-    private ResponseFilterResult responseFilterResult;
+    private ResponseFilterResult<ApiMessage> responseFilterResult;
     @Captor
     private ArgumentCaptor<Integer> bufferInitialCapacity;
 
@@ -80,7 +80,7 @@ class SampleFetchResponseFilterTest {
     @Test
     public void willTransformFetchResponseTest() throws Exception {
         var responseData = buildFetchResponseData(PRE_TRANSFORM_VALUE);
-        var stage = filter.onFetchResponse(API_VERSION, headerData, responseData, context);
+        var stage = filter.onFetchResponse(API_VERSION, headerData, responseData, KrpcFilterContext.toSpecificContext(context));
 
         var response = stage.toCompletableFuture().get().message();
         var unpackedResponse = unpackFetchResponseData(((FetchResponseData) response));
@@ -99,7 +99,7 @@ class SampleFetchResponseFilterTest {
     @Test
     public void wontTransformFetchResponseTest() throws Exception {
         var responseData = buildFetchResponseData(NO_TRANSFORM_VALUE);
-        var stage = filter.onFetchResponse(API_VERSION, headerData, responseData, context);
+        var stage = filter.onFetchResponse(API_VERSION, headerData, responseData, KrpcFilterContext.toSpecificContext(context));
 
         var response = stage.toCompletableFuture().get().message();
         var unpackedResponse = unpackFetchResponseData((FetchResponseData) response);

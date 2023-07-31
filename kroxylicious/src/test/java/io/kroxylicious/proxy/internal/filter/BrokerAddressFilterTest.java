@@ -19,6 +19,7 @@ import org.apache.kafka.common.message.ApiMessageType;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.ApiKeys;
+import org.apache.kafka.common.protocol.ApiMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -74,7 +75,7 @@ class BrokerAddressFilterTest {
     private EndpointReconciler endpointReconciler;
 
     @Mock
-    private KrpcFilterContext context;
+    private KrpcFilterContext<ApiMessage> context;
 
     private BrokerAddressFilter filter;
 

@@ -69,18 +69,18 @@ class SpecificFilterArrayInvoker implements FilterInvoker {
      */
     @Override
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
-    public CompletionStage<RequestFilterResult> onRequest(ApiKeys apiKey,
+    public CompletionStage<RequestFilterResult<ApiMessage>> onRequest(ApiKeys apiKey,
                                                           short apiVersion,
                                                           RequestHeaderData header,
                                                           ApiMessage body,
-                                                          KrpcFilterContext filterContext) {
+                                                          KrpcFilterContext<ApiMessage> filterContext) {
         // We wrap the array lookup in a switch based on the API Key as it supports JIT optimisations around method dispatch.
         // See the InvokerDispatchBenchmark micro benchmark for a comparison
         return switch (apiKey) {
 <#list messageSpecs as messageSpec>
     <#if messageSpec.type?lower_case == 'request'>
             case ${retrieveApiKey(messageSpec)} ->
-                requestInvokers[apiKey.id].onRequest(apiKey, apiVersion, header, body, filterContext);
+                requestInvokers[apiKey.id].onRequest(apiKey, apiVersion, header, body, KrpcFilterContext.toSpecificContext(filterContext));
     </#if>
 </#list>
             default -> throw new IllegalStateException("Unsupported RPC " + apiKey);
@@ -98,18 +98,18 @@ class SpecificFilterArrayInvoker implements FilterInvoker {
      */
     @Override
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
-    public CompletionStage<ResponseFilterResult> onResponse(ApiKeys apiKey,
+    public CompletionStage<ResponseFilterResult<ApiMessage>> onResponse(ApiKeys apiKey,
                                                             short apiVersion,
                                                             ResponseHeaderData header,
                                                             ApiMessage body,
-                                                            KrpcFilterContext filterContext) {
+                                                            KrpcFilterContext<ApiMessage> filterContext) {
         // We wrap the array lookup in a switch based on the API Key as it supports JIT optimisations around method dispatch.
         // See the InvokerDispatchBenchmark micro benchmark for a comparison
         return switch (apiKey) {
 <#list messageSpecs as messageSpec>
     <#if messageSpec.type?lower_case == 'response'>
             case ${retrieveApiKey(messageSpec)} ->
-                    responseInvokers[apiKey.id].onResponse(apiKey, apiVersion, header, body, filterContext);
+                    responseInvokers[apiKey.id].onResponse(apiKey, apiVersion, header, body, KrpcFilterContext.toSpecificContext(filterContext));
     </#if>
 </#list>
             default -> throw new IllegalStateException("Unsupported RPC " + apiKey);

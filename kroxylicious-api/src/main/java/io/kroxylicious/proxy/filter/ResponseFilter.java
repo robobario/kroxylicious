@@ -42,8 +42,8 @@ public interface ResponseFilter extends KrpcFilter {
      * @param body body of the response
      * @param filterContext context containing methods to continue the filter chain and other contextual data
      */
-    CompletionStage<ResponseFilterResult> onResponse(ApiKeys apiKey,
-                                                     ResponseHeaderData header,
-                                                     ApiMessage body,
-                                                     KrpcFilterContext filterContext);
+    CompletionStage<ResponseFilterResult<ApiMessage>> onResponse(ApiKeys apiKey,
+                                                                 ResponseHeaderData header,
+                                                                 ApiMessage body,
+                                                                 KrpcFilterContext<ApiMessage> filterContext);
 }

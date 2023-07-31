@@ -6,5 +6,7 @@
 
 package io.kroxylicious.proxy.filter;
 
-public interface ResponseFilterResultBuilder extends FilterResultBuilder<ResponseFilterResultBuilder, ResponseFilterResult> {
+import org.apache.kafka.common.protocol.ApiMessage;
+
+public interface ResponseFilterResultBuilder<T extends ApiMessage> extends FilterResultBuilder<ResponseFilterResultBuilder<T>, ResponseFilterResult<T>, T> {
 }

@@ -74,8 +74,8 @@ public class ApiVersionsFilter implements ApiVersionsResponseFilter {
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onApiVersionsResponse(short apiVersion, ResponseHeaderData header, ApiVersionsResponseData data,
-                                                                       KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<ApiVersionsResponseData>> onApiVersionsResponse(short apiVersion, ResponseHeaderData header, ApiVersionsResponseData data,
+                                                                                                KrpcFilterContext<ApiVersionsResponseData> context) {
         intersectApiVersions(context.channelDescriptor(), data);
         return context.responseFilterResultBuilder().withHeader(header).withMessage(data).completedFilterResult();
     }

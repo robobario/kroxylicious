@@ -29,28 +29,30 @@ import static io.kroxylicious.benchmarks.InvokerDispatchBenchmark.CONSUME_TOKENS
 public class FourInterfaceFilter0 implements ProduceResponseFilter, ProduceRequestFilter, ApiVersionsRequestFilter, ApiVersionsResponseFilter {
 
     @Override
-    public CompletionStage<RequestFilterResult> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request, KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<ProduceRequestData>> onProduceRequest(short apiVersion, RequestHeaderData header, ProduceRequestData request,
+                                                                                     KrpcFilterContext<ProduceRequestData> context) {
         Blackhole.consumeCPU(CONSUME_TOKENS);
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
-                                                                   KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<ProduceResponseData>> onProduceResponse(short apiVersion, ResponseHeaderData header, ProduceResponseData response,
+                                                                                        KrpcFilterContext<ProduceResponseData> context) {
         Blackhole.consumeCPU(CONSUME_TOKENS);
         return null;
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onApiVersionsRequest(short apiVersion, RequestHeaderData header, ApiVersionsRequestData request,
-                                                                     KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<ApiVersionsRequestData>> onApiVersionsRequest(short apiVersion, RequestHeaderData header, ApiVersionsRequestData request,
+                                                                                             KrpcFilterContext<ApiVersionsRequestData> context) {
         Blackhole.consumeCPU(CONSUME_TOKENS);
         return null;
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onApiVersionsResponse(short apiVersion, ResponseHeaderData header, ApiVersionsResponseData response,
-                                                                       KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<ApiVersionsResponseData>> onApiVersionsResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                ApiVersionsResponseData response,
+                                                                                                KrpcFilterContext<ApiVersionsResponseData> context) {
         Blackhole.consumeCPU(CONSUME_TOKENS);
         return null;
     }

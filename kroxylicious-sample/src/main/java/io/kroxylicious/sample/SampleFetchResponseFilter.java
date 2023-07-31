@@ -59,7 +59,8 @@ public class SampleFetchResponseFilter implements FetchResponseFilter {
      * @return
      */
     @Override
-    public CompletionStage<ResponseFilterResult> onFetchResponse(short apiVersion, ResponseHeaderData header, FetchResponseData response, KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<FetchResponseData>> onFetchResponse(short apiVersion, ResponseHeaderData header, FetchResponseData response,
+                                                                                    KrpcFilterContext<FetchResponseData> context) {
         this.timer.record(() -> applyTransformation(response, context)); // We're timing this to report how long it takes through Micrometer
         return context.responseFilterResultBuilder().withHeader(header).withMessage(response).completedFilterResult();
     }
@@ -69,7 +70,7 @@ public class SampleFetchResponseFilter implements FetchResponseFilter {
      * @param response the response to be transformed
      * @param context the context
      */
-    private void applyTransformation(FetchResponseData response, KrpcFilterContext context) {
+    private void applyTransformation(FetchResponseData response, KrpcFilterContext<FetchResponseData> context) {
         response.responses().forEach(responseData -> {
             for (FetchResponseData.PartitionData partitionData : responseData.partitions()) {
                 SampleFilterTransformer.transform(partitionData, context, this.config);

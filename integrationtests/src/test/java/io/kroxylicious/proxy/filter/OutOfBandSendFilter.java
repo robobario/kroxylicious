@@ -56,8 +56,9 @@ public class OutOfBandSendFilter implements DescribeClusterRequestFilter, Descri
     }
 
     @Override
-    public CompletionStage<RequestFilterResult> onDescribeClusterRequest(short apiVersion, RequestHeaderData header, DescribeClusterRequestData request,
-                                                                         KrpcFilterContext context) {
+    public CompletionStage<RequestFilterResult<DescribeClusterRequestData>> onDescribeClusterRequest(short apiVersion, RequestHeaderData header,
+                                                                                                     DescribeClusterRequestData request,
+                                                                                                     KrpcFilterContext<DescribeClusterRequestData> context) {
         ApiKeys apiKeyToSend = config.apiKeyToSend;
         ApiMessage message = createApiMessage(apiKeyToSend);
         context.sendRequest(apiKeyToSend.latestVersion(), message).thenAccept(apiMessage -> {
@@ -68,8 +69,9 @@ public class OutOfBandSendFilter implements DescribeClusterRequestFilter, Descri
     }
 
     @Override
-    public CompletionStage<ResponseFilterResult> onDescribeClusterResponse(short apiVersion, ResponseHeaderData header, DescribeClusterResponseData response,
-                                                                           KrpcFilterContext context) {
+    public CompletionStage<ResponseFilterResult<DescribeClusterResponseData>> onDescribeClusterResponse(short apiVersion, ResponseHeaderData header,
+                                                                                                        DescribeClusterResponseData response,
+                                                                                                        KrpcFilterContext<DescribeClusterResponseData> context) {
         response.setErrorCode(Errors.UNKNOWN_SERVER_ERROR.code())
                 .setErrorMessage("filterNameTaggedFieldsFromOutOfBandResponse: " + values);
         return context.responseFilterResultBuilder().withHeader(null).withMessage(response).completedFilterResult();

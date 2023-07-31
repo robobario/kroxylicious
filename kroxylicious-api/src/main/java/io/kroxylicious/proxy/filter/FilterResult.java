@@ -11,7 +11,7 @@ import org.apache.kafka.common.protocol.ApiMessage;
 /**
  * The result of a filter request or response.
  */
-public interface FilterResult {
+public interface FilterResult<T extends ApiMessage> {
     /**
      * the header to be forwarded to the next filter in the chain.
      *
@@ -23,7 +23,7 @@ public interface FilterResult {
      * the message to be forwarded to the next filter in the chain.
      * @return header.
      */
-    ApiMessage message();
+    T message();
 
     /**
      * signals the filter's wish that the connection will be closed.

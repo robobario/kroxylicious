@@ -24,6 +24,6 @@ public interface FetchRequestFilter extends KrpcRequestFilter {
      * @return the {@code request} to be passed to the next filter.
      * If null is returned then the given {@code request} will be used.
      */
-    public KrpcFilterState onFetchRequest(FetchRequestData request, KrpcFilterContext context);
+    public KrpcFilterState onFetchRequest(FetchRequestData request, KrpcFilterContext<ApiMessage> context);
 
 }

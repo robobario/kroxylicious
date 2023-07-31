@@ -52,7 +52,7 @@ class SampleProduceRequestFilterTest {
     private static final String CONFIG_REPLACE_VALUE = "to";
 
     @Mock
-    private KrpcFilterContext context;
+    private KrpcFilterContext<ApiMessage> context;
 
     @Mock(answer = Answers.RETURNS_SELF)
     private RequestFilterResultBuilder requestFilterResultBuilder;
@@ -83,7 +83,7 @@ class SampleProduceRequestFilterTest {
     public void willTransformProduceRequestTest() throws Exception {
         var requestData = buildProduceRequestData(PRE_TRANSFORM_VALUE);
 
-        var stage = filter.onProduceRequest(API_VERSION, headerData, requestData, context);
+        var stage = filter.onProduceRequest(API_VERSION, headerData, requestData, KrpcFilterContext.toSpecificContext(context));
         assertThat(stage).isCompleted();
         var forwardedRequest = stage.toCompletableFuture().get().message();
         var unpackedRequest = unpackProduceRequestData((ProduceRequestData) forwardedRequest);
@@ -101,7 +101,7 @@ class SampleProduceRequestFilterTest {
     @Test
     public void wontTransformProduceRequestTest() throws Exception {
         var requestData = buildProduceRequestData(NO_TRANSFORM_VALUE);
-        var stage = filter.onProduceRequest(API_VERSION, headerData, requestData, context);
+        var stage = filter.onProduceRequest(API_VERSION, headerData, requestData, KrpcFilterContext.toSpecificContext(context));
         assertThat(stage).isCompleted();
         var forwardedRequest = stage.toCompletableFuture().get().message();
         var unpackedRequest = unpackProduceRequestData((ProduceRequestData) forwardedRequest);

@@ -16,10 +16,10 @@ import org.apache.kafka.common.protocol.ApiMessage;
  * @param <FRB> concrete filter result builder
  * @param <FR> concrete filter result
  */
-public interface FilterResultBuilder<FRB extends FilterResultBuilder<FRB, FR>, FR extends FilterResult> {
+public interface FilterResultBuilder<FRB extends FilterResultBuilder<FRB, FR, T>, FR extends FilterResult<T>, T extends ApiMessage> {
     FRB withHeader(ApiMessage header);
 
-    FRB withMessage(ApiMessage message);
+    FRB withMessage(T message);
 
     FRB withCloseConnection(boolean closeConnection);
 

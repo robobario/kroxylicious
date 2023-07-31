@@ -70,19 +70,16 @@ public class FilterHandler extends ChannelDuplexHandler {
                     return;
                 }
 
-                if (requestFilterResult.message() != null) {
-                    if (requestFilterResult.shortCircuitResponse()) {
-                        // this is the short circuit path
-                        var header = requestFilterResult.header() == null ? new ResponseHeaderData() : ((ResponseHeaderData) requestFilterResult.header());
-                        header.setCorrelationId(decodedFrame.correlationId());
-                        filterContext.forwardResponse(header, requestFilterResult.message());
-                    }
-                    else {
-                        var header = requestFilterResult.header() == null ? decodedFrame.header() : requestFilterResult.header();
-                        filterContext.forwardRequest((RequestHeaderData) header, requestFilterResult.message());
-                    }
+                if (requestFilterResult.shortCircuitResponse() != null) {
+                    // this is the short circuit path
+                    var header = requestFilterResult.header() == null ? new ResponseHeaderData() : ((ResponseHeaderData) requestFilterResult.header());
+                    header.setCorrelationId(decodedFrame.correlationId());
+                    filterContext.forwardResponse(header, requestFilterResult.shortCircuitResponse());
                 }
-
+                else if (requestFilterResult.message() != null) {
+                    var header = requestFilterResult.header() == null ? decodedFrame.header() : requestFilterResult.header();
+                    filterContext.forwardRequest((RequestHeaderData) header, requestFilterResult.message());
+                }
                 if (requestFilterResult.closeConnection()) {
                     filterContext.closeConnection();
                 }

@@ -73,21 +73,21 @@ class MultiTenantTransformationFilterTest {
     private final FilterInvoker invoker = getOnlyElement(FilterAndInvoker.build(filter)).invoker();
 
     @Mock(strictness = LENIENT)
-    private KrpcFilterContext context;
+    private KrpcFilterContext<ApiMessage> context;
 
     @Captor
     private ArgumentCaptor<ApiMessage> apiMessageCaptor;
 
     @Mock(answer = Answers.RETURNS_SELF)
-    private RequestFilterResultBuilder requestFilterResultBuilder;
+    private RequestFilterResultBuilder<ApiMessage> requestFilterResultBuilder;
 
     @Mock(answer = Answers.RETURNS_SELF)
-    private ResponseFilterResultBuilder responseFilterResultBuilder;
+    private ResponseFilterResultBuilder<ApiMessage> responseFilterResultBuilder;
 
     @Mock
-    private RequestFilterResult requestFilterResult;
+    private RequestFilterResult<ApiMessage> requestFilterResult;
     @Mock
-    private ResponseFilterResult responseFilterResult;
+    private ResponseFilterResult<ApiMessage> responseFilterResult;
 
     public static Stream<Arguments> requests() throws Exception {
         return RequestResponseTestDef.requestResponseTestDefinitions(getTestResources()).filter(td -> td.request() != null)
