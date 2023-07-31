@@ -123,21 +123,27 @@ public class FilterHandler extends ChannelDuplexHandler {
     }
 
     private <T> CompletableFuture<T> switchBackToNettyIfRequired(ChannelHandlerContext ctx, CompletableFuture<T> future) {
-        if (ctx.executor().inEventLoop()) {
-            return future;
-        }
         CompletableFuture<T> nettyDrivenFuture = new CompletableFuture<>();
         future.whenComplete((t, throwable) -> {
-            ctx.executor().execute(() -> {
-                if (throwable != null) {
-                    nettyDrivenFuture.completeExceptionally(throwable);
-                }
-                else {
-                    nettyDrivenFuture.complete(t);
-                }
-            });
+            if (ctx.executor().inEventLoop()) {
+                complete(nettyDrivenFuture, t, throwable);
+            }
+            else {
+                ctx.executor().execute(() -> {
+                    complete(nettyDrivenFuture, t, throwable);
+                });
+            }
         });
         return nettyDrivenFuture;
+    }
+
+    private static <T> void complete(CompletableFuture<T> nettyDrivenFuture, T t, Throwable throwable) {
+        if (throwable != null) {
+            nettyDrivenFuture.completeExceptionally(throwable);
+        }
+        else {
+            nettyDrivenFuture.complete(t);
+        }
     }
 
     private <T extends FilterResult> CompletableFuture<T> handleDeferredStage(ChannelHandlerContext ctx, CompletableFuture<T> stage) {
