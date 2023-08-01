@@ -10,7 +10,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 import org.apache.kafka.common.message.ApiMessageType;
 import org.apache.kafka.common.message.ProduceRequestData;
@@ -36,6 +35,7 @@ import org.mockito.stubbing.Answer;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
 import io.kroxylicious.proxy.filter.RequestFilterResultBuilder;
+import io.kroxylicious.proxy.filter.RequestFilterResultBuilder2;
 import io.kroxylicious.sample.config.SampleFilterConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -111,10 +111,7 @@ class SampleProduceRequestFilterTest {
     }
 
     private void setupContextMock() {
-        when(context.requestFilterResultBuilder()).thenReturn(requestFilterResultBuilder);
-        when(requestFilterResultBuilder.withMessage(apiMessageCaptor.capture())).thenReturn(requestFilterResultBuilder);
-        when(requestFilterResult.message()).thenAnswer(invocation -> apiMessageCaptor.getValue());
-        when(requestFilterResultBuilder.completedFilterResult()).thenAnswer(invocation -> CompletableFuture.completedStage(requestFilterResult));
+        when(context.requestFilterResultBuilder2()).thenReturn(new RequestFilterResultBuilder2<>());
 
         when(context.createByteBufferOutputStream(bufferInitialCapacity.capture())).thenAnswer(
                 (Answer<ByteBufferOutputStream>) invocation -> {

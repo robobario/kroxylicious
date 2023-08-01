@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.RequestFilter;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
+import io.kroxylicious.proxy.filter.RequestFilterResultBuilder2;
 
 /**
  * An internal filter that causes the system to eagerly learn the cluster's topology by spontaneously emitting
@@ -63,12 +64,8 @@ public class EagerMetadataLearner implements RequestFilter {
                         // closing the connection is important. This client connection is connected to bootstrap (it could
                         // be any broker or maybe not something else). we must close the connection to force the client to
                         // connect again.
-                        var builder = filterContext.requestFilterResultBuilder();
-                        if (useClientRequest) {
-                            // The client's requested matched our out-of-band message, so we may as well return the
-                            // response.
-                            builder = builder.withShortCircuitResponse(metadataResponseData);
-                        }
+                        RequestFilterResultBuilder2<ApiMessage> rb = filterContext.requestFilterResultBuilder2();
+                        var builder = useClientRequest ? rb.shortCircuitRespond(metadataResponseData) : rb.forward(header, request);
                         builder.withCloseConnection(true);
                         future.complete(builder.build());
                         LOGGER.info("Closing upstream bootstrap connection {} now that endpoint reconciliation is complete.", filterContext.channelDescriptor());

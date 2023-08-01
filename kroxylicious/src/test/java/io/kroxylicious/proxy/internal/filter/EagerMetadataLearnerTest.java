@@ -37,6 +37,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResultBuilder;
+import io.kroxylicious.proxy.filter.RequestFilterResultBuilder2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyShort;
@@ -89,7 +90,7 @@ class EagerMetadataLearnerTest {
         var metadataResponse = new MetadataResponseData();
         metadataResponse.brokers().add(new MetadataResponseData.MetadataResponseBroker().setNodeId(1).setHost("localhost").setPort(1234));
 
-        when(context.requestFilterResultBuilder()).thenReturn(new RequestFilterResultBuilderImpl());
+        when(context.requestFilterResultBuilder2()).thenReturn(new RequestFilterResultBuilder2<>());
         when(context.sendRequest(anyShort(), isA(MetadataRequestData.class))).thenReturn(CompletableFuture.completedStage(metadataResponse));
         var stage = learner.onRequest(apiKey, header, request, context);
         assertThat(stage).isCompleted();

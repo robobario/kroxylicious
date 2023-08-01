@@ -98,4 +98,6 @@ public interface KrpcFilterContext<T extends ApiMessage> {
         // TODO find less ugly way? You can alternatively make a wrapper KrpcFilterContext
         return (KrpcFilterContext<T>) context;
     }
+
+    RequestFilterResultBuilder2<T> requestFilterResultBuilder2();
 }
