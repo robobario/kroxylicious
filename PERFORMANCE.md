@@ -1,6 +1,6 @@
 # Performance
 
-This document describes how to run some basic performance tests for the proxy.
+This document describes how to run some basic performance tests for the proxy. Arbitrary change!
 
 ## Preparation
 
