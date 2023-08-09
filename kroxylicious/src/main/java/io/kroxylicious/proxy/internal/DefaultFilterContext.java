@@ -30,8 +30,6 @@ import io.kroxylicious.proxy.filter.RequestFilterResultBuilder;
 import io.kroxylicious.proxy.filter.ResponseFilterResult;
 import io.kroxylicious.proxy.filter.ResponseFilterResultBuilder;
 import io.kroxylicious.proxy.frame.DecodedFrame;
-import io.kroxylicious.proxy.frame.DecodedResponseFrame;
-import io.kroxylicious.proxy.frame.RequestFrame;
 import io.kroxylicious.proxy.future.InternalCompletionStage;
 import io.kroxylicious.proxy.internal.filter.RequestFilterResultBuilderImpl;
 import io.kroxylicious.proxy.internal.filter.ResponseFilterResultBuilderImpl;
@@ -47,7 +45,6 @@ class DefaultFilterContext implements KrpcFilterContext {
 
     private final DecodedFrame<?, ?> decodedFrame;
     private final ChannelHandlerContext channelContext;
-    private final ChannelPromise promise;
     private final KrpcFilter filter;
     private final long timeoutMs;
     private final String sniHostname;
@@ -56,14 +53,12 @@ class DefaultFilterContext implements KrpcFilterContext {
     DefaultFilterContext(KrpcFilter filter,
                          ChannelHandlerContext channelContext,
                          DecodedFrame<?, ?> decodedFrame,
-                         ChannelPromise promise,
                          long timeoutMs,
                          String sniHostname,
                          VirtualCluster virtualCluster) {
         this.filter = filter;
         this.channelContext = channelContext;
         this.decodedFrame = decodedFrame;
-        this.promise = promise;
         this.timeoutMs = timeoutMs;
         this.sniHostname = sniHostname;
         this.virtualCluster = virtualCluster;
@@ -94,33 +89,6 @@ class DefaultFilterContext implements KrpcFilterContext {
     @Override
     public String sniHostname() {
         return sniHostname;
-    }
-
-    /**
-     * Forward a request to the next filter in the chain
-     * (or to the upstream broker).
-     *
-     * @param header The header
-     * @param message The message
-     */
-    protected void forwardRequestInternal(RequestHeaderData header, ApiMessage message) {
-        if (decodedFrame.body() != message) {
-            throw new IllegalStateException();
-        }
-        if (decodedFrame.header() != header) {
-            throw new IllegalStateException();
-        }
-        // check it's a request
-        String name = message.getClass().getName();
-        if (!name.endsWith("RequestData")) {
-            throw new AssertionError("Attempt to use forwardRequest with a non-request: " + name);
-        }
-
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("{}: Forwarding request: {}", channelDescriptor(), decodedFrame);
-        }
-        // TODO check we've not forwarded it already
-        channelContext.write(decodedFrame, promise);
     }
 
     @Override
@@ -181,37 +149,6 @@ class DefaultFilterContext implements KrpcFilterContext {
         return responseFilterResultBuilder().forward(header, response).completed();
     }
 
-    /**
-     * Forward a request to the next filter in the chain
-     * (or to the downstream client).
-     *
-     * @param header The header
-     * @param response The message
-     */
-    protected void forwardResponseInternal(ResponseHeaderData header, ApiMessage response) {
-        // check it's a response
-        String name = response.getClass().getName();
-        if (!name.endsWith("ResponseData")) {
-            throw new AssertionError("Attempt to use forwardResponse with a non-response: " + name);
-        }
-        if (decodedFrame instanceof RequestFrame) {
-            forwardShortCircuitResponse(header, response);
-        }
-        else {
-            // TODO check we've not forwarded it already
-            if (decodedFrame.body() != response) {
-                throw new AssertionError();
-            }
-            if (decodedFrame.header() != header) {
-                throw new AssertionError();
-            }
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("{}: Forwarding response: {}", channelDescriptor(), decodedFrame);
-            }
-            channelContext.fireChannelRead(decodedFrame);
-        }
-    }
-
     @Override
     public ResponseFilterResultBuilder responseFilterResultBuilder() {
         return new ResponseFilterResultBuilderImpl();
@@ -227,37 +164,8 @@ class DefaultFilterContext implements KrpcFilterContext {
         return new RequestFilterResultBuilderImpl();
     }
 
-    protected void closeConnection() {
-        this.channelContext.close().addListener(future -> {
-            LOGGER.debug("{} closed.", channelDescriptor());
-        });
-    }
-
     public String getVirtualClusterName() {
         return virtualCluster.getClusterName();
-    }
-
-    /**
-     * In this case we are not forwarding to the proxied broker but responding immediately.
-     * We want to check that the ApiMessage is the correct type for the request. Ie if the
-     * request was a Produce Request we want the response to be a Produce Response.
-     *
-     * @param header the response header
-     * @param response the response body
-     */
-    private void forwardShortCircuitResponse(ResponseHeaderData header, ApiMessage response) {
-        if (response.apiKey() != decodedFrame.apiKey().id) {
-            throw new AssertionError(
-                    "Attempt to respond with ApiMessage of type " + ApiKeys.forId(response.apiKey()) + " but request is of type " + decodedFrame.apiKey());
-        }
-        DecodedResponseFrame<?> responseFrame = new DecodedResponseFrame<>(decodedFrame.apiVersion(), decodedFrame.correlationId(), header, response);
-        decodedFrame.transferBuffersTo(responseFrame);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("{}: Forwarding response: {}", channelDescriptor(), decodedFrame);
-        }
-        channelContext.fireChannelRead(responseFrame);
-        // required to flush the message back to the client
-        channelContext.fireChannelReadComplete();
     }
 
 }
