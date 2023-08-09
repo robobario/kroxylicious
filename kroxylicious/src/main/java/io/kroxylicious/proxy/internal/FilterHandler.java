@@ -334,7 +334,6 @@ public class FilterHandler extends ChannelDuplexHandler {
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("{}: Forwarding request: {}", channelDescriptor(), decodedFrame);
         }
-        // TODO check we've not forwarded it already
         ctx.write(decodedFrame, promise);
     }
 
@@ -360,7 +359,6 @@ public class FilterHandler extends ChannelDuplexHandler {
             ctx.fireChannelReadComplete();
         }
         else {
-            // TODO check we've not forwarded it already
             if (decodedFrame.body() != message) {
                 throw new AssertionError();
             }
@@ -389,60 +387,11 @@ public class FilterHandler extends ChannelDuplexHandler {
         }
     }
 
-    private <T extends ApiMessage> CompletionStage<T> sendRequest(short apiVersion, ApiMessage message) {
-        short key = message.apiKey();
-        var apiKey = ApiKeys.forId(key);
-        short headerVersion = apiKey.requestHeaderVersion(apiVersion);
-        var header = new RequestHeaderData()
-                .setCorrelationId(-1)
-                .setRequestApiKey(key)
-                .setRequestApiVersion(apiVersion);
-        if (headerVersion > 1) {
-            header.setClientId(filter.getClass().getSimpleName() + "@" + System.identityHashCode(filter));
-        }
-        boolean hasResponse = apiKey != ApiKeys.PRODUCE
-                || ((ProduceRequestData) message).acks() != 0;
-        var filterPromise = new CompletableFuture<T>();
-        var filterStage = new InternalCompletionStage<>(filterPromise);
-        var frame = new InternalRequestFrame<>(
-                apiVersion, -1, hasResponse,
-                filter, filterPromise, header, message);
-
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("{}: Sending request: {}", channelDescriptor(), frame);
-        }
-        ChannelPromise writePromise = ctx.channel().newPromise();
-        ctx.writeAndFlush(frame, writePromise);
-
-        if (!hasResponse) {
-            // Complete the filter promise for an ack-less Produce
-            // based on the success of the channel write
-            // (for all other requests the filter promise will be completed
-            // when handling the response).
-            writePromise.addListener(f -> {
-                if (f.isSuccess()) {
-                    filterPromise.complete(null);
-                }
-                else {
-                    filterPromise.completeExceptionally(f.cause());
-                }
-            });
-        }
-
-        ctx.executor().schedule(() -> {
-            LOGGER.debug("{}: Timing out {} request after {}ms", ctx, apiKey, timeoutMs);
-            filterPromise
-                    .completeExceptionally(new TimeoutException("Asynchronous %s request made by filter %s was timed-out.".formatted(apiKey, filterDescriptor())));
-        }, timeoutMs, TimeUnit.MILLISECONDS);
-        return filterStage;
-    }
-
     private void closeConnection() {
         ctx.close().addListener(future -> {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("{}: Channel closed", channelDescriptor());
             }
-
         });
     }
 
@@ -502,7 +451,51 @@ public class FilterHandler extends ChannelDuplexHandler {
 
         @Override
         public <T extends ApiMessage> CompletionStage<T> sendRequest(short apiVersion, ApiMessage request) {
-            return FilterHandler.this.sendRequest(apiVersion, request);
+            short key = request.apiKey();
+            var apiKey = ApiKeys.forId(key);
+            short headerVersion = apiKey.requestHeaderVersion(apiVersion);
+            var header = new RequestHeaderData()
+                    .setCorrelationId(-1)
+                    .setRequestApiKey(key)
+                    .setRequestApiVersion(apiVersion);
+            if (headerVersion > 1) {
+                header.setClientId(filter.getClass().getSimpleName() + "@" + System.identityHashCode(filter));
+            }
+            boolean hasResponse = apiKey != ApiKeys.PRODUCE
+                    || ((ProduceRequestData) request).acks() != 0;
+            var filterPromise = new CompletableFuture<T>();
+            var filterStage = new InternalCompletionStage<>(filterPromise);
+            var frame = new InternalRequestFrame<>(
+                    apiVersion, -1, hasResponse,
+                    filter, filterPromise, header, request);
+
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("{}: Sending request: {}", FilterHandler.this.channelDescriptor(), frame);
+            }
+            ChannelPromise writePromise = ctx.channel().newPromise();
+            ctx.writeAndFlush(frame, writePromise);
+
+            if (!hasResponse) {
+                // Complete the filter promise for an ack-less Produce
+                // based on the success of the channel write
+                // (for all other requests the filter promise will be completed
+                // when handling the response).
+                writePromise.addListener(f -> {
+                    if (f.isSuccess()) {
+                        filterPromise.complete(null);
+                    }
+                    else {
+                        filterPromise.completeExceptionally(f.cause());
+                    }
+                });
+            }
+
+            ctx.executor().schedule(() -> {
+                LOGGER.debug("{}: Timing out {} request after {}ms", ctx, apiKey, timeoutMs);
+                filterPromise
+                        .completeExceptionally(new TimeoutException("Asynchronous %s request made by filter %s was timed-out.".formatted(apiKey, filterDescriptor())));
+            }, timeoutMs, TimeUnit.MILLISECONDS);
+            return filterStage;
         }
     }
 }
