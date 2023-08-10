@@ -203,14 +203,18 @@ public class FilterHandler extends ChannelDuplexHandler {
 
     private void handleResponseFilterResult(DecodedResponseFrame<?> decodedFrame, ResponseFilterResult responseFilterResult, Throwable t) {
         if (t != null) {
-            LOGGER.warn("{}: Filter{} for {} response ended exceptionally - closing connection",
-                    channelDescriptor(), filterDescriptor(), decodedFrame.apiKey(), t);
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("{}: Filter{} for {} response ended exceptionally - closing connection",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey(), t);
+            }
             closeConnection();
             return;
         }
         if (responseFilterResult == null) {
-            LOGGER.warn("{}: Filter{} for {} response future completed with null - closing connection",
-                    channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("{}: Filter{} for {} response future completed with null - closing connection",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
+            }
             closeConnection();
             return;
         }
@@ -294,14 +298,19 @@ public class FilterHandler extends ChannelDuplexHandler {
     private CompletableFuture<?> handleDeferredReadCompletion(CompletableFuture<?> future) {
         return future.whenComplete((ignored, throwable) -> {
             inboundChannel.config().setAutoRead(true);
-            inboundChannel.flush();
+            readFuture.whenComplete((u, t) -> {
+                inboundChannel.flush();
+            });
         });
     }
 
     private CompletableFuture<?> handleDeferredWriteCompletion(CompletableFuture<?> future) {
         return future.whenComplete((ignored, throwable) -> {
             inboundChannel.config().setAutoRead(true);
-            ctx.flush();
+            // chain a flush to force any pending writes towards the broker
+            writeFuture.whenComplete((u, t) -> {
+                ctx.flush();
+            });
             // flush inbound in case of short-circuit
             inboundChannel.flush();
         });
