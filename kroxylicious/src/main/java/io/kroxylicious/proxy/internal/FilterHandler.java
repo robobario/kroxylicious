@@ -92,12 +92,7 @@ public class FilterHandler extends ChannelDuplexHandler {
         if (msg instanceof InternalResponseFrame<?> decodedFrame) {
             // jump the queue, let responses to asynchronous requests flow back to their sender
             if (decodedFrame.isRecipient(filter)) {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("{}: Completing {} response for request sent by this filter{}: {}",
-                            channelDescriptor(), decodedFrame.apiKey(), filterDescriptor(), msg);
-                }
-                CompletableFuture<ApiMessage> p = decodedFrame.promise();
-                p.complete(decodedFrame.body());
+                completeInternalResponse(decodedFrame);
             }
             else {
                 readDecodedResponse(decodedFrame);
@@ -397,6 +392,15 @@ public class FilterHandler extends ChannelDuplexHandler {
 
     private String channelDescriptor() {
         return ctx.channel().toString();
+    }
+
+    private void completeInternalResponse(InternalResponseFrame<?> decodedFrame) {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("{}: Completing {} response for request sent by this filter{}: {}",
+                    channelDescriptor(), decodedFrame.apiKey(), filterDescriptor(), decodedFrame);
+        }
+        CompletableFuture<ApiMessage> p = decodedFrame.promise();
+        p.complete(decodedFrame.body());
     }
 
     private class InternalFilterContext implements KrpcFilterContext {
