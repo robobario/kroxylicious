@@ -171,8 +171,8 @@ public class FilterHandler extends ChannelDuplexHandler {
         var future = stage.toCompletableFuture();
         boolean defer = !future.isDone();
         var maybeDeferred = defer ? handleDeferredStage(decodedFrame, future) : future;
-        var execute = executeRead(decodedFrame, maybeDeferred);
-        var maybeDeferredCompleted = defer ? handleDeferredReadCompletion(execute) : execute;
+        var filterHandled = maybeDeferred.whenComplete((fr, t) -> handleResponseFilterResult(decodedFrame, fr, t));
+        var maybeDeferredCompleted = defer ? handleDeferredReadCompletion(filterHandled) : filterHandled;
         return maybeDeferredCompleted.thenApply(responseFilterResult -> null);
     }
 
@@ -196,90 +196,84 @@ public class FilterHandler extends ChannelDuplexHandler {
         var future = stage.toCompletableFuture();
         boolean defer = !future.isDone();
         var maybeDeferred = defer ? handleDeferredStage(decodedFrame, future) : future;
-        var execute = executeWrite(decodedFrame, maybeDeferred, promise);
-        var maybeDeferredCompleted = defer ? handleDeferredWriteCompletion(execute) : execute;
+        var filterHandled = maybeDeferred.whenComplete((fr, t) -> handleRequestFilterResult(decodedFrame, promise, fr, t));
+        var maybeDeferredCompleted = defer ? handleDeferredWriteCompletion(filterHandled) : filterHandled;
         return maybeDeferredCompleted.thenApply(filterResult -> null);
     }
 
-    private CompletableFuture<ResponseFilterResult> executeRead(DecodedResponseFrame<?> decodedFrame, CompletableFuture<ResponseFilterResult> filterFuture) {
-        return filterFuture.whenComplete((responseFilterResult, t) -> {
-            if (t != null) {
-                LOGGER.warn("{}: Filter{} for {} response ended exceptionally - closing connection",
-                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey(), t);
-                closeConnection();
-                return;
-            }
-            if (responseFilterResult == null) {
-                LOGGER.warn("{}: Filter{} for {} response future completed with null - closing connection",
+    private void handleResponseFilterResult(DecodedResponseFrame<?> decodedFrame, ResponseFilterResult responseFilterResult, Throwable t) {
+        if (t != null) {
+            LOGGER.warn("{}: Filter{} for {} response ended exceptionally - closing connection",
+                    channelDescriptor(), filterDescriptor(), decodedFrame.apiKey(), t);
+            closeConnection();
+            return;
+        }
+        if (responseFilterResult == null) {
+            LOGGER.warn("{}: Filter{} for {} response future completed with null - closing connection",
+                    channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
+            closeConnection();
+            return;
+        }
+        if (responseFilterResult.drop()) {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("{}: Filter{} drops {} response",
                         channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
-                closeConnection();
-                return;
             }
-            if (responseFilterResult.drop()) {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("{}: Filter{} drops {} response",
-                            channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
-                }
-                return;
-            }
+            return;
+        }
 
-            if (responseFilterResult.message() != null) {
-                ResponseHeaderData header = responseFilterResult.header() == null ? decodedFrame.header() : (ResponseHeaderData) responseFilterResult.header();
-                forwardResponse(decodedFrame, header, responseFilterResult.message());
-            }
+        if (responseFilterResult.message() != null) {
+            ResponseHeaderData header = responseFilterResult.header() == null ? decodedFrame.header() : (ResponseHeaderData) responseFilterResult.header();
+            forwardResponse(decodedFrame, header, responseFilterResult.message());
+        }
 
-            if (responseFilterResult.closeConnection()) {
-                closeConnection();
-            }
-        });
+        if (responseFilterResult.closeConnection()) {
+            closeConnection();
+        }
     }
 
-    private CompletableFuture<RequestFilterResult> executeWrite(DecodedRequestFrame<?> decodedFrame, CompletableFuture<RequestFilterResult> filterFuture,
-                                                                ChannelPromise promise) {
-        return filterFuture.whenComplete((requestFilterResult, t) -> {
-            // maybe better to run the whole thing on the netty thread.
-
-            if (t != null) {
-                if (LOGGER.isWarnEnabled()) {
-                    LOGGER.warn("{}: Filter{} for {} request ended exceptionally - closing connection",
-                            channelDescriptor(), filterDescriptor(), decodedFrame.apiKey(), t);
-                }
-                closeConnection();
-                return;
+    private void handleRequestFilterResult(DecodedRequestFrame<?> decodedFrame, ChannelPromise promise, RequestFilterResult requestFilterResult, Throwable t) {
+        if (t != null) {
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("{}: Filter{} for {} request ended exceptionally - closing connection",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey(), t);
             }
-            if (requestFilterResult == null) {
-                if (LOGGER.isWarnEnabled()) {
-                    LOGGER.warn("{}: Filter{} for {} request future completed with null - closing connection",
-                            channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
-                }
-                closeConnection();
-                return;
+            closeConnection();
+            return;
+        }
+        if (requestFilterResult == null) {
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("{}: Filter{} for {} request future completed with null - closing connection",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
             }
+            closeConnection();
+            return;
+        }
 
-            if (requestFilterResult.drop()) {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("{}: Filter{} drops {} request",
-                            channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
-                }
-                return;
+        if (requestFilterResult.drop()) {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("{}: Filter{} drops {} request",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
             }
+            return;
+        }
 
+        if (requestFilterResult.message() != null) {
+            if (requestFilterResult.shortCircuitResponse()) {
+                forwardShortCircuitResponse(decodedFrame, requestFilterResult);
+            }
+            else {
+                forwardRequest(decodedFrame, requestFilterResult, promise);
+            }
+        }
+
+        if (requestFilterResult.closeConnection()) {
             if (requestFilterResult.message() != null) {
-                if (requestFilterResult.shortCircuitResponse()) {
-                    forwardShortCircuitResponse(decodedFrame, requestFilterResult);
-                }
-                else {
-                    forwardRequest(decodedFrame, requestFilterResult, promise);
-                }
+                ctx.flush();
             }
+            closeConnection();
+        }
 
-            if (requestFilterResult.closeConnection()) {
-                if (requestFilterResult.message() != null) {
-                    ctx.flush();
-                }
-                closeConnection();
-            }
-        });
     }
 
     private <T extends FilterResult> CompletableFuture<T> handleDeferredStage(DecodedFrame<?, ?> decodedFrame, CompletableFuture<T> future) {
