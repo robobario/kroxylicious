@@ -88,9 +88,9 @@ public class FilterHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof InternalResponseFrame<?> decodedFrame) {
-            // jump the queue, let extra requests flow back to their sender
+            // jump the queue, let responses to asynchronous requests flow back to their sender
             if (decodedFrame.isRecipient(filter)) {
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug("{}: Completing {} response for request sent by this filter{}: {}",
@@ -100,108 +100,105 @@ public class FilterHandler extends ChannelDuplexHandler {
                 p.complete(decodedFrame.body());
             }
             else {
-                doRead(msg);
+                readDecodedResponse(decodedFrame);
             }
         }
-        else if (readFuture.isDone()) {
-            readFuture = doRead(msg);
+        else if (msg instanceof DecodedResponseFrame<?> decodedFrame) {
+            if (readFuture.isDone()) {
+                readFuture = readDecodedResponse(decodedFrame);
+            }
+            else {
+                readFuture = readFuture.whenComplete((a, b) -> {
+                    if (ctx.channel().isOpen()) {
+                        readDecodedResponse(decodedFrame);
+                    }
+                });
+            }
         }
         else {
-            readFuture = readFuture.whenComplete((a, b) -> {
-                if (ctx.channel().isOpen()) {
-                    doRead(msg);
-                }
-            });
+            if (!(msg instanceof OpaqueResponseFrame)) {
+                throw new IllegalStateException("Unexpected message reading from upstream:  " + msg);
+            }
+            ctx.fireChannelRead(msg);
         }
     }
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        if (msg instanceof InternalRequestFrame<?>) {
+        if (msg instanceof InternalRequestFrame<?> decodedFrame) {
             // jump the queue, internal request must flow!
-            doWrite(msg, promise);
+            writeDecodedRequest(decodedFrame, promise);
         }
-        else if (writeFuture.isDone()) {
-            writeFuture = doWrite(msg, promise);
+        else if (msg instanceof DecodedRequestFrame<?> decodedFrame) {
+            if (writeFuture.isDone()) {
+                writeFuture = writeDecodedRequest(decodedFrame, promise);
+            }
+            else {
+                writeFuture = writeFuture.whenComplete((a, b) -> {
+                    if (ctx.channel().isOpen()) {
+                        writeDecodedRequest(decodedFrame, promise);
+                    }
+                });
+            }
         }
         else {
-            writeFuture = writeFuture.whenComplete((a, b) -> {
-                if (ctx.channel().isOpen()) {
-                    doWrite(msg, promise);
-                }
-            });
-        }
-    }
-
-    private CompletableFuture<Void> doRead(Object msg) {
-        if (msg instanceof DecodedResponseFrame<?> decodedFrame) {
-            var filterContext = new InternalFilterContext(decodedFrame);
-
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("{}: Dispatching upstream {} response to filter {}: {}",
-                        channelDescriptor(), decodedFrame.apiKey(), filterDescriptor(), msg);
-            }
-            var stage = invoker.onResponse(decodedFrame.apiKey(), decodedFrame.apiVersion(),
-                    decodedFrame.header(), decodedFrame.body(), filterContext);
-            if (stage == null) {
-                if (LOGGER.isWarnEnabled()) {
-                    LOGGER.warn("{}: Filter{} for {} response unexpectedly returned null. This is a coding error in the filter. Closing connection.",
-                            channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
-                }
-                closeConnection();
-                return CompletableFuture.completedFuture(null);
-            }
-            var future = stage.toCompletableFuture();
-            boolean defer = !future.isDone();
-            var maybeDeferred = defer ? handleDeferredStage(decodedFrame, future) : future;
-            var execute = executeRead(decodedFrame, maybeDeferred);
-            var maybeDeferredCompleted = defer ? handleDeferredReadCompletion(execute) : execute;
-            return maybeDeferredCompleted.thenApply(responseFilterResult -> null);
-        }
-        else {
-            if (!(msg instanceof OpaqueResponseFrame)) {
-                LOGGER.warn("Unexpected message reading from upstream: {}", msg, new IllegalStateException());
-            }
-            ctx.fireChannelRead(msg);
-            return CompletableFuture.completedFuture(null);
-        }
-    }
-
-    private CompletableFuture<Void> doWrite(Object msg, ChannelPromise promise) {
-        if (msg instanceof DecodedRequestFrame<?> decodedFrame) {
-            var filterContext = new InternalFilterContext(decodedFrame);
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("{}: Dispatching downstream {} request to filter{}: {}",
-                        channelDescriptor(), decodedFrame.apiKey(), filterDescriptor(), msg);
-            }
-
-            var stage = invoker.onRequest(decodedFrame.apiKey(), decodedFrame.apiVersion(), decodedFrame.header(),
-                    decodedFrame.body(), filterContext);
-            if (stage == null) {
-                if (LOGGER.isWarnEnabled()) {
-                    LOGGER.warn("{}: Filter{} for {} request unexpectedly returned null. This is a coding error in the filter. Closing connection.",
-                            channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
-                }
-                closeConnection();
-                return CompletableFuture.completedFuture(null);
-            }
-            var future = stage.toCompletableFuture();
-            boolean defer = !future.isDone();
-            var maybeDeferred = defer ? handleDeferredStage(decodedFrame, future) : future;
-            var execute = executeWrite(decodedFrame, maybeDeferred, promise);
-            var maybeDeferredCompleted = defer ? handleDeferredWriteCompletion(execute) : execute;
-            return maybeDeferredCompleted.thenApply(filterResult -> null);
-        }
-        else {
-            if (!(msg instanceof OpaqueRequestFrame)
-                    && msg != Unpooled.EMPTY_BUFFER) {
+            if (!(msg instanceof OpaqueRequestFrame) && msg != Unpooled.EMPTY_BUFFER) {
                 // Unpooled.EMPTY_BUFFER is used by KafkaProxyFrontendHandler#closeOnFlush
-                // but otherwise we don't expect any other kind of message
-                LOGGER.warn("Unexpected message writing to upstream: {}", msg, new IllegalStateException());
+                // but, otherwise we don't expect any other kind of message
+                throw new IllegalStateException("Unexpected message writing to upstream: " + msg);
             }
             ctx.write(msg, promise);
+        }
+    }
+
+    private CompletableFuture<Void> readDecodedResponse(DecodedResponseFrame<?> decodedFrame) {
+        var filterContext = new InternalFilterContext(decodedFrame);
+
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("{}: Dispatching upstream {} response to filter {}: {}",
+                    channelDescriptor(), decodedFrame.apiKey(), filterDescriptor(), decodedFrame);
+        }
+        var stage = invoker.onResponse(decodedFrame.apiKey(), decodedFrame.apiVersion(),
+                decodedFrame.header(), decodedFrame.body(), filterContext);
+        if (stage == null) {
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("{}: Filter{} for {} response unexpectedly returned null. This is a coding error in the filter. Closing connection.",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
+            }
+            closeConnection();
             return CompletableFuture.completedFuture(null);
         }
+        var future = stage.toCompletableFuture();
+        boolean defer = !future.isDone();
+        var maybeDeferred = defer ? handleDeferredStage(decodedFrame, future) : future;
+        var execute = executeRead(decodedFrame, maybeDeferred);
+        var maybeDeferredCompleted = defer ? handleDeferredReadCompletion(execute) : execute;
+        return maybeDeferredCompleted.thenApply(responseFilterResult -> null);
+    }
+
+    private CompletableFuture<Void> writeDecodedRequest(DecodedRequestFrame<?> decodedFrame, ChannelPromise promise) {
+        var filterContext = new InternalFilterContext(decodedFrame);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("{}: Dispatching downstream {} request to filter{}: {}",
+                    channelDescriptor(), decodedFrame.apiKey(), filterDescriptor(), decodedFrame);
+        }
+
+        var stage = invoker.onRequest(decodedFrame.apiKey(), decodedFrame.apiVersion(), decodedFrame.header(),
+                decodedFrame.body(), filterContext);
+        if (stage == null) {
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("{}: Filter{} for {} request unexpectedly returned null. This is a coding error in the filter. Closing connection.",
+                        channelDescriptor(), filterDescriptor(), decodedFrame.apiKey());
+            }
+            closeConnection();
+            return CompletableFuture.completedFuture(null);
+        }
+        var future = stage.toCompletableFuture();
+        boolean defer = !future.isDone();
+        var maybeDeferred = defer ? handleDeferredStage(decodedFrame, future) : future;
+        var execute = executeWrite(decodedFrame, maybeDeferred, promise);
+        var maybeDeferredCompleted = defer ? handleDeferredWriteCompletion(execute) : execute;
+        return maybeDeferredCompleted.thenApply(filterResult -> null);
     }
 
     private CompletableFuture<ResponseFilterResult> executeRead(DecodedResponseFrame<?> decodedFrame, CompletableFuture<ResponseFilterResult> filterFuture) {
