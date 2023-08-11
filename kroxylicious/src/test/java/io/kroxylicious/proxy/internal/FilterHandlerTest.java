@@ -34,6 +34,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import io.kroxylicious.proxy.filter.ApiVersionsRequestFilter;
 import io.kroxylicious.proxy.filter.ApiVersionsResponseFilter;
+import io.kroxylicious.proxy.filter.FetchRequestFilter;
 import io.kroxylicious.proxy.filter.KrpcFilterContext;
 import io.kroxylicious.proxy.filter.ProduceRequestFilter;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
@@ -100,6 +101,20 @@ public class FilterHandlerTest extends FilterHarness {
         writeRequest(new ProduceRequestData().setAcks((short) 1));
         DecodedResponseFrame<?> propagated = channel.readInbound();
         assertEquals(responseData, propagated.body(), "expected ProduceResponseData to be forwarded");
+    }
+
+    @Test
+    void shortCircuitSendsIncorrectApiResponse() {
+        ProduceResponseData responseData = new ProduceResponseData();
+        FetchRequestFilter filter = (apiVersion, header, request, context) -> context.requestFilterResultBuilder().shortCircuitResponse(responseData)
+                .completed();
+        buildChannel(filter);
+        writeRequest(new FetchRequestData());
+
+        DecodedResponseFrame<?> propagated = channel.readInbound();
+        assertThat(propagated).isNull();
+        // Defect https://github.com/kroxylicious/kroxylicious/issues/543
+        // assertThat(channel.isOpen()).isFalse();
     }
 
     @Test
