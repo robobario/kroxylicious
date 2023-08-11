@@ -293,9 +293,7 @@ public class FilterHandler extends ChannelDuplexHandler {
     private CompletableFuture<?> handleDeferredReadCompletion(CompletableFuture<?> future) {
         return future.whenComplete((ignored, throwable) -> {
             inboundChannel.config().setAutoRead(true);
-            readFuture.whenComplete((u, t) -> {
-                inboundChannel.flush();
-            });
+            readFuture.whenComplete((u, t) -> inboundChannel.flush());
         });
     }
 
@@ -303,9 +301,7 @@ public class FilterHandler extends ChannelDuplexHandler {
         return future.whenComplete((ignored, throwable) -> {
             inboundChannel.config().setAutoRead(true);
             // chain a flush to force any pending writes towards the broker
-            writeFuture.whenComplete((u, t) -> {
-                ctx.flush();
-            });
+            writeFuture.whenComplete((u, t) -> ctx.flush());
             // flush inbound in case of short-circuit
             inboundChannel.flush();
         });
