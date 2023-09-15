@@ -20,7 +20,7 @@ import io.kroxylicious.proxy.filter.schema.config.ValidationConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ProduceRequestValidationFilterContributorTest {
+class ProduceRequestValidationFilterFactoryTest {
     private static final TypeReference<Map<String, Object>> MAP_REF = new TypeReference<>() {
     };
 

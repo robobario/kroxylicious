@@ -30,6 +30,9 @@ import org.apache.kafka.common.record.TimestampType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import io.kroxylicious.proxy.config.BaseConfig;
 import io.kroxylicious.proxy.filter.FetchResponseFilter;
 import io.kroxylicious.proxy.filter.Filter;
@@ -48,7 +51,8 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
 
         private final String transformation;
 
-        public FetchResponseTransformationConfig(String transformation) {
+        @JsonCreator
+        public FetchResponseTransformationConfig(@JsonProperty("transformation") String transformation) {
             this.transformation = transformation;
         }
 
@@ -134,7 +138,11 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
         }
     }
 
-    public static class Contributor implements FilterContributor {
+    public static class Contributor implements FilterContributor<FetchResponseTransformationConfig> {
+        @Override
+        public Class getFilterType() {
+            return FetchResponseTransformationFilter.class;
+        }
 
         @Override
         public String getTypeName() {
@@ -142,12 +150,12 @@ public class FetchResponseTransformationFilter implements FetchResponseFilter {
         }
 
         @Override
-        public Class<? extends BaseConfig> getConfigClass() {
+        public Class<FetchResponseTransformationConfig> getConfigClass() {
             return FetchResponseTransformationConfig.class;
         }
 
         @Override
-        public Filter getInstance(BaseConfig config, FilterConstructContext context) {
+        public Filter getInstance(FetchResponseTransformationConfig config, FilterConstructContext context) {
             return new FetchResponseTransformationFilter((FetchResponseTransformationConfig) config);
         }
     }
