@@ -5,8 +5,6 @@
  */
 package io.kroxylicious.proxy.service;
 
-import io.kroxylicious.proxy.config.BaseConfig;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -14,9 +12,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * from the Kroxylicious configuration file.
  *
  * @param <S> the service type
- * @param <C> the context type
+ * @param <C> the type of config provided to the service, or {@link Void} for config-less service implementations.
+ * @param <X> the context type
  */
-public interface Contributor<S, B extends BaseConfig, C extends Context<B>> {
+public interface Contributor<S, C, X extends Context<C>> {
 
     /**
      * Identifies the type name this contributor offers.
@@ -25,8 +24,16 @@ public interface Contributor<S, B extends BaseConfig, C extends Context<B>> {
     @NonNull
     String getTypeName();
 
+    /**
+     * The type of config expected by the service.
+     * <br/>
+     * The type must have a constructor annotated with the JsonCreator annotation.
+     * If the service does not required configuration, return {@link Void} instead.
+     *
+     * @return type of config expected by the service.
+     */
     @NonNull
-    Class<B> getConfigType();
+    Class<C> getConfigType();
 
     @NonNull
     default boolean requiresConfiguration() {
@@ -40,6 +47,6 @@ public interface Contributor<S, B extends BaseConfig, C extends Context<B>> {
      * @return the service instance.
      */
     @NonNull
-    S getInstance(C context);
+    S getInstance(X context);
 
 }
