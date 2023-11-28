@@ -4,7 +4,7 @@
 # Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
 #
 
-FROM registry.access.redhat.com/ubi9/openjdk-17:1.15 AS builder
+FROM registry.access.redhat.com/ubi9/openjdk-21:1.17 AS builder
 
 USER root
 WORKDIR /opt/kroxylicious
@@ -20,7 +20,6 @@ ARG KROXYLICIOUS_VERSION
 
 RUN microdnf -y update \
     && microdnf --setopt=install_weak_deps=0 --setopt=tsflags=nodocs install -y java-${JAVA_VERSION}-openjdk-headless openssl shadow-utils \
-    && microdnf reinstall -y tzdata \
     && microdnf clean all
 
 ENV JAVA_HOME /usr/lib/jvm/jre-17
