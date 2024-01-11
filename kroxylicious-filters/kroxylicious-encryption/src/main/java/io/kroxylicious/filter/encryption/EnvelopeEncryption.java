@@ -7,6 +7,10 @@
 package io.kroxylicious.filter.encryption;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -32,7 +36,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param <E> The type of encrypted DEK
  */
 @Plugin(configType = EnvelopeEncryption.Config.class)
-public class EnvelopeEncryption<K, E> implements FilterFactory<EnvelopeEncryption.Config, EnvelopeEncryption.Config> {
+public class EnvelopeEncryption<K, E> implements FilterFactory<EnvelopeEncryption.Config, EnvelopeEncryption.EventLoopLocalResourceFactory<K, E>> {
 
     private static KmsMetrics kmsMetrics = MicrometerKmsMetrics.create(Metrics.globalRegistry);
 
@@ -46,23 +50,73 @@ public class EnvelopeEncryption<K, E> implements FilterFactory<EnvelopeEncryptio
     }
 
     @Override
-    public Config initialize(FilterFactoryContext context, Config config) throws PluginConfigurationException {
-        return config;
+    public EventLoopLocalResourceFactory<K, E> initialize(FilterFactoryContext context, Config config) throws PluginConfigurationException {
+        return new EventLoopLocalResourceFactory<>(config);
     }
 
     @NonNull
     @Override
     @SuppressWarnings("java:S2245") // secure randomization not needed for exponential backoff
-    public EnvelopeEncryptionFilter<K> createFilter(FilterFactoryContext context, Config configuration) {
-        KmsService<Object, K, E> kmsPlugin = context.pluginInstance(KmsService.class, configuration.kms());
-        Kms<K, E> kms = kmsPlugin.buildKms(configuration.kmsConfig());
-        kms = InstrumentedKms.instrument(kms, kmsMetrics);
+    public EnvelopeEncryptionFilter<K> createFilter(FilterFactoryContext context, EventLoopLocalResourceFactory<K, E> configuration) {
+        return new EnvelopeEncryptionFilter<>(configuration.getKeyManager(context), configuration.getKekSelector(context));
+    }
 
-        var keyManager = new InBandKeyManager<>(kms, BufferPool.allocating(), 500_000, context.eventLoop(),
-                new ExponentialJitterBackoffStrategy(Duration.ofMillis(500), Duration.ofSeconds(5), 2d, ThreadLocalRandom.current()));
+    /**
+     * This class is responsible for constructing and holding resources for each netty event loop.
+     * This means multiple channels on the same event loop will share encryption/decryption resources,
+     * so we will utilise the DEKs we generate better. The KeyContexts will last longer than the
+     * span of one connection.
+     * By having a KeyManager per eventloop, on the hot path we should only have one thread using
+     * encryption/decryption resources. So there should be little locking waiting for resources
+     * like the KeyManager. But since the KMS APIs are asynchronous we will still have to take care
+     * that access is thread-safe, either switching back to the eventloop or continuing to carefully
+     * synchronise access to the unsafe structures like KeyContext.
+     * @param <K>
+     * @param <E>
+     */
+    public static class EventLoopLocalResourceFactory<K, E> {
 
-        KekSelectorService<Object, K> ksPlugin = context.pluginInstance(KekSelectorService.class, configuration.selector());
-        TopicNameBasedKekSelector<K> kekSelector = ksPlugin.buildSelector(kms, configuration.selectorConfig());
-        return new EnvelopeEncryptionFilter<>(keyManager, kekSelector);
+        private final Config configuration;
+        private final Map<ScheduledExecutorService, Kms<K, E>> kms = Collections.synchronizedMap(new IdentityHashMap<>());
+        private final Map<ScheduledExecutorService, KeyManager<K>> keyManagers = Collections.synchronizedMap(new IdentityHashMap<>());
+        private final Map<ScheduledExecutorService, TopicNameBasedKekSelector<K>> kekSelectors = Collections.synchronizedMap(new IdentityHashMap<>());
+
+        public EventLoopLocalResourceFactory(Config configuration) {
+            this.configuration = configuration;
+        }
+
+        KeyManager<K> getKeyManager(FilterFactoryContext context) {
+            if (context.eventLoop() == null) {
+                throw new IllegalArgumentException("eventLoop is null");
+            }
+            return keyManagers.computeIfAbsent(context.eventLoop(), o -> {
+                Kms<K, E> kms = getKms(context);
+                return new InBandKeyManager<>(kms, BufferPool.allocating(), 500_000, o,
+                        new ExponentialJitterBackoffStrategy(Duration.ofMillis(500), Duration.ofSeconds(5), 2d, ThreadLocalRandom.current()));
+            });
+        }
+
+        TopicNameBasedKekSelector<K> getKekSelector(FilterFactoryContext context) {
+            if (context.eventLoop() == null) {
+                throw new IllegalArgumentException("eventLoop is null");
+            }
+            return kekSelectors.computeIfAbsent(context.eventLoop(), o -> {
+                Kms<K, E> kms = getKms(context);
+                KekSelectorService<Object, K> ksPlugin = context.pluginInstance(KekSelectorService.class, configuration.selector());
+                return ksPlugin.buildSelector(kms, configuration.selectorConfig());
+            });
+        }
+
+        Kms<K, E> getKms(FilterFactoryContext context) {
+            if (context.eventLoop() == null) {
+                throw new IllegalArgumentException("eventLoop is null");
+            }
+            return kms.computeIfAbsent(context.eventLoop(), o -> {
+                KmsService<Object, K, E> kmsPlugin = context.pluginInstance(KmsService.class, configuration.kms());
+                Kms<K, E> kms = kmsPlugin.buildKms(configuration.kmsConfig());
+                return InstrumentedKms.instrument(kms, kmsMetrics);
+            });
+        }
+
     }
 }

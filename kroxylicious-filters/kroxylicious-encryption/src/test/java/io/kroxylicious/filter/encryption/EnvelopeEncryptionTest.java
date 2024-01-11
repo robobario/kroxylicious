@@ -6,6 +6,9 @@
 
 package io.kroxylicious.filter.encryption;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.kms.service.Kms;
@@ -16,8 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class EnvelopeEncryptionTest {
+
+    public static final ScheduledExecutorService EXECUTOR_SERVICE = Executors.newScheduledThreadPool(1);
 
     @Test
     void shouldInitAndCreateFilter() {
@@ -34,9 +40,10 @@ class EnvelopeEncryptionTest {
 
         doReturn(kekSelectorService).when(fc).pluginInstance(KekSelectorService.class, "SELECTOR");
         doReturn(kekSelector).when(kekSelectorService).buildSelector(any(), any());
+        when(fc.eventLoop()).thenReturn(EXECUTOR_SERVICE);
 
         ee.initialize(fc, config);
-        var filter = ee.createFilter(fc, config);
+        var filter = ee.createFilter(fc, new EnvelopeEncryption.EventLoopLocalResourceFactory(config));
         assertNotNull(filter);
     }
 
