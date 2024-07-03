@@ -64,7 +64,23 @@ public interface Kms<K, E> {
      * @return A completion stage for the key id.
      * @throws UnknownAliasException If the alias does not resolve to a key in this KMS.
      * @throws KmsException For other exceptions.
+     * @deprecated use resolveAliasToKekRef instead
      */
+    @Deprecated(since = "0.7.0")
     @NonNull
     CompletionStage<K> resolveAlias(@NonNull String alias);
+
+    /**
+     * Asynchronously resolve an alias to a key id and version. The version will be used
+     * for detecting key rotation, so could be an incrementing version number or a Stringified
+     * instant representing the last rotation time.
+     * @param alias The alias
+     * @return A completion stage for the key id.
+     * @throws UnknownAliasException If the alias does not resolve to a key in this KMS.
+     * @throws KmsException For other exceptions.
+     */
+    @NonNull
+    default CompletionStage<KekRef<K>> resolveAliasToKekRef(@NonNull String alias) {
+        return resolveAlias(alias).thenApply(KekRef::unversioned);
+    }
 }

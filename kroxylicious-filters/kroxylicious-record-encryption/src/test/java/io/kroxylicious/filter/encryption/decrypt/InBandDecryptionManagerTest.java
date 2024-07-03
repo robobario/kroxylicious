@@ -60,6 +60,7 @@ import io.kroxylicious.filter.encryption.encrypt.InBandEncryptionManager;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.InMemoryEdek;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.InMemoryKms;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.UnitTestingKmsService;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.KmsException;
 import io.kroxylicious.test.assertj.MemoryRecordsAssert;
 import io.kroxylicious.test.record.RecordTestUtils;
@@ -109,7 +110,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
+        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
                 .isCompleted();
         assertThat(encrypted.iterator())
                 .toIterable()
@@ -319,7 +320,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
+        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
                 .isCompleted();
         record.value().rewind();
         assertEquals(1, encrypted.size());
@@ -373,7 +374,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
+        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
                 .isCompleted();
         assertEquals(1, encrypted.size());
         assertFalse(encrypted.get(0).hasValue());
@@ -395,7 +396,8 @@ class InBandDecryptionManagerTest {
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
         String expectedMessage = "encrypting headers prohibited when original record value null, we must preserve the null for tombstoning";
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_HEADER_VALUES)), initial, encrypted))
+        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_HEADER_VALUES)), initial,
+                encrypted))
                 .failsWithin(Duration.ofSeconds(5)).withThrowableThat()
                 .withMessageContaining(expectedMessage);
     }
@@ -409,7 +411,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of();
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
+        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)), initial, encrypted))
                 .isCompleted();
 
         assertEquals(0, encrypted.size());
@@ -438,7 +440,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted);
         assertThat(encrypt).failsWithin(Duration.ofSeconds(5)).withThrowableThat()
@@ -460,7 +462,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted);
         assertThat(encrypt).failsWithin(Duration.ofSeconds(5)).withThrowableThat().withMessageContaining("failed to create that DEK");
@@ -483,7 +485,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted);
         assertThat(encrypt).succeedsWithin(Duration.ofSeconds(5));
@@ -509,7 +511,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        CompletionStage<Void> encrypt = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted);
         assertThat(encrypt).failsWithin(Duration.ofSeconds(5)).withThrowableThat().withMessageContaining("failed to create that DEK");
@@ -518,7 +520,7 @@ class InBandDecryptionManagerTest {
         when(spyKms.generateDekPair(kekId)).thenCallRealMethod();
 
         // when
-        CompletionStage<Void> encrypt2 = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        CompletionStage<Void> encrypt2 = doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted);
 
@@ -543,7 +545,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted)
                 .toCompletableFuture()
@@ -576,7 +578,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted).toCompletableFuture().get(10, TimeUnit.SECONDS);
         record.value().rewind();
@@ -584,7 +586,7 @@ class InBandDecryptionManagerTest {
 
         // at this point we have encrypted 2 records with the manager set to maximum 2 encryptions per dek
 
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted).toCompletableFuture().get(10, TimeUnit.SECONDS);
 
@@ -614,7 +616,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted)
                 .toCompletableFuture()
@@ -624,7 +626,7 @@ class InBandDecryptionManagerTest {
 
         // at this point we have encrypted 2 records with the manager set to maximum 3 encryptions per dek, so we need a new dek to encrypt 2 more records
 
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted).toCompletableFuture().get(10, TimeUnit.SECONDS);
 
@@ -653,7 +655,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2);
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted)
                 .toCompletableFuture()
@@ -663,7 +665,7 @@ class InBandDecryptionManagerTest {
 
         // at this point we have encrypted 2 records with the manager set to maximum 4 encryptions per dek, so we do not need a new dek to encrypt 2 more records
 
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 initial,
                 encrypted).toCompletableFuture().get(10, TimeUnit.SECONDS);
 
@@ -690,7 +692,8 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE, RecordField.RECORD_HEADER_VALUES)),
+        assertThat(doEncrypt(encryptionManager, "topic", 1,
+                new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE, RecordField.RECORD_HEADER_VALUES)),
                 initial,
                 encrypted))
                 .isCompleted();
@@ -728,7 +731,8 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record, record2, record3);
-        doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE, RecordField.RECORD_HEADER_VALUES)),
+        doEncrypt(encryptionManager, "topic", 1,
+                new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE, RecordField.RECORD_HEADER_VALUES)),
                 initial,
                 encrypted).toCompletableFuture().get(10, TimeUnit.SECONDS);
         value.rewind();
@@ -758,7 +762,8 @@ class InBandDecryptionManagerTest {
         var record = RecordTestUtils.record(ByteBuffer.wrap(value), header);
 
         List<Record> encrypted = new ArrayList<>();
-        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)), List.of(record), encrypted))
+        assertThat(doEncrypt(encryptionManager, "topic", 1, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)), List.of(record),
+                encrypted))
                 .isCompleted();
         assertThat(encrypted.iterator())
                 .toIterable()
@@ -802,10 +807,10 @@ class InBandDecryptionManagerTest {
         var rec2 = RecordTestUtils.record(offsetB, ByteBuffer.wrap(rec2Bytes));
 
         List<Record> encrypted = new ArrayList<>();
-        var encryptStage = doEncrypt(encryptionManager, topic, partition, new EncryptionScheme<>(kekId1, EnumSet.of(RecordField.RECORD_VALUE)),
+        var encryptStage = doEncrypt(encryptionManager, topic, partition, new EncryptionScheme<>(KekRef.unversioned(kekId1), EnumSet.of(RecordField.RECORD_VALUE)),
                 List.of(rec1),
                 encrypted)
-                .thenApply(u -> doEncrypt(encryptionManager, topic, partition, new EncryptionScheme<>(kekId2, EnumSet.of(RecordField.RECORD_VALUE)),
+                .thenApply(u -> doEncrypt(encryptionManager, topic, partition, new EncryptionScheme<>(KekRef.unversioned(kekId2), EnumSet.of(RecordField.RECORD_VALUE)),
                         List.of(rec2),
                         encrypted));
         assertThat(encryptStage).isCompleted();
@@ -863,7 +868,7 @@ class InBandDecryptionManagerTest {
 
         // rec1 and rec3 will be encrypted.
         List<Record> encrypted = new ArrayList<>();
-        var encryptStage = doEncrypt(encryptionManager, topic, partition, new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE)),
+        var encryptStage = doEncrypt(encryptionManager, topic, partition, new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE)),
                 List.of(rec1, rec3),
                 encrypted);
         assertThat(encryptStage).isCompleted();
@@ -900,7 +905,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        EncryptionScheme<UUID> scheme1 = new EncryptionScheme<>(kek1, EnumSet.of(RecordField.RECORD_VALUE));
+        EncryptionScheme<UUID> scheme1 = new EncryptionScheme<>(KekRef.unversioned(kek1), EnumSet.of(RecordField.RECORD_VALUE));
         doEncrypt(encryptionManager, "topic", 1, scheme1, initial, encrypted);
 
         Dek<InMemoryEdek> dek1 = encryptionManager.currentDek(scheme1).toCompletableFuture().join();
@@ -908,7 +913,7 @@ class InBandDecryptionManagerTest {
 
         // When
         // Encrypt with key2, which should evict the DEK for key 1
-        EncryptionScheme<UUID> scheme2 = new EncryptionScheme<>(kek2, EnumSet.of(RecordField.RECORD_VALUE));
+        EncryptionScheme<UUID> scheme2 = new EncryptionScheme<>(KekRef.unversioned(kek2), EnumSet.of(RecordField.RECORD_VALUE));
         doEncrypt(encryptionManager, "topic", 1, scheme2, initial, encrypted);
 
         // Then
@@ -932,7 +937,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        EncryptionScheme<UUID> scheme1 = new EncryptionScheme<>(kek1, EnumSet.of(RecordField.RECORD_VALUE));
+        EncryptionScheme<UUID> scheme1 = new EncryptionScheme<>(KekRef.unversioned(kek1), EnumSet.of(RecordField.RECORD_VALUE));
 
         // When
         assertThat(doEncrypt(encryptionManager, "topic", 1, scheme1, initial, encrypted))
@@ -961,7 +966,7 @@ class InBandDecryptionManagerTest {
 
         List<Record> encrypted = new ArrayList<>();
         List<Record> initial = List.of(record);
-        EncryptionScheme<UUID> scheme1 = new EncryptionScheme<>(kek1, EnumSet.of(RecordField.RECORD_VALUE));
+        EncryptionScheme<UUID> scheme1 = new EncryptionScheme<>(KekRef.unversioned(kek1), EnumSet.of(RecordField.RECORD_VALUE));
 
         // When
         assertThat(doEncrypt(encryptionManager, "topic", 1, scheme1, initial, encrypted))
@@ -1050,7 +1055,7 @@ class InBandDecryptionManagerTest {
     @NonNull
     private static EncryptionScheme<UUID> createScheme(InMemoryKms kms) {
         var kekId = kms.generateKey();
-        return new EncryptionScheme<>(kekId, EnumSet.of(RecordField.RECORD_VALUE));
+        return new EncryptionScheme<>(KekRef.unversioned(kekId), EnumSet.of(RecordField.RECORD_VALUE));
     }
 
     @NonNull

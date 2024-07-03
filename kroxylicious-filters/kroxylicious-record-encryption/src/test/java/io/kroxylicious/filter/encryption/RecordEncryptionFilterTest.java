@@ -54,6 +54,7 @@ import io.kroxylicious.filter.encryption.common.FilterThreadExecutor;
 import io.kroxylicious.filter.encryption.config.TopicNameBasedKekSelector;
 import io.kroxylicious.filter.encryption.decrypt.DecryptionManager;
 import io.kroxylicious.filter.encryption.encrypt.EncryptionManager;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
 import io.kroxylicious.proxy.filter.ResponseFilterResult;
@@ -119,9 +120,9 @@ class RecordEncryptionFilterTest {
             return new ByteBufferOutputStream(capacity);
         });
 
-        final Map<String, String> topicNameToKekId = new HashMap<>();
+        final Map<String, KekRef<String>> topicNameToKekId = new HashMap<>();
         topicNameToKekId.put(UNENCRYPTED_TOPIC, null);
-        topicNameToKekId.put(ENCRYPTED_TOPIC, KEK_ID_1);
+        topicNameToKekId.put(ENCRYPTED_TOPIC, KekRef.unversioned(KEK_ID_1));
 
         when(kekSelector.selectKek(anySet())).thenAnswer(invocationOnMock -> {
             Set<String> wanted = invocationOnMock.getArgument(0);

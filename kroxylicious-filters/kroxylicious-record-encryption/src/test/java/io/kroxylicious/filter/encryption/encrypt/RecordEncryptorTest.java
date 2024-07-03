@@ -31,6 +31,7 @@ import io.kroxylicious.filter.encryption.dek.Dek;
 import io.kroxylicious.filter.encryption.dek.DekException;
 import io.kroxylicious.filter.encryption.dek.DekManager;
 import io.kroxylicious.kafka.transform.RecordTransform;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Serde;
 import io.kroxylicious.test.assertj.KafkaAssertions;
 import io.kroxylicious.test.record.RecordTestUtils;
@@ -97,7 +98,7 @@ class RecordEncryptorTest {
         var re = new RecordEncryptor(
                 "topic", 0,
                 Encryption.V2,
-                new EncryptionScheme<>("key", fields),
+                new EncryptionScheme<>(KekRef.unversioned(key), fields),
                 components.edekSerde,
                 ByteBuffer.allocate(100));
 

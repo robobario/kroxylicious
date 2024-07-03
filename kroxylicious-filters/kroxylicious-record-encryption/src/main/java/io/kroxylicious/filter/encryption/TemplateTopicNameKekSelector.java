@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 
 import io.kroxylicious.filter.encryption.common.RecordEncryptionUtil;
 import io.kroxylicious.filter.encryption.config.TopicNameBasedKekSelector;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.UnknownAliasException;
 
@@ -44,10 +45,10 @@ class TemplateTopicNameKekSelector<K> extends TopicNameBasedKekSelector<K> {
 
     @NonNull
     @Override
-    public CompletionStage<Map<String, K>> selectKek(@NonNull Set<String> topicNames) {
+    public CompletionStage<Map<String, KekRef<K>>> selectKek(@NonNull Set<String> topicNames) {
         var collect = topicNames.stream()
                 .map(
-                        topicName -> kms.resolveAlias(evaluateTemplate(topicName))
+                        topicName -> kms.resolveAliasToKekRef(evaluateTemplate(topicName))
                                 .exceptionallyCompose(e -> {
                                     if (e instanceof UnknownAliasException
                                             || (e instanceof CompletionException ce && ce.getCause() instanceof UnknownAliasException)) {
@@ -60,8 +61,8 @@ class TemplateTopicNameKekSelector<K> extends TopicNameBasedKekSelector<K> {
         return RecordEncryptionUtil.join(collect).thenApply(list -> {
             // Note we can't use `java.util.stream...(Collectors.toMap())` to build the map, because it has null values
             // which Collectors.toMap() does now allow.
-            Map<String, K> map = new HashMap<>();
-            for (Pair<K> pair : list) {
+            Map<String, KekRef<K>> map = new HashMap<>();
+            for (Pair<KekRef<K>> pair : list) {
                 map.put(pair.topicName(), pair.kekId());
             }
             return map;

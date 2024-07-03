@@ -16,6 +16,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.InMemoryEdek;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.UnitTestingKmsService;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +38,7 @@ class DekManagerTest {
         var resolvedKekId = dm.resolveAlias("foo").toCompletableFuture().join();
 
         // Then
-        assertThat(resolvedKekId).isEqualTo(kekId);
+        assertThat(resolvedKekId).isEqualTo(KekRef.unversioned(kekId));
     }
 
     @ParameterizedTest

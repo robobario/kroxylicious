@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import io.kroxylicious.kms.service.DekPair;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.Serde;
 import io.kroxylicious.kms.service.UnknownAliasException;
@@ -79,46 +80,46 @@ class CachingKmsTest {
     void testResolveAliasCached() {
         Kms<Long, Long> kms = mock(Kms.class);
         long kekId = 2L;
-        Mockito.when(kms.resolveAlias(any())).thenReturn(CompletableFuture.completedFuture(kekId));
+        Mockito.when(kms.resolveAliasToKekRef(any())).thenReturn(CompletableFuture.completedFuture(KekRef.unversioned(kekId)));
         Kms<Long, Long> caching = CachingKms.wrap(kms, 1L, Duration.ZERO, 1L, Duration.ofHours(1), Duration.ofMinutes(8), Duration.ofSeconds(30));
         assertThat(caching.resolveAlias("a")).succeedsWithin(5, TimeUnit.SECONDS).isEqualTo(kekId);
         assertThat(caching.resolveAlias("a")).succeedsWithin(5, TimeUnit.SECONDS).isEqualTo(kekId);
-        verify(kms, times(1)).resolveAlias("a");
+        verify(kms, times(1)).resolveAliasToKekRef("a");
     }
 
     @Test
     void testResolveAliasNotFoundCached() {
         Kms<Long, Long> kms = mock(Kms.class);
-        Mockito.when(kms.resolveAlias(any())).thenReturn(CompletableFuture.failedFuture(new UnknownAliasException("fail!")));
+        Mockito.when(kms.resolveAliasToKekRef(any())).thenReturn(CompletableFuture.failedFuture(new UnknownAliasException("fail!")));
         Kms<Long, Long> caching = CachingKms.wrap(kms, 1L, Duration.ZERO, 1L, Duration.ofHours(1), Duration.ofMinutes(8), Duration.ofSeconds(30));
         assertThat(caching.resolveAlias("a")).failsWithin(5, TimeUnit.SECONDS).withThrowableOfType(ExecutionException.class)
                 .withCauseInstanceOf(UnknownAliasException.class);
         assertThat(caching.resolveAlias("a")).failsWithin(5, TimeUnit.SECONDS).withThrowableOfType(ExecutionException.class)
                 .withCauseInstanceOf(UnknownAliasException.class);
-        verify(kms, times(1)).resolveAlias("a");
+        verify(kms, times(1)).resolveAliasToKekRef("a");
     }
 
     @Test
     void testResolveAliasNotFoundCompletionExceptionsCached() {
         Kms<Long, Long> kms = mock(Kms.class);
-        Mockito.when(kms.resolveAlias(any())).thenReturn(CompletableFuture.failedFuture(new CompletionException(new UnknownAliasException("fail!"))));
+        Mockito.when(kms.resolveAliasToKekRef(any())).thenReturn(CompletableFuture.failedFuture(new CompletionException(new UnknownAliasException("fail!"))));
         Kms<Long, Long> caching = CachingKms.wrap(kms, 1L, Duration.ZERO, 1L, Duration.ofHours(1), Duration.ofMinutes(8), Duration.ofSeconds(30));
         assertThat(caching.resolveAlias("a")).failsWithin(5, TimeUnit.SECONDS).withThrowableOfType(ExecutionException.class)
                 .withCauseInstanceOf(UnknownAliasException.class);
         assertThat(caching.resolveAlias("a")).failsWithin(5, TimeUnit.SECONDS).withThrowableOfType(ExecutionException.class)
                 .withCauseInstanceOf(UnknownAliasException.class);
-        verify(kms, times(1)).resolveAlias("a");
+        verify(kms, times(1)).resolveAliasToKekRef("a");
     }
 
     @Test
     void testResolveAliasNotCachedIfExpiryZero() {
         Kms<Long, Long> kms = mock(Kms.class);
         long kekId = 2L;
-        Mockito.when(kms.resolveAlias(any())).thenReturn(CompletableFuture.completedFuture(kekId));
+        Mockito.when(kms.resolveAliasToKekRef(any())).thenReturn(CompletableFuture.completedFuture(KekRef.unversioned(kekId)));
         Kms<Long, Long> caching = CachingKms.wrap(kms, 1L, Duration.ZERO, 1L, Duration.ZERO, Duration.ofMinutes(8), Duration.ofSeconds(30));
         assertThat(caching.resolveAlias("a")).succeedsWithin(5, TimeUnit.SECONDS).isEqualTo(kekId);
         assertThat(caching.resolveAlias("a")).succeedsWithin(5, TimeUnit.SECONDS).isEqualTo(kekId);
-        verify(kms, times(2)).resolveAlias("a");
+        verify(kms, times(2)).resolveAliasToKekRef("a");
     }
 
 }

@@ -12,6 +12,7 @@ import java.util.Set;
 import io.kroxylicious.filter.encryption.config.RecordField;
 import io.kroxylicious.filter.encryption.crypto.Aad;
 import io.kroxylicious.filter.encryption.crypto.AadNone;
+import io.kroxylicious.kms.service.KekRef;
 
 /**
  * Describes how a record should be encrypted
@@ -20,7 +21,7 @@ import io.kroxylicious.filter.encryption.crypto.AadNone;
  * @param <K> The type of KEK identifier.
  */
 public record EncryptionScheme<K>(
-                                  K kekId,
+                                  KekRef<K> kekId,
                                   Set<RecordField> recordFields,
                                   Aad aadSpec) {
 
@@ -33,7 +34,7 @@ public record EncryptionScheme<K>(
     }
 
     public EncryptionScheme(
-                            K kekId,
+                            KekRef<K> kekId,
                             Set<RecordField> recordFields) {
         this(kekId, recordFields, AadNone.INSTANCE);
     }

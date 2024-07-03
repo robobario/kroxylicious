@@ -12,6 +12,7 @@ import java.util.concurrent.CompletionStage;
 import javax.annotation.concurrent.ThreadSafe;
 
 import io.kroxylicious.kms.service.DestroyableRawSecretKey;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.KmsService;
 import io.kroxylicious.kms.service.Serde;
@@ -50,8 +51,8 @@ public class DekManager<K, E> {
      * @param alias
      * @return
      */
-    public CompletionStage<K> resolveAlias(String alias) {
-        return kms.resolveAlias(alias);
+    public CompletionStage<KekRef<K>> resolveAlias(String alias) {
+        return kms.resolveAliasToKekRef(alias);
     }
 
     /**

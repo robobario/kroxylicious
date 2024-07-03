@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import io.kroxylicious.kms.service.DekPair;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.Serde;
 import io.kroxylicious.kms.service.UnknownAliasException;
@@ -39,8 +40,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public class CachingKms<K, E> implements Kms<K, E> {
     private final Kms<K, E> delegate;
     private final AsyncLoadingCache<E, SecretKey> decryptDekCache;
-    private final AsyncLoadingCache<String, K> resolveAliasCache;
-    private final Cache<String, CompletionStage<K>> notFoundAliasCache;
+    private final AsyncLoadingCache<String, KekRef<K>> resolveAliasCache;
+    private final Cache<String, CompletionStage<KekRef<K>>> notFoundAliasCache;
     private static final Logger LOGGER = LoggerFactory.getLogger(CachingKms.class);
 
     private CachingKms(@NonNull Kms<K, E> delegate,
@@ -69,9 +70,10 @@ public class CachingKms<K, E> implements Kms<K, E> {
     }
 
     @NonNull
-    private static <K, E> AsyncLoadingCache<String, K> buildResolveAliasCache(Kms<K, E> delegate, long maxSize, Duration expireAfterWrite, Duration refreshAfterWrite) {
+    private static <K, E> AsyncLoadingCache<String, KekRef<K>> buildResolveAliasCache(Kms<K, E> delegate, long maxSize, Duration expireAfterWrite,
+                                                                                      Duration refreshAfterWrite) {
         return Caffeine.newBuilder().maximumSize(maxSize).refreshAfterWrite(refreshAfterWrite).expireAfterWrite(expireAfterWrite)
-                .buildAsync((key, executor) -> delegate.resolveAlias(key).toCompletableFuture());
+                .buildAsync((key, executor) -> delegate.resolveAliasToKekRef(key).toCompletableFuture());
     }
 
     @NonNull
@@ -101,11 +103,17 @@ public class CachingKms<K, E> implements Kms<K, E> {
     @NonNull
     @Override
     public CompletionStage<K> resolveAlias(@NonNull String alias) {
-        CompletionStage<K> cachedNotFound = notFoundAliasCache.getIfPresent(alias);
+        return resolveAliasToKekRef(alias).thenApply(KekRef::kekId);
+    }
+
+    @NonNull
+    @Override
+    public CompletionStage<KekRef<K>> resolveAliasToKekRef(@NonNull String alias) {
+        CompletionStage<KekRef<K>> cachedNotFound = notFoundAliasCache.getIfPresent(alias);
         if (cachedNotFound != null) {
             return cachedNotFound;
         }
-        CompletableFuture<K> resolved = resolveAliasCache.get(alias);
+        CompletableFuture<KekRef<K>> resolved = resolveAliasCache.get(alias);
         resolved.whenComplete((k, throwable) -> {
             if (throwable instanceof UnknownAliasException || (throwable instanceof CompletionException && throwable.getCause() instanceof UnknownAliasException)) {
                 LOGGER.debug("caching unknown alias {}", alias);

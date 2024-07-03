@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.filter.encryption.config.RecordField;
 import io.kroxylicious.filter.encryption.encrypt.EncryptionScheme;
+import io.kroxylicious.kms.service.KekRef;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,16 +25,17 @@ class EncryptionSchemeTest {
         var empty = EnumSet.noneOf(RecordField.class);
         assertThrows(NullPointerException.class, () -> new EncryptionScheme<>(null, nonEmpty));
         Object kekId = new Object();
-        assertThrows(NullPointerException.class, () -> new EncryptionScheme<>(kekId, null));
-        assertThrows(IllegalArgumentException.class, () -> new EncryptionScheme<>(kekId, empty));
+        assertThrows(NullPointerException.class, () -> new EncryptionScheme<>(KekRef.unversioned(kekId), null));
+        assertThrows(IllegalArgumentException.class, () -> new EncryptionScheme<>(KekRef.unversioned(kekId), empty));
     }
 
     @Test
     void shouldAcceptValidConstructorArgs() {
         EnumSet<RecordField> nonEmpty = EnumSet.of(RecordField.RECORD_VALUE);
         Object kekId = new Object();
-        var es = new EncryptionScheme<>(kekId, nonEmpty);
-        assertEquals(kekId, es.kekId());
+        KekRef<Object> kekRef = KekRef.unversioned(kekId);
+        var es = new EncryptionScheme<>(kekRef, nonEmpty);
+        assertEquals(kekRef, es.kekId());
         assertEquals(nonEmpty, es.recordFields());
     }
 

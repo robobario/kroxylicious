@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.kms.service.DekPair;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.KmsException;
 import io.kroxylicious.kms.service.Serde;
@@ -80,6 +81,12 @@ public class ResilientKms<K, E> implements Kms<K, E> {
     @Override
     public CompletionStage<K> resolveAlias(@NonNull String alias) {
         return retry("resolveAlias", () -> inner.resolveAlias(alias));
+    }
+
+    @NonNull
+    @Override
+    public CompletionStage<KekRef<K>> resolveAliasToKekRef(@NonNull String alias) {
+        return retry("resolveAlias", () -> inner.resolveAliasToKekRef(alias));
     }
 
     public <A> CompletionStage<A> retry(String name, Supplier<CompletionStage<A>> operation) {

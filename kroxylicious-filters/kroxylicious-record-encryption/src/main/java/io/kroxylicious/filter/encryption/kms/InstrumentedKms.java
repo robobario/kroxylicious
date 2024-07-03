@@ -11,6 +11,7 @@ import java.util.concurrent.CompletionStage;
 import javax.crypto.SecretKey;
 
 import io.kroxylicious.kms.service.DekPair;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.Serde;
 import io.kroxylicious.kms.service.UnknownAliasException;
@@ -56,6 +57,16 @@ public class InstrumentedKms<K, E> implements Kms<K, E> {
     public CompletionStage<K> resolveAlias(@NonNull String alias) {
         metrics.countResolveAliasAttempt();
         return delegate.resolveAlias(alias).whenComplete((eDekPair, throwable) -> {
+            KmsMetrics.OperationOutcome outcome = classify(throwable);
+            metrics.countResolveAliasOutcome(outcome);
+        });
+    }
+
+    @NonNull
+    @Override
+    public CompletionStage<KekRef<K>> resolveAliasToKekRef(@NonNull String alias) {
+        metrics.countResolveAliasAttempt();
+        return delegate.resolveAliasToKekRef(alias).whenComplete((eDekPair, throwable) -> {
             KmsMetrics.OperationOutcome outcome = classify(throwable);
             metrics.countResolveAliasOutcome(outcome);
         });

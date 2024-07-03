@@ -19,6 +19,7 @@ import io.kroxylicious.filter.encryption.config.TemplateConfig;
 import io.kroxylicious.filter.encryption.config.TopicNameBasedKekSelector;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.InMemoryKms;
 import io.kroxylicious.kms.provider.kroxylicious.inmemory.UnitTestingKmsService;
+import io.kroxylicious.kms.service.KekRef;
 import io.kroxylicious.kms.service.Kms;
 import io.kroxylicious.kms.service.KmsException;
 import io.kroxylicious.kms.service.UnknownAliasException;
@@ -50,7 +51,7 @@ class TemplateKekSelectorTest {
         var map = selector.selectKek(Set.of("my-topic")).toCompletableFuture().join();
         assertThat(map)
                 .hasSize(1)
-                .containsEntry("my-topic", kek);
+                .containsEntry("my-topic", KekRef.unversioned(kek));
     }
 
     @Test
@@ -68,11 +69,11 @@ class TemplateKekSelectorTest {
     void shouldNotThrowWhenAliasDoesNotExist_UnknownAliasExceptionWrappedInCompletionException() throws ExecutionException, InterruptedException {
         var kms = mock(InMemoryKms.class);
         var result = CompletableFuture.completedFuture(null)
-                .<UUID> thenApply((u) -> {
+                .<KekRef<UUID>> thenApply((u) -> {
                     // this exception will be wrapped by a CompletionException
                     throw new UnknownAliasException("mock alias exception");
                 });
-        when(kms.resolveAlias(anyString())).thenReturn(result);
+        when(kms.resolveAliasToKekRef(anyString())).thenReturn(result);
         var selector = getSelector(kms, "topic-${topicName}");
         var map = selector.selectKek(Set.of("my-topic")).toCompletableFuture().get();
         assertThat(map)
@@ -83,8 +84,8 @@ class TemplateKekSelectorTest {
     @Test
     void serviceExceptionsArePropagated() {
         var kms = mock(InMemoryKms.class);
-        var result = CompletableFuture.<UUID> failedFuture(new KmsException("bang!"));
-        when(kms.resolveAlias(anyString())).thenReturn(result);
+        var result = CompletableFuture.<KekRef<UUID>> failedFuture(new KmsException("bang!"));
+        when(kms.resolveAliasToKekRef(anyString())).thenReturn(result);
 
         var selector = getSelector(kms, "topic-${topicName}");
         var stage = selector.selectKek(Set.of("my-topic"));

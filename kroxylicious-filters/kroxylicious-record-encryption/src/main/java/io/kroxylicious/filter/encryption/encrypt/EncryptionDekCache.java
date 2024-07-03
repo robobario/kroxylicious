@@ -23,6 +23,7 @@ import io.kroxylicious.filter.encryption.config.CipherSpec;
 import io.kroxylicious.filter.encryption.dek.CipherSpecResolver;
 import io.kroxylicious.filter.encryption.dek.Dek;
 import io.kroxylicious.filter.encryption.dek.DekManager;
+import io.kroxylicious.kms.service.KekRef;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,13 +42,13 @@ public class EncryptionDekCache<K, E> {
 
     private record CacheKey<K>(K kek, CipherSpec cipherSpec) {}
 
-    private static <K> CacheKey<K> cacheKey(EncryptionScheme<K> encryptionScheme) {
+    private static <K> CacheKey<KekRef<K>> cacheKey(EncryptionScheme<K> encryptionScheme) {
         return new CacheKey<>(encryptionScheme.kekId(), CipherSpec.AES_256_GCM_128);
     }
 
     private final DekManager<K, E> dekManager;
 
-    private final AsyncLoadingCache<CacheKey<K>, Dek<E>> dekCache;
+    private final AsyncLoadingCache<CacheKey<KekRef<K>>, Dek<E>> dekCache;
 
     public EncryptionDekCache(@NonNull DekManager<K, E> dekManager,
                               @Nullable Executor dekCacheExecutor,
@@ -71,9 +72,9 @@ public class EncryptionDekCache<K, E> {
      * Invoked by Caffeine when a DEK needs to be loaded.
      * This method is executed on the {@code dekCacheExecutor} passed to the constructor.
      */
-    private CompletableFuture<Dek<E>> requestGenerateDek(@NonNull CacheKey<K> cacheKey,
+    private CompletableFuture<Dek<E>> requestGenerateDek(@NonNull CacheKey<KekRef<K>> cacheKey,
                                                          @NonNull Executor executor) {
-        return dekManager.generateDek(cacheKey.kek(), cipherSpecResolver.fromName(cacheKey.cipherSpec()))
+        return dekManager.generateDek(cacheKey.kek().kekId(), cipherSpecResolver.fromName(cacheKey.cipherSpec()))
                 .thenApply(dek -> {
                     if (LOGGER.isTraceEnabled()) {
                         LOGGER.trace("Adding DEK to cache: {}", dek);
@@ -88,7 +89,7 @@ public class EncryptionDekCache<K, E> {
      * Invoked by Caffeine after a DEK is evicted from the cache.
      * This method is executed on the {@code dekCacheExecutor} passed to the constructor.
      */
-    private void afterCacheEviction(@Nullable CacheKey<K> cacheKey,
+    private void afterCacheEviction(@Nullable CacheKey<KekRef<K>> cacheKey,
                                     @Nullable Dek<E> dek,
                                     RemovalCause removalCause) {
         if (dek != null) {
