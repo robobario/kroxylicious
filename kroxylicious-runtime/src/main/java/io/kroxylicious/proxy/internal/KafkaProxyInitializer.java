@@ -32,6 +32,7 @@ import io.kroxylicious.proxy.filter.FilterAndInvoker;
 import io.kroxylicious.proxy.filter.NetFilter;
 import io.kroxylicious.proxy.internal.codec.KafkaRequestDecoder;
 import io.kroxylicious.proxy.internal.codec.KafkaResponseEncoder;
+import io.kroxylicious.proxy.internal.filter.ApiVersionsDowngradeFilter;
 import io.kroxylicious.proxy.internal.filter.ApiVersionsIntersectFilter;
 import io.kroxylicious.proxy.internal.filter.BrokerAddressFilter;
 import io.kroxylicious.proxy.internal.filter.EagerMetadataLearner;
@@ -232,6 +233,7 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
             List<FilterAndInvoker> customProtocolFilters = filterChainFactory.createFilters(filterContext);
             List<FilterAndInvoker> brokerAddressFilters = FilterAndInvoker.build(new BrokerAddressFilter(virtualCluster, endpointReconciler));
             var filters = new ArrayList<>(apiVersionFilters);
+            filters.addAll(FilterAndInvoker.build(new ApiVersionsDowngradeFilter()));
             filters.addAll(customProtocolFilters);
             if (binding.restrictUpstreamToMetadataDiscovery()) {
                 filters.addAll(FilterAndInvoker.build(new EagerMetadataLearner()));
