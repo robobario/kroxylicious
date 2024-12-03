@@ -210,14 +210,7 @@ public class RequestDecoderTest extends AbstractCodecTest {
                         FilterAndInvoker.build((ApiVersionsRequestFilter) (version, header, request, context) -> {
                             return context.requestFilterResultBuilder().forward(header, request).completed();
                         })),
-                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
-
-                    @Override
-                    public Short apply(ApiKeys apiKey) {
-                        return apiKey.latestVersion(true);
-                    }
-
-                })
+                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, apiKey -> apiKey.latestVersion(true))
                 .decode(null, byteBuf, messages);
 
         assertEquals(List.of(), messageClasses(messages));
@@ -298,14 +291,7 @@ public class RequestDecoderTest extends AbstractCodecTest {
                         FilterAndInvoker
                                 .build((ApiVersionsRequestFilter) (version, head, request, context) -> context.requestFilterResultBuilder().forward(header, request)
                                         .completed())),
-                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
-
-                    @Override
-                    public Short apply(ApiKeys apiKey) {
-                        return apiKey.latestVersion(true);
-                    }
-
-                })
+                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, apiKey -> apiKey.latestVersion(true))
                 .decode(null, byteBuf, messages);
 
         assertEquals(List.of(DecodedRequestFrame.class, DecodedRequestFrame.class), messageClasses(messages));
@@ -342,7 +328,7 @@ public class RequestDecoderTest extends AbstractCodecTest {
         assertEquals(45,
                 exactlyOneFrame_encoded(produceVersion,
                         ApiKeys.PRODUCE::requestHeaderVersion,
-                        (x) -> header,
+                        x -> header,
                         () -> body,
                         getKafkaRequestDecoder(DECODE_NOTHING, DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES),
                         OpaqueRequestFrame.class,

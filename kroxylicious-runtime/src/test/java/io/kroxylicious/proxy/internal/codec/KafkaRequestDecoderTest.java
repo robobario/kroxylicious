@@ -7,7 +7,6 @@
 package io.kroxylicious.proxy.internal.codec;
 
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
 
 import org.apache.kafka.common.message.ApiVersionsRequestData;
 import org.apache.kafka.common.message.RequestHeaderData;
@@ -33,14 +32,7 @@ class KafkaRequestDecoderTest {
 
     @Test
     void decodeUnknownApiVersions() {
-        EmbeddedChannel embeddedChannel = new EmbeddedChannel(new KafkaRequestDecoder(RequestDecoderTest.DECODE_EVERYTHING, 1024, new Function<>() {
-
-            @Override
-            public Short apply(ApiKeys apiKey) {
-                return apiKey.latestVersion(true);
-            }
-
-        }));
+        EmbeddedChannel embeddedChannel = new EmbeddedChannel(new KafkaRequestDecoder(RequestDecoderTest.DECODE_EVERYTHING, 1024, apiKey -> apiKey.latestVersion(true)));
         RequestHeaderData header = latestVersionHeaderWithAllFields(ApiKeys.API_VERSIONS, Short.MAX_VALUE);
         int arbitraryBodyBytes = Integer.MAX_VALUE;
         ObjectSerializationCache cache = new ObjectSerializationCache();
@@ -79,14 +71,7 @@ class KafkaRequestDecoderTest {
     // after ApiVersions negotiation we should never encounter a request from the client for an api version unknown to the proxy
     @Test
     void throwsOnUnsupportedVersionOfNonApiVersionsRequests() {
-        EmbeddedChannel embeddedChannel = new EmbeddedChannel(new KafkaRequestDecoder(RequestDecoderTest.DECODE_EVERYTHING, 1024, new Function<>() {
-
-            @Override
-            public Short apply(ApiKeys apiKey) {
-                return apiKey.latestVersion(true);
-            }
-
-        }));
+        EmbeddedChannel embeddedChannel = new EmbeddedChannel(new KafkaRequestDecoder(RequestDecoderTest.DECODE_EVERYTHING, 1024, apiKey -> apiKey.latestVersion(true)));
         short maxSupportedVersion = ApiKeys.METADATA.latestVersion(true);
         short unsupportedVersion = (short) (maxSupportedVersion + 1);
         RequestHeaderData header = latestVersionHeaderWithAllFields(ApiKeys.METADATA, unsupportedVersion);
