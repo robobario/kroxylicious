@@ -23,7 +23,7 @@ class ApiVersionsDowngradeFilterTest extends FilterHarness {
 
     @Test
     void shortCircuitDowngradeApiVersionsRequests() {
-        buildChannel(new ApiVersionsDowngradeFilter());
+        buildChannel(new ApiVersionsDowngradeFilter(a -> ApiKeys.API_VERSIONS.latestVersion(true)));
         writeRequest(DowngradeApiVersionsRequestData.downgradeApiVersionsFrame(5));
         DecodedResponseFrame<ApiVersionsResponseData> response = channel.readInbound();
         assertThat(response.body()).isInstanceOfSatisfying(ApiVersionsResponseData.class, apiVersionsResponseData -> {
@@ -38,7 +38,7 @@ class ApiVersionsDowngradeFilterTest extends FilterHarness {
 
     @Test
     void passThroughAnythingElse() {
-        buildChannel(new ApiVersionsDowngradeFilter());
+        buildChannel(new ApiVersionsDowngradeFilter(a -> ApiKeys.API_VERSIONS.latestVersion(true)));
         DecodedRequestFrame<ApiVersionsRequestData> request = writeRequest(new ApiVersionsRequestData());
         var propagated = channel.readOutbound();
         assertThat(propagated).isEqualTo(request);

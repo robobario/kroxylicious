@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.security.auth.AuthenticateCallbackHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,8 @@ import io.kroxylicious.proxy.config.TargetCluster;
 import io.kroxylicious.proxy.config.tls.Tls;
 import io.kroxylicious.proxy.filter.FilterFactoryContext;
 import io.kroxylicious.proxy.filter.NetFilter;
+import io.kroxylicious.proxy.internal.filter.ApiVersionsDowngradeFilter;
+import io.kroxylicious.proxy.internal.filter.ApiVersionsIntersectFilter;
 import io.kroxylicious.proxy.internal.net.Endpoint;
 import io.kroxylicious.proxy.internal.net.VirtualClusterBinding;
 import io.kroxylicious.proxy.internal.net.VirtualClusterBindingResolver;
@@ -121,7 +124,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
         // When
         kafkaProxyInitializer.initChannel(channel);
 
@@ -141,7 +144,7 @@ class KafkaProxyInitializerTest {
                 virtualClusterBindingResolver,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
         when(channelPipeline.addLast(plainChannelResolverCaptor.capture())).thenReturn(channelPipeline);
 
         kafkaProxyInitializer.initChannel(channel);
@@ -165,7 +168,7 @@ class KafkaProxyInitializerTest {
                 virtualClusterBindingResolver,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
         when(channelPipeline.addLast(plainChannelResolverCaptor.capture())).thenReturn(channelPipeline);
 
         kafkaProxyInitializer.initChannel(channel);
@@ -190,7 +193,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
 
         // When
         kafkaProxyInitializer.addHandlers(channel, vcb);
@@ -215,7 +218,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
 
         // When
         kafkaProxyInitializer.addHandlers(channel, vcb);
@@ -236,7 +239,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
 
         // When
         kafkaProxyInitializer.addHandlers(channel, vcb);
@@ -258,7 +261,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of(KafkaAuthnHandler.SaslMechanism.PLAIN, plainHandler));
+                Map.of(KafkaAuthnHandler.SaslMechanism.PLAIN, plainHandler), apiKey -> apiKey.latestVersion(true));
 
         // When
         kafkaProxyInitializer.addHandlers(channel, vcb);
@@ -279,7 +282,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
 
         // When
         kafkaProxyInitializer.addHandlers(channel, vcb);
@@ -294,7 +297,9 @@ class KafkaProxyInitializerTest {
         final FilterChainFactory fcf = mock(FilterChainFactory.class);
         when(vcb.upstreamTarget()).thenReturn(new HostPort("upstream.broker.kafka", 9090));
         final KafkaProxyInitializer.InitalizerNetFilter initalizerNetFilter = new KafkaProxyInitializer.InitalizerNetFilter(mock(SaslDecodePredicate.class),
-                mock(ApiVersionsServiceImpl.class), channel, vcb, pfr, fcf, (virtualCluster1, upstreamNodes) -> null);
+                channel, vcb, pfr, fcf, (virtualCluster1, upstreamNodes) -> null,
+                new ApiVersionsDowngradeFilter(a -> ApiKeys.API_VERSIONS.latestVersion(true)),
+                new ApiVersionsIntersectFilter(mock(ApiVersionsServiceImpl.class)));
         final NetFilter.NetFilterContext netFilterContext = mock(NetFilter.NetFilterContext.class);
 
         // When
@@ -313,7 +318,7 @@ class KafkaProxyInitializerTest {
                 (endpoint, sniHostname) -> bindingStage,
                 (virtualCluster, upstreamNodes) -> null,
                 false,
-                Map.of());
+                Map.of(), apiKey -> apiKey.latestVersion(true));
 
         // When
         kafkaProxyInitializer.initChannel(channel);

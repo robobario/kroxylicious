@@ -5,14 +5,23 @@
  */
 package io.kroxylicious.proxy;
 
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.NodeApiVersions;
+import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.message.ApiVersionsResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.ObjectSerializationCache;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.apache.kafka.common.security.plain.PlainLoginModule;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -24,9 +33,14 @@ import io.kroxylicious.test.Response;
 import io.kroxylicious.test.codec.ByteBufAccessorImpl;
 import io.kroxylicious.test.codec.OpaqueRequestFrame;
 import io.kroxylicious.test.tester.KroxyliciousConfigUtils;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.SaslMechanism;
+import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+import static io.kroxylicious.test.tester.KroxyliciousConfigUtils.proxy;
+import static io.kroxylicious.test.tester.KroxyliciousTesters.kroxyliciousTester;
 import static io.kroxylicious.test.tester.KroxyliciousTesters.mockKafkaKroxyliciousTester;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -46,10 +60,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </p>
  */
 @ExtendWith(NettyLeakDetectorExtension.class)
+@ExtendWith(KafkaClusterExtension.class)
 public class ApiVersionsDowngradeIT {
 
     public static final int CORRELATION_ID = 100;
     public static final short API_VERSIONS_ID = ApiKeys.API_VERSIONS.id;
+    public static final String SASL_USER = "alice";
+    public static final String SASL_PASSWORD = "foo";
 
     @Test
     void clientAheadOfProxy() {
@@ -71,6 +88,48 @@ public class ApiVersionsDowngradeIT {
                 });
             });
             assertThat(tester.getReceivedRequestCount()).isZero();
+        }
+    }
+
+    @Test
+    void proxyRestrictedToOlderApiVersion(KafkaCluster cluster) {
+        doProxyRestrictedToOlderApiVersion(cluster, Map.of());
+    }
+
+    @Test
+    void proxyRestrictedToOlderApiVersionWithSasl(@SaslMechanism(principals = {
+            @SaslMechanism.Principal(user = SASL_USER, password = SASL_PASSWORD) }) KafkaCluster cluster) {
+        var clientSecurityProtocolConfig = new HashMap<String, Object>();
+        clientSecurityProtocolConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name);
+        clientSecurityProtocolConfig.put(SaslConfigs.SASL_JAAS_CONFIG,
+                String.format("""
+                        %s required username="%s" password="%s";""",
+                        PlainLoginModule.class.getName(), SASL_USER, SASL_PASSWORD));
+        clientSecurityProtocolConfig.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+
+        doProxyRestrictedToOlderApiVersion(cluster, clientSecurityProtocolConfig);
+    }
+
+    private void doProxyRestrictedToOlderApiVersion(KafkaCluster cluster, Map<String, Object> clientSecurityProtocolConfig) {
+        var apiVersion = (short) (ApiKeys.API_VERSIONS.latestVersion() - 1);
+        var proxy = proxy(cluster)
+                .withExperimental(Map.of("apiKeyIdMaxVersionOverride", Map.of(ApiKeys.API_VERSIONS.id, apiVersion)));
+        try (var tester = kroxyliciousTester(proxy);
+                var admin = tester.admin(clientSecurityProtocolConfig)) {
+            // We've got no way to observe the actual version of the API versions request that is used during _negotiation_
+            // so we make do with asserting the connection is usable.
+            final var result = admin.describeCluster().clusterId();
+            assertThat(result).as("Unable to get the clusterId from the Kafka cluster").succeedsWithin(Duration.ofSeconds(10));
+            // check that the client is actually using the correct version.
+            assertThat(admin)
+                    .extracting("instance")
+                    .extracting("client")
+                    .extracting("apiVersions")
+                    .extracting("nodeApiVersions", InstanceOfAssertFactories.map(String.class, NodeApiVersions.class))
+                    .hasEntrySatisfying("0", nav -> {
+                        assertThat(nav.apiVersion(ApiKeys.API_VERSIONS).maxVersion())
+                                .isEqualTo(apiVersion);
+                    });
         }
     }
 

@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletionStage;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import org.apache.kafka.common.message.ApiMessageType;
@@ -92,7 +93,14 @@ public class RequestDecoderTest extends AbstractCodecTest {
                                         .forFilters(FilterAndInvoker.build(
                                                 (ApiVersionsRequestFilter) (version, header, request, context) -> context.requestFilterResultBuilder()
                                                         .forward(header, request).completed())),
-                                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES),
+                                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
+
+                                    @Override
+                                    public Short apply(ApiKeys apiKey) {
+                                        return apiKey.latestVersion(true);
+                                    }
+
+                                }),
                         DecodedRequestFrame.class,
                         (RequestHeaderData header) -> header, true),
                 "Unexpected correlation id");
@@ -173,7 +181,14 @@ public class RequestDecoderTest extends AbstractCodecTest {
                                                                                                      FilterContext context) {
                                         return context.requestFilterResultBuilder().forward(header, request).completed();
                                     }
-                                })), DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES),
+                                })), DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
+
+                                    @Override
+                                    public Short apply(ApiKeys apiKey) {
+                                        return apiKey.latestVersion(true);
+                                    }
+
+                                }),
                         OpaqueRequestFrame.class, true),
                 "Unexpected correlation id");
     }
@@ -195,7 +210,14 @@ public class RequestDecoderTest extends AbstractCodecTest {
                         FilterAndInvoker.build((ApiVersionsRequestFilter) (version, header, request, context) -> {
                             return context.requestFilterResultBuilder().forward(header, request).completed();
                         })),
-                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES)
+                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
+
+                    @Override
+                    public Short apply(ApiKeys apiKey) {
+                        return apiKey.latestVersion(true);
+                    }
+
+                })
                 .decode(null, byteBuf, messages);
 
         assertEquals(List.of(), messageClasses(messages));
@@ -227,7 +249,14 @@ public class RequestDecoderTest extends AbstractCodecTest {
     private static KafkaRequestDecoder getKafkaRequestDecoder(DecodePredicate predicate, int socketFrameMaxSizeBytes) {
         return new KafkaRequestDecoder(
                 predicate,
-                socketFrameMaxSizeBytes);
+                socketFrameMaxSizeBytes, new Function<>() {
+
+                    @Override
+                    public Short apply(ApiKeys apiKey) {
+                        return apiKey.latestVersion(true);
+                    }
+
+                });
     }
 
     @ParameterizedTest
@@ -269,7 +298,14 @@ public class RequestDecoderTest extends AbstractCodecTest {
                         FilterAndInvoker
                                 .build((ApiVersionsRequestFilter) (version, head, request, context) -> context.requestFilterResultBuilder().forward(header, request)
                                         .completed())),
-                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES)
+                DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
+
+                    @Override
+                    public Short apply(ApiKeys apiKey) {
+                        return apiKey.latestVersion(true);
+                    }
+
+                })
                 .decode(null, byteBuf, messages);
 
         assertEquals(List.of(DecodedRequestFrame.class, DecodedRequestFrame.class), messageClasses(messages));

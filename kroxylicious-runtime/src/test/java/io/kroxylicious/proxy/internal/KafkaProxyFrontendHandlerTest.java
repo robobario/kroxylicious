@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import org.apache.kafka.common.message.ApiVersionsRequestData;
@@ -494,7 +495,14 @@ class KafkaProxyFrontendHandlerTest {
         while ((outboundMessage = outboundChannel.readOutbound()) != null) {
             assertThat(outboundMessage).isNotNull();
             ArrayList<Object> objects = new ArrayList<>();
-            new KafkaRequestDecoder(RequestDecoderTest.DECODE_EVERYTHING, DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES).decode(outboundChannel.pipeline().firstContext(),
+            new KafkaRequestDecoder(RequestDecoderTest.DECODE_EVERYTHING, DEFAULT_SOCKET_FRAME_MAX_SIZE_BYTES, new Function<>() {
+
+                @Override
+                public Short apply(ApiKeys apiKey) {
+                    return apiKey.latestVersion(true);
+                }
+
+            }).decode(outboundChannel.pipeline().firstContext(),
                     outboundMessage, objects);
             assertThat(objects).hasSize(1);
             if (objects.get(0) instanceof DecodedRequestFrame<?> f) {

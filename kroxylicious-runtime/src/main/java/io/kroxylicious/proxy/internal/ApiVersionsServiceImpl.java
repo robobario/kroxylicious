@@ -7,7 +7,9 @@
 package io.kroxylicious.proxy.internal;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import org.apache.kafka.common.message.ApiVersionsResponseData;
 import org.apache.kafka.common.message.ApiVersionsResponseData.ApiVersion;
@@ -15,21 +17,29 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 public class ApiVersionsServiceImpl {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiVersionsServiceImpl.class);
+    private final Function<ApiKeys, Short> apiKeysShortFunction;
 
-    public void updateVersions(String channel, ApiVersionsResponseData apiVersionsResponse) {
-        intersectApiVersions(channel, apiVersionsResponse);
+    public ApiVersionsServiceImpl(@NonNull Function<ApiKeys, Short> apiKeysShortFunction) {
+        Objects.requireNonNull(apiKeysShortFunction);
+        this.apiKeysShortFunction = apiKeysShortFunction;
     }
 
-    private static void intersectApiVersions(String channel, ApiVersionsResponseData resp) {
+    public void updateVersions(String channel, ApiVersionsResponseData apiVersionsResponse) {
+        intersectApiVersions(channel, apiVersionsResponse, apiKeysShortFunction);
+    }
+
+    private static void intersectApiVersions(String channel, ApiVersionsResponseData resp, Function<ApiKeys, Short> apiKeysShortFunction) {
         Set<ApiVersion> unknownApis = new HashSet<>();
         for (var key : resp.apiKeys()) {
             short apiId = key.apiKey();
             if (ApiKeys.hasId(apiId)) {
                 ApiKeys apiKey = ApiKeys.forId(apiId);
-                intersectApiVersion(channel, key, apiKey);
+                intersectApiVersion(channel, key, apiKey, apiKeysShortFunction);
             }
             else {
                 unknownApis.add(key);
@@ -41,11 +51,13 @@ public class ApiVersionsServiceImpl {
     /**
      * Update the given {@code key}'s max and min versions so that the client uses APIs versions mutually
      * understood by both the proxy and the broker.
+     *
      * @param channel The channel.
      * @param key The key data from an upstream API_VERSIONS response.
      * @param apiKey The proxy's API key for this API.
+     * @param apiKeysShortFunction
      */
-    private static void intersectApiVersion(String channel, ApiVersionsResponseData.ApiVersion key, ApiKeys apiKey) {
+    private static void intersectApiVersion(String channel, ApiVersion key, ApiKeys apiKey, Function<ApiKeys, Short> apiKeysShortFunction) {
         short mutualMin = (short) Math.max(
                 key.minVersion(),
                 apiKey.messageType.lowestSupportedVersion());
@@ -59,7 +71,7 @@ public class ApiVersionsServiceImpl {
 
         short mutualMax = (short) Math.min(
                 key.maxVersion(),
-                apiKey.messageType.highestSupportedVersion(true));
+                apiKeysShortFunction.apply(apiKey));
         if (mutualMax != key.maxVersion()) {
             LOGGER.trace("{}: {} max version changed to {} (was: {})", channel, apiKey, mutualMin, key.maxVersion());
             key.setMaxVersion(mutualMax);

@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 
+import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.security.auth.AuthenticateCallbackHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +57,7 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
     private final EndpointReconciler endpointReconciler;
     private final PluginFactoryRegistry pfr;
     private final FilterChainFactory filterChainFactory;
+    private final Function<ApiKeys, Short> apiKeysShortFunction;
 
     public KafkaProxyInitializer(FilterChainFactory filterChainFactory,
                                  PluginFactoryRegistry pfr,
@@ -62,7 +65,8 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
                                  VirtualClusterBindingResolver virtualClusterBindingResolver,
                                  EndpointReconciler endpointReconciler,
                                  boolean haproxyProtocol,
-                                 Map<KafkaAuthnHandler.SaslMechanism, AuthenticateCallbackHandler> authnMechanismHandlers) {
+                                 Map<KafkaAuthnHandler.SaslMechanism, AuthenticateCallbackHandler> authnMechanismHandlers,
+                                 Function<ApiKeys, Short> apiKeysShortFunction) {
         this.pfr = pfr;
         this.endpointReconciler = endpointReconciler;
         this.haproxyProtocol = haproxyProtocol;
@@ -70,6 +74,7 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
         this.tls = tls;
         this.virtualClusterBindingResolver = virtualClusterBindingResolver;
         this.filterChainFactory = filterChainFactory;
+        this.apiKeysShortFunction = apiKeysShortFunction;
     }
 
     @Override
@@ -178,7 +183,7 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
         var dp = new SaslDecodePredicate(!authnHandlers.isEmpty());
         // The decoder, this only cares about the filters
         // because it needs to know whether to decode requests
-        KafkaRequestDecoder decoder = new KafkaRequestDecoder(dp, virtualCluster.socketFrameMaxSizeBytes());
+        KafkaRequestDecoder decoder = new KafkaRequestDecoder(dp, virtualCluster.socketFrameMaxSizeBytes(), apiKeysShortFunction);
         pipeline.addLast("requestDecoder", decoder);
         pipeline.addLast("responseEncoder", new KafkaResponseEncoder());
         pipeline.addLast("responseOrderer", new ResponseOrderer());
@@ -191,8 +196,9 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
             pipeline.addLast(new KafkaAuthnHandler(ch, authnHandlers));
         }
 
-        ApiVersionsServiceImpl apiVersionService = new ApiVersionsServiceImpl();
-        final NetFilter netFilter = new InitalizerNetFilter(dp, apiVersionService, ch, binding, pfr, filterChainFactory, endpointReconciler);
+        var apiVersionService = new ApiVersionsServiceImpl(this.apiKeysShortFunction);
+        final NetFilter netFilter = new InitalizerNetFilter(dp, ch, binding, pfr, filterChainFactory, endpointReconciler,
+                new ApiVersionsDowngradeFilter(this.apiKeysShortFunction), new ApiVersionsIntersectFilter(apiVersionService));
         var frontendHandler = new KafkaProxyFrontendHandler(netFilter, dp, virtualCluster);
 
         pipeline.addLast("netHandler", frontendHandler);
@@ -204,36 +210,44 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
     static class InitalizerNetFilter implements NetFilter {
 
         private final SaslDecodePredicate decodePredicate;
-        private final ApiVersionsServiceImpl apiVersionService;
         private final SocketChannel ch;
         private final VirtualCluster virtualCluster;
         private final VirtualClusterBinding binding;
         private final PluginFactoryRegistry pfr;
         private final FilterChainFactory filterChainFactory;
         private final EndpointReconciler endpointReconciler;
+        private final ApiVersionsIntersectFilter apiVersionsIntersectFilter;
+        private final ApiVersionsDowngradeFilter apiVersionsDowngradeFilter;
 
-        InitalizerNetFilter(SaslDecodePredicate decodePredicate, ApiVersionsServiceImpl apiVersionService, SocketChannel ch,
-                            VirtualClusterBinding binding, PluginFactoryRegistry pfr, FilterChainFactory filterChainFactory, EndpointReconciler endpointReconciler) {
+        InitalizerNetFilter(SaslDecodePredicate decodePredicate,
+                            SocketChannel ch,
+                            VirtualClusterBinding binding,
+                            PluginFactoryRegistry pfr,
+                            FilterChainFactory filterChainFactory,
+                            EndpointReconciler endpointReconciler,
+                            ApiVersionsDowngradeFilter apiVersionsDowngradeFilter,
+                            ApiVersionsIntersectFilter apiVersionsIntersectFilter) {
             this.decodePredicate = decodePredicate;
-            this.apiVersionService = apiVersionService;
             this.ch = ch;
             this.virtualCluster = binding.virtualCluster();
             this.binding = binding;
             this.pfr = pfr;
             this.filterChainFactory = filterChainFactory;
             this.endpointReconciler = endpointReconciler;
+            this.apiVersionsIntersectFilter = apiVersionsIntersectFilter;
+            this.apiVersionsDowngradeFilter = apiVersionsDowngradeFilter;
         }
 
         @Override
         public void selectServer(NetFilter.NetFilterContext context) {
             List<FilterAndInvoker> apiVersionFilters = decodePredicate.isAuthenticationOffloadEnabled() ? List.of()
-                    : FilterAndInvoker.build(new ApiVersionsIntersectFilter(apiVersionService));
+                    : FilterAndInvoker.build(apiVersionsIntersectFilter);
 
             NettyFilterContext filterContext = new NettyFilterContext(ch.eventLoop(), pfr);
             List<FilterAndInvoker> customProtocolFilters = filterChainFactory.createFilters(filterContext);
             List<FilterAndInvoker> brokerAddressFilters = FilterAndInvoker.build(new BrokerAddressFilter(virtualCluster, endpointReconciler));
             var filters = new ArrayList<>(apiVersionFilters);
-            filters.addAll(FilterAndInvoker.build(new ApiVersionsDowngradeFilter()));
+            filters.addAll(FilterAndInvoker.build(apiVersionsDowngradeFilter));
             filters.addAll(customProtocolFilters);
             if (binding.restrictUpstreamToMetadataDiscovery()) {
                 filters.addAll(FilterAndInvoker.build(new EagerMetadataLearner()));

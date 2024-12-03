@@ -5,6 +5,8 @@
  */
 package io.kroxylicious.proxy.internal.codec;
 
+import java.util.function.Function;
+
 import org.apache.kafka.common.message.ApiVersionsRequestData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.protocol.ApiKeys;
@@ -30,10 +32,12 @@ public class KafkaRequestDecoder extends KafkaMessageDecoder {
     public static final ApiVersionsRequestData SPECIAL_DOWNGRADED_REQUEST_DATA = new ApiVersionsRequestData();
 
     private final DecodePredicate decodePredicate;
+    private final Function<ApiKeys, Short> highestApiVersion;
 
-    public KafkaRequestDecoder(DecodePredicate decodePredicate, int socketFrameMaxSize) {
+    public KafkaRequestDecoder(DecodePredicate decodePredicate, int socketFrameMaxSize, Function<ApiKeys, Short> highestApiVersion) {
         super(socketFrameMaxSize);
         this.decodePredicate = decodePredicate;
+        this.highestApiVersion = highestApiVersion;
     }
 
     @Override
@@ -88,7 +92,7 @@ public class KafkaRequestDecoder extends KafkaMessageDecoder {
         }
         final RequestFrame frame;
         if (decodeRequest) {
-            short highestProxyVersion = apiKey.latestVersion(true);
+            short highestProxyVersion = highestApiVersion.apply(apiKey);
             boolean clientAheadOfProxy = apiVersion > highestProxyVersion;
             if (clientAheadOfProxy) {
                 if (apiKey == ApiKeys.API_VERSIONS) {

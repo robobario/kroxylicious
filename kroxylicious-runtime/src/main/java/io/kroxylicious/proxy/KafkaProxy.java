@@ -12,7 +12,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import org.apache.kafka.common.protocol.ApiKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,11 +114,14 @@ public final class KafkaProxy implements AutoCloseable {
 
             maybeStartMetricsListener(adminEventGroup, meterRegistries);
 
+            var overrideMap = getApiKeyMaxVersionOverride(config);
+            Function<ApiKeys, Short> apiKeysShortFunction = apiKey -> getMaxApiVersionFor(apiKey, overrideMap);
+
             this.filterChainFactory = new FilterChainFactory(pfr, config.filters());
             var tlsServerBootstrap = buildServerBootstrap(serverEventGroup,
-                    new KafkaProxyInitializer(filterChainFactory, pfr, true, endpointRegistry, endpointRegistry, false, Map.of()));
+                    new KafkaProxyInitializer(filterChainFactory, pfr, true, endpointRegistry, endpointRegistry, false, Map.of(), apiKeysShortFunction));
             var plainServerBootstrap = buildServerBootstrap(serverEventGroup,
-                    new KafkaProxyInitializer(filterChainFactory, pfr, false, endpointRegistry, endpointRegistry, false, Map.of()));
+                    new KafkaProxyInitializer(filterChainFactory, pfr, false, endpointRegistry, endpointRegistry, false, Map.of(), apiKeysShortFunction));
 
             bindingOperationProcessor.start(plainServerBootstrap, tlsServerBootstrap);
 
@@ -134,6 +140,24 @@ public final class KafkaProxy implements AutoCloseable {
             shutdown();
             throw e;
         }
+    }
+
+    private static short getMaxApiVersionFor(ApiKeys apiKey, Map<ApiKeys, Short> overrideMap) {
+        short latest = apiKey.latestVersion(true);
+        return Optional.ofNullable(overrideMap.get(apiKey)).map(m -> ((Integer) Math.min(latest, m.intValue())).shortValue()).orElse(latest);
+    }
+
+    private Map<ApiKeys, Short> getApiKeyMaxVersionOverride(Configuration config) {
+        Map<Short, Number> apiKeyIdMaxVersion = config.experimental()
+                .map(m -> m.get("apiKeyIdMaxVersionOverride"))
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .orElse(Map.of());
+
+        return apiKeyIdMaxVersion.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> ApiKeys.forId(e.getKey()),
+                        e -> e.getValue().shortValue()));
     }
 
     private ServerBootstrap buildServerBootstrap(EventGroupConfig virtualHostEventGroup, KafkaProxyInitializer kafkaProxyInitializer) {

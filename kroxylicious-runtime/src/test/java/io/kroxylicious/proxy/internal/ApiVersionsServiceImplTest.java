@@ -16,7 +16,7 @@ class ApiVersionsServiceImplTest {
 
     @Test
     void testIntersection_UpstreamMatchesApiKeys() {
-        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl();
+        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl(a -> a.latestVersion(true));
         ApiVersionsResponseData upstreamApiVersions = createApiVersionsWith(ApiKeys.METADATA.id, ApiKeys.METADATA.oldestVersion(),
                 ApiKeys.METADATA.latestVersion());
         apiVersionsService.updateVersions("channel", upstreamApiVersions);
@@ -25,7 +25,7 @@ class ApiVersionsServiceImplTest {
 
     @Test
     void testIntersection_UpstreamMinVersionLessThanApiKeys() {
-        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl();
+        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl(a -> a.latestVersion(true));
         ApiVersionsResponseData upstreamApiVersions = createApiVersionsWith(ApiKeys.METADATA.id, (short) (ApiKeys.METADATA.oldestVersion() - 1),
                 ApiKeys.METADATA.latestVersion());
         apiVersionsService.updateVersions("channel", upstreamApiVersions);
@@ -34,7 +34,7 @@ class ApiVersionsServiceImplTest {
 
     @Test
     void testIntersection_UpstreamMinVersionGreaterThanApiKeys() {
-        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl();
+        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl(a -> a.latestVersion(true));
         ApiVersionsResponseData upstreamApiVersions = createApiVersionsWith(ApiKeys.METADATA.id, (short) (ApiKeys.METADATA.oldestVersion() + 1),
                 ApiKeys.METADATA.latestVersion());
         apiVersionsService.updateVersions("channel", upstreamApiVersions);
@@ -43,7 +43,7 @@ class ApiVersionsServiceImplTest {
 
     @Test
     void testIntersection_UpstreamMaxVersionLessThanApiKeys() {
-        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl();
+        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl(a -> a.latestVersion(true));
         ApiVersionsResponseData upstreamApiVersions = createApiVersionsWith(ApiKeys.METADATA.id, ApiKeys.METADATA.oldestVersion(),
                 (short) (ApiKeys.METADATA.latestVersion() - 1));
         apiVersionsService.updateVersions("channel", upstreamApiVersions);
@@ -52,7 +52,7 @@ class ApiVersionsServiceImplTest {
 
     @Test
     void testIntersection_UpstreamMaxVersionGreaterThanApiKeys() {
-        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl();
+        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl(a -> a.latestVersion(true));
         ApiVersionsResponseData upstreamApiVersions = createApiVersionsWith(ApiKeys.METADATA.id, ApiKeys.METADATA.oldestVersion(),
                 (short) (ApiKeys.METADATA.latestVersion() + 1));
         apiVersionsService.updateVersions("channel", upstreamApiVersions);
@@ -61,7 +61,7 @@ class ApiVersionsServiceImplTest {
 
     @Test
     void testIntersection_DiscardsUnknownUpstreamApiKeys() {
-        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl();
+        ApiVersionsServiceImpl apiVersionsService = new ApiVersionsServiceImpl(a -> a.latestVersion(true));
         ApiVersionsResponseData upstreamApiVersions = createApiVersionsWith((short) 678, ApiKeys.METADATA.oldestVersion(),
                 (short) (ApiKeys.METADATA.latestVersion() + 1));
         apiVersionsService.updateVersions("channel", upstreamApiVersions);
