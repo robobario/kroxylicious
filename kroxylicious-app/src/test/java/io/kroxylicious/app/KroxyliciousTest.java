@@ -44,7 +44,7 @@ class KroxyliciousTest {
 
     @BeforeEach
     public void setup() {
-        Kroxylicious app = new Kroxylicious((ffm, configuration) -> mockProxy);
+        Kroxylicious app = new Kroxylicious((ffm, configuration, environment) -> mockProxy);
         soutWriter = new StringWriter();
         serrWriter = new StringWriter();
         cmd = new CommandLine(app);
@@ -85,6 +85,15 @@ class KroxyliciousTest {
         when(mockProxy.startup()).thenReturn(mockProxy);
         doNothing().when(mockProxy).block();
         assertEquals(0, cmd.execute("-c", file.toString()));
+    }
+
+    @Test
+    void testEnvironment(@TempDir Path dir) throws Exception {
+        Path file = copyClasspathResourceToTempFileInDir("proxy-config.yaml", dir);
+        when(mockProxy.startup()).thenReturn(mockProxy);
+        doNothing().when(mockProxy).block();
+        assertEquals(0, cmd.execute("-c", file.toString()));
+        assertThat(stdOut()).containsPattern(Pattern.compile("environment: PRODUCTION"));
     }
 
     @Test

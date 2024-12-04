@@ -71,6 +71,7 @@ public final class KafkaProxy implements AutoCloseable {
     private final @NonNull Configuration config;
     private final @Nullable AdminHttpConfiguration adminHttpConfig;
     private final @NonNull List<MicrometerDefinition> micrometerConfig;
+    private final ProxyEnvironment environment;
     private final @NonNull List<VirtualCluster> virtualClusters;
     private final AtomicBoolean running = new AtomicBoolean();
     private final CompletableFuture<Void> shutdown = new CompletableFuture<>();
@@ -83,12 +84,14 @@ public final class KafkaProxy implements AutoCloseable {
     private @Nullable EventGroupConfig serverEventGroup;
     private @Nullable Channel metricsChannel;
 
-    public KafkaProxy(PluginFactoryRegistry pfr, Configuration config) {
+    public KafkaProxy(PluginFactoryRegistry pfr, Configuration config, ProxyEnvironment environment) {
         this.pfr = Objects.requireNonNull(pfr);
         this.config = Objects.requireNonNull(config);
         this.virtualClusters = config.virtualClusterModel();
         this.adminHttpConfig = config.adminHttpConfig();
         this.micrometerConfig = config.getMicrometer();
+        this.environment = environment;
+        environment.validate(config);
     }
 
     /**
@@ -142,7 +145,7 @@ public final class KafkaProxy implements AutoCloseable {
     }
 
     private Map<ApiKeys, Short> getApiKeyMaxVersionOverride(Configuration config) {
-        Map<String, Number> apiKeyIdMaxVersion = config.experimental()
+        Map<String, Number> apiKeyIdMaxVersion = config.internal()
                 .map(m -> m.get("apiKeyIdMaxVersionOverride"))
                 .filter(Map.class::isInstance)
                 .map(Map.class::cast)

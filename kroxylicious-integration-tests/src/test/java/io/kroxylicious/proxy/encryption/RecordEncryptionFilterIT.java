@@ -259,7 +259,7 @@ class RecordEncryptionFilterIT {
         builder.addToFilters(new FilterDefinitionBuilder(RecordEncryption.class.getSimpleName())
                 .withConfig("kms", testKmsFacade.getKmsServiceClass().getSimpleName())
                 .withConfig("kmsConfig", testKmsFacade.getKmsServiceConfig())
-                .withConfig("experimental", Map.of("encryptionDekRefreshAfterWriteSeconds", edekExpiry.toSeconds()))
+                .withConfig("internal", Map.of("encryptionDekRefreshAfterWriteSeconds", edekExpiry.toSeconds()))
                 .withConfig("selector", TemplateKekSelector.class.getSimpleName())
                 .withConfig("selectorConfig", Map.of("template", TEMPLATE_KEK_SELECTOR_PATTERN))
                 .build());
@@ -302,7 +302,7 @@ class RecordEncryptionFilterIT {
         builder.addToFilters(new FilterDefinitionBuilder(RecordEncryption.class.getSimpleName())
                 .withConfig("kms", testKmsFacade.getKmsServiceClass().getSimpleName())
                 .withConfig("kmsConfig", testKmsFacade.getKmsServiceConfig())
-                .withConfig("experimental", Map.of(
+                .withConfig("internal", Map.of(
                         "encryptionDekRefreshAfterWriteSeconds", edekExpiry.toSeconds(),
                         "maxEncryptionsPerDek", 1))
                 .withConfig("selector", TemplateKekSelector.class.getSimpleName())

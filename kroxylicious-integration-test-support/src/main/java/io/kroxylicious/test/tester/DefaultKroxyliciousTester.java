@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.proxy.KafkaProxy;
+import io.kroxylicious.proxy.ProxyEnvironment;
 import io.kroxylicious.proxy.config.Configuration;
 import io.kroxylicious.proxy.config.ConfigurationBuilder;
 import io.kroxylicious.proxy.config.ServiceBasedPluginFactoryRegistry;
@@ -258,7 +259,7 @@ public class DefaultKroxyliciousTester implements KroxyliciousTester {
     }
 
     static KafkaProxy spawnProxy(Configuration config) {
-        KafkaProxy kafkaProxy = new KafkaProxy(new ServiceBasedPluginFactoryRegistry(), config);
+        KafkaProxy kafkaProxy = new KafkaProxy(new ServiceBasedPluginFactoryRegistry(), config, ProxyEnvironment.DEVELOPMENT);
         try {
             kafkaProxy.startup();
         }
