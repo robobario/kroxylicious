@@ -55,7 +55,7 @@ public class ApiVersionsIT {
     void shouldOfferTheMinimumHighestSupportedVersionWhenBrokerIsAheadOfKroxyliciousAndMaxVersionOverridden() {
         short overriddenVersion = (short) (ApiKeys.METADATA.latestVersion(true) - 1);
         try (var tester = mockKafkaKroxyliciousTester((bootstrap) -> KroxyliciousConfigUtils.proxy(bootstrap)
-                .withExperimental(Map.of("apiKeyIdMaxVersionOverride", Map.of(ApiKeys.METADATA.name(), overriddenVersion))), DEVELOPMENT);
+                .withInternal(Map.of("apiKeyIdMaxVersionOverride", Map.of(ApiKeys.METADATA.name(), overriddenVersion))), DEVELOPMENT);
                 var client = tester.simpleTestClient()) {
             givenMockRespondsWithApiVersionsForApiKey(tester, ApiKeys.METADATA, ApiKeys.METADATA.oldestVersion(), ApiKeys.METADATA.latestVersion(true));
             Response response = whenGetApiVersionsFromKroxylicious(client);

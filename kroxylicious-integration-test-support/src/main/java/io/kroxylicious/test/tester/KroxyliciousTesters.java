@@ -72,7 +72,7 @@ public class KroxyliciousTesters {
      * mock kafka broker. The mock can be configured to respond with an exact API
      * message, and be used to verify what was sent to it.
      * @param configurationForMockBootstrap a function that takes the mock broker's bootstrap server address and returns a KroxyliciousConfigBuilder used to configure an in-process Kroxylicious
-     * @param environment environment of the proxy, set to DEVELOPMENT to allow experimental testing features
+     * @param environment environment of the proxy, set to DEVELOPMENT to allow internal testing features
      * @return KroxyliciousTester
      */
     public static MockServerKroxyliciousTester mockKafkaKroxyliciousTester(Function<String, ConfigurationBuilder> configurationForMockBootstrap,

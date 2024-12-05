@@ -102,7 +102,7 @@ public class KroxyliciousTesterBuilder {
     /**
      * Sets the environment of the proxy. By default we run tests with a production environment but
      * testers can opt in to a DEVELOPMENT environment to allow the proxy to be configured with some
-     * experimental features.
+     * internal features.
      * @param environment environment
      * @return the current instance of the builder for chaining in a fluent fashion.
      */

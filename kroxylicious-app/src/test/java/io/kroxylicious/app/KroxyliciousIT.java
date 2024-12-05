@@ -58,13 +58,13 @@ class KroxyliciousIT {
         SubprocessKroxyliciousFactory kroxyliciousFactory = new SubprocessKroxyliciousFactory(tempDir, (environment, processBuilder) -> {
             // no-op so that io is not inherited
         }, List.of());
-        var tester = kroxyliciousTester(proxy("fake:9092").withExperimental(Map.of("a", "b")), kroxyliciousFactory);
+        var tester = kroxyliciousTester(proxy("fake:9092").withInternal(Map.of("a", "b")), kroxyliciousFactory);
         Process lastProcess = kroxyliciousFactory.lastProcess;
         assertThat(lastProcess).isNotNull();
         assertThat(lastProcess.onExit()).succeedsWithin(5, TimeUnit.SECONDS);
         byte[] bytes = lastProcess.getInputStream().readAllBytes();
         String output = new String(bytes, StandardCharsets.UTF_8);
-        assertThat(output).contains("experimental configuration for proxy present in production mode");
+        assertThat(output).contains("internal configuration for proxy present in production mode");
         tester.close();
     }
 
@@ -73,13 +73,13 @@ class KroxyliciousIT {
         SubprocessKroxyliciousFactory kroxyliciousFactory = new SubprocessKroxyliciousFactory(tempDir, (environment, processBuilder) -> {
             processBuilder.environment().put(Kroxylicious.KROXYLICIOUS_ENVIRONMENT, environment.name());
         }, List.of());
-        var tester = kroxyliciousTester(proxy("fake:9092").withExperimental(Map.of("a", "b")), kroxyliciousFactory);
+        var tester = kroxyliciousTester(proxy("fake:9092").withInternal(Map.of("a", "b")), kroxyliciousFactory);
         Process lastProcess = kroxyliciousFactory.lastProcess;
         assertThat(lastProcess).isNotNull();
         assertThat(lastProcess.onExit()).succeedsWithin(5, TimeUnit.SECONDS);
         byte[] bytes = lastProcess.getInputStream().readAllBytes();
         String output = new String(bytes, StandardCharsets.UTF_8);
-        assertThat(output).contains("experimental configuration for proxy present in production mode");
+        assertThat(output).contains("internal configuration for proxy present in production mode");
         tester.close();
     }
 
@@ -89,7 +89,7 @@ class KroxyliciousIT {
                 new NewTopic(TOPIC_1, 1, (short) 1),
                 new NewTopic(TOPIC_2, 1, (short) 1))).all().get();
 
-        try (var tester = newBuilder(proxy(cluster).withExperimental(Map.of("a", "b")))
+        try (var tester = newBuilder(proxy(cluster).withInternal(Map.of("a", "b")))
                 .setKroxyliciousFactory(new SubprocessKroxyliciousFactory(tempDir))
                 .setEnvironment(ProxyEnvironment.DEVELOPMENT)
                 .createDefaultKroxyliciousTester();
@@ -107,7 +107,7 @@ class KroxyliciousIT {
                 new NewTopic(TOPIC_1, 1, (short) 1),
                 new NewTopic(TOPIC_2, 1, (short) 1))).all().get();
 
-        try (var tester = newBuilder(proxy(cluster).withExperimental(Map.of("a", "b")))
+        try (var tester = newBuilder(proxy(cluster).withInternal(Map.of("a", "b")))
                 .setKroxyliciousFactory(new SubprocessKroxyliciousFactory(tempDir, (environment, processBuilder) -> processBuilder.inheritIO(),
                         List.of("-D" + Kroxylicious.KROXYLICIOUS_ENVIRONMENT + "=" + ProxyEnvironment.DEVELOPMENT)))
                 .createDefaultKroxyliciousTester();

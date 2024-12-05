@@ -114,7 +114,7 @@ public class ApiVersionsDowngradeIT {
     private void doProxyRestrictedToOlderApiVersion(KafkaCluster cluster, Map<String, Object> clientSecurityProtocolConfig) {
         var apiVersion = (short) (ApiKeys.API_VERSIONS.latestVersion() - 1);
         var proxy = proxy(cluster)
-                .withExperimental(Map.of("apiKeyIdMaxVersionOverride", Map.of(ApiKeys.API_VERSIONS.name(), apiVersion)));
+                .withInternal(Map.of("apiKeyIdMaxVersionOverride", Map.of(ApiKeys.API_VERSIONS.name(), apiVersion)));
         try (var tester = newBuilder(proxy).setEnvironment(DEVELOPMENT).createDefaultKroxyliciousTester();
                 var admin = tester.admin(clientSecurityProtocolConfig)) {
             // We've got no way to observe the actual version of the API versions request that is used during _negotiation_

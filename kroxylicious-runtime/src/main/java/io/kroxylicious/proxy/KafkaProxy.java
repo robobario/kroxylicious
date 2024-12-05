@@ -142,7 +142,7 @@ public final class KafkaProxy implements AutoCloseable {
     }
 
     private Map<ApiKeys, Short> getApiKeyMaxVersionOverride(Configuration config) {
-        Map<String, Number> apiKeyIdMaxVersion = config.experimental()
+        Map<String, Number> apiKeyIdMaxVersion = config.internal()
                 .map(m -> m.get("apiKeyIdMaxVersionOverride"))
                 .filter(Map.class::isInstance)
                 .map(Map.class::cast)

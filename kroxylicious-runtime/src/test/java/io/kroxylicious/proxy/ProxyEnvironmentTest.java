@@ -50,7 +50,7 @@ class ProxyEnvironmentTest {
         Configuration configuration = new Configuration(null, null, List.of(), null, false, a);
         assertThatThrownBy(() -> {
             PRODUCTION.validate(configuration);
-        }).isInstanceOf(EnvironmentConfigurationException.class).hasMessage("experimental configuration for proxy present in production mode");
+        }).isInstanceOf(EnvironmentConfigurationException.class).hasMessage("internal configuration for proxy present in production mode");
     }
 
 }
