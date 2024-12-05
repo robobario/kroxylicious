@@ -83,9 +83,9 @@ public final class KafkaProxy implements AutoCloseable {
     private @Nullable EventGroupConfig serverEventGroup;
     private @Nullable Channel metricsChannel;
 
-    public KafkaProxy(PluginFactoryRegistry pfr, Configuration config) {
+    public KafkaProxy(PluginFactoryRegistry pfr, Configuration config, ProxyEnvironment environment) {
         this.pfr = Objects.requireNonNull(pfr);
-        this.config = Objects.requireNonNull(config);
+        this.config = environment.validate(config);
         this.virtualClusters = config.virtualClusterModel();
         this.adminHttpConfig = config.adminHttpConfig();
         this.micrometerConfig = config.getMicrometer();
