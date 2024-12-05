@@ -93,7 +93,7 @@ public class Kroxylicious implements Callable<Integer> {
         for (String version : versions) {
             LOGGER.info("{}", version);
         }
-        LOGGER.info("environment: " + proxyEnvironment.name());
+        LOGGER.info("environment: {}", proxyEnvironment.name());
         if (proxyEnvironment == ProxyEnvironment.DEVELOPMENT) {
             LOGGER.warn("Warning, kroxylicious is configured for development. The proxy is permitted to apply some features that are for testing only.");
         }

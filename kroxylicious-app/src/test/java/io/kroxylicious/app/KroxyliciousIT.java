@@ -64,7 +64,7 @@ class KroxyliciousIT {
         assertThat(lastProcess.onExit()).succeedsWithin(5, TimeUnit.SECONDS);
         byte[] bytes = lastProcess.getInputStream().readAllBytes();
         String output = new String(bytes, StandardCharsets.UTF_8);
-        assertThat(output).contains("internal configuration for proxy present in production mode");
+        assertThat(output).contains("internal configuration for proxy present in production environment");
         tester.close();
     }
 
@@ -79,7 +79,7 @@ class KroxyliciousIT {
         assertThat(lastProcess.onExit()).succeedsWithin(5, TimeUnit.SECONDS);
         byte[] bytes = lastProcess.getInputStream().readAllBytes();
         String output = new String(bytes, StandardCharsets.UTF_8);
-        assertThat(output).contains("internal configuration for proxy present in production mode");
+        assertThat(output).contains("internal configuration for proxy present in production environment");
         tester.close();
     }
 

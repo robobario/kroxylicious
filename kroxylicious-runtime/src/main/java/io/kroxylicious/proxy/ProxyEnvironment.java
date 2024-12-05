@@ -14,8 +14,8 @@ public enum ProxyEnvironment {
     PRODUCTION {
         @Override
         public Configuration validate(@NonNull Configuration config) {
-            if (config.internal() != null && config.internal().isPresent()) {
-                throw new EnvironmentConfigurationException("internal configuration for proxy present in production mode");
+            if (config.internal().map(m -> !m.isEmpty()).orElse(false)) {
+                throw new EnvironmentConfigurationException("internal configuration for proxy present in production environment");
             }
             return config;
         }

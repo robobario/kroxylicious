@@ -28,29 +28,26 @@ class ProxyEnvironmentTest {
     static List<Arguments> permittedInternalConfigurationForEnv() {
         List<Arguments> cases = new ArrayList<>();
         cases.add(Arguments.of(DEVELOPMENT, null));
-        cases.add(Arguments.of(DEVELOPMENT, Optional.empty()));
-        cases.add(Arguments.of(DEVELOPMENT, Optional.of(Map.of())));
-        cases.add(Arguments.of(DEVELOPMENT, Optional.of(Map.of("a", "b"))));
+        cases.add(Arguments.of(DEVELOPMENT, Map.of()));
+        cases.add(Arguments.of(DEVELOPMENT, Map.of("a", "b")));
         cases.add(Arguments.of(PRODUCTION, null));
-        cases.add(Arguments.of(PRODUCTION, Optional.empty()));
-        cases.add(Arguments.of(DEVELOPMENT, Optional.of(Map.of())));
+        cases.add(Arguments.of(PRODUCTION, Map.of()));
         return cases;
     }
 
     @ParameterizedTest
     @MethodSource
-    void permittedInternalConfigurationForEnv(ProxyEnvironment env, Optional<Map<String, Object>> internalConfiguration) {
-        Configuration configuration = new Configuration(null, null, List.of(), null, false, internalConfiguration);
+    void permittedInternalConfigurationForEnv(ProxyEnvironment env, Map<String, Object> internalConfiguration) {
+        Configuration configuration = new Configuration(null, null, List.of(), null, false, Optional.ofNullable(internalConfiguration));
         assertThat(env.validate(configuration)).isEqualTo(configuration);
     }
 
     @Test
-    void invalidInternalConfigurationForProduction() {
-        Optional<Map<String, Object>> a = Optional.of(Map.of("a", "b"));
-        Configuration configuration = new Configuration(null, null, List.of(), null, false, a);
+    void nonEmptyInternalDisallowedForProduction() {
+        Configuration configuration = new Configuration(null, null, List.of(), null, false, Optional.of(Map.of("a", "b")));
         assertThatThrownBy(() -> {
             PRODUCTION.validate(configuration);
-        }).isInstanceOf(EnvironmentConfigurationException.class).hasMessage("internal configuration for proxy present in production mode");
+        }).isInstanceOf(EnvironmentConfigurationException.class).hasMessage("internal configuration for proxy present in production environment");
     }
 
 }

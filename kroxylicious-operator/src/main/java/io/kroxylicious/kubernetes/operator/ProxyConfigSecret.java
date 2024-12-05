@@ -129,7 +129,7 @@ public class ProxyConfigSecret
                 virtualClusters,
                 filterDefinitions,
                 List.of(),
-                false, null);
+                false, Optional.empty());
 
         return toYaml(configuration);
     }

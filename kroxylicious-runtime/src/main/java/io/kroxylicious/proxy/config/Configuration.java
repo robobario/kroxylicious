@@ -19,7 +19,7 @@ public record Configuration(@Nullable AdminHttpConfiguration adminHttp,
                             List<FilterDefinition> filters,
                             List<MicrometerDefinition> micrometer,
                             boolean useIoUring,
-                            @Nullable Optional<Map<String, Object>> internal) {
+                            @NonNull Optional<Map<String, Object>> internal) {
     public @Nullable AdminHttpConfiguration adminHttpConfig() {
         return adminHttp();
     }
