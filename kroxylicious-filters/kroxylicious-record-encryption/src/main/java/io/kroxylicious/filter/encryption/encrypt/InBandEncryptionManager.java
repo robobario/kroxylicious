@@ -23,6 +23,7 @@ import io.kroxylicious.filter.encryption.crypto.Encryption;
 import io.kroxylicious.filter.encryption.crypto.EncryptionHeader;
 import io.kroxylicious.filter.encryption.dek.BufferTooSmallException;
 import io.kroxylicious.filter.encryption.dek.Dek;
+import io.kroxylicious.filter.encryption.dek.DestroyedDekException;
 import io.kroxylicious.filter.encryption.dek.ExhaustedDekException;
 import io.kroxylicious.kafka.transform.RecordStream;
 import io.kroxylicious.kms.service.Serde;
@@ -32,8 +33,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class InBandEncryptionManager<K, E> implements EncryptionManager<K> {
 
-    private static final int MAX_ATTEMPTS = 3;
-
+    private static final int MAX_ATTEMPTS = 100;
     /**
     * The encryption version used on the produce path.
     * Note that the encryption version used on the fetch path is read from the
@@ -128,7 +128,7 @@ public class InBandEncryptionManager<K, E> implements EncryptionManager<K> {
                             bufferAllocator);
                     return CompletableFuture.completedFuture(encryptedMemoryRecords);
                 }
-                catch (ExhaustedDekException e) {
+                catch (ExhaustedDekException | DestroyedDekException e) {
                     rotateKeyContext(encryptionScheme, dek);
                     // fall through to recursive call below...
                 }
@@ -137,13 +137,15 @@ public class InBandEncryptionManager<K, E> implements EncryptionManager<K> {
                 }
             }
             // recurse, incrementing the attempt number
-            return attemptEncrypt(topicName,
-                    partition,
-                    encryptionScheme,
-                    records,
-                    attempt + 1,
-                    bufferAllocator,
-                    allRecordsCount);
+            // short delay to prevent tight loop
+            return filterThreadExecutor.delay10Millis().thenCompose(
+                    n -> attemptEncrypt(topicName,
+                            partition,
+                            encryptionScheme,
+                            records,
+                            attempt + 1,
+                            bufferAllocator,
+                            allRecordsCount));
         });
     }
 
@@ -180,6 +182,6 @@ public class InBandEncryptionManager<K, E> implements EncryptionManager<K> {
     private void rotateKeyContext(@NonNull EncryptionScheme<K> encryptionScheme,
                                   @NonNull Dek<E> dek) {
         dek.destroyForEncrypt();
-        dekCache.invalidate(encryptionScheme);
+        dekCache.invalidate(encryptionScheme, dek);
     }
 }

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -21,9 +22,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public class FilterThreadExecutor {
     private final Executor executor;
 
+    private final Executor delayedExecutor;
+
     public FilterThreadExecutor(@NonNull Executor executor) {
         Objects.requireNonNull(executor);
         this.executor = executor;
+        this.delayedExecutor = CompletableFuture.delayedExecutor(10, TimeUnit.MILLISECONDS, executor);
     }
 
     /**
@@ -47,6 +51,10 @@ public class FilterThreadExecutor {
             return future.whenCompleteAsync((t, throwable) -> {
             }, executor);
         }
+    }
+
+    public CompletionStage<Void> delay10Millis() {
+        return CompletableFuture.supplyAsync(() -> null, delayedExecutor);
     }
 
 }
