@@ -31,6 +31,10 @@ spec:
     - broker0.mycluster-proxy.kafka
     - broker1.mycluster-proxy.kafka
     - broker2.mycluster-proxy.kafka
+    - my-cluster-proxy-2.kroxylicious
+    - my-cluster-proxy-2-broker-0.kroxylicious
+    - my-cluster-proxy-2-broker-1.kroxylicious
+    - my-cluster-proxy-2-broker-2.kroxylicious
   usages:
     - server auth
   issuerRef:
