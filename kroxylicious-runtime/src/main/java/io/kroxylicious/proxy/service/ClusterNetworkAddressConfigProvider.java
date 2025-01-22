@@ -57,6 +57,17 @@ public interface ClusterNetworkAddressConfigProvider {
     }
 
     /**
+     * Gets the advertised port for a node id. This is what is returned to clients and may differ from
+     * the node's bind port. This enables Kroxylicious to sit behind yet another proxy that uses a different
+     * port from the kroxylicious bind port.
+     * @param nodeId node id
+     * @return the port to advertise for the nodeId
+     */
+    default int getAdvertisedPort(int nodeId) {
+        return getBrokerAddress(nodeId).port();
+    }
+
+    /**
      * Indicates if this provider requires the use of TLS.
      *
      * @return true if this provider requires the use of TLS.

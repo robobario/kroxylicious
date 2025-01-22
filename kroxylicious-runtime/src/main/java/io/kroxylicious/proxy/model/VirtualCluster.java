@@ -354,4 +354,9 @@ public class VirtualCluster implements ClusterNetworkAddressConfigProvider {
     public @NonNull List<NamedFilterDefinition> getFilters() {
         return filters;
     }
+
+    @Override
+    public int getAdvertisedPort(int nodeId) {
+        return clusterNetworkAddressConfigProvider.getAdvertisedPort(nodeId);
+    }
 }

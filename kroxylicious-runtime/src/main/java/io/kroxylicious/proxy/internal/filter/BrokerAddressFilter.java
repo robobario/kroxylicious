@@ -165,11 +165,13 @@ public class BrokerAddressFilter implements MetadataResponseFilter, FindCoordina
         String incomingHost = hostGetter.apply(broker);
         int incomingPort = portGetter.applyAsInt(broker);
 
-        var downstreamAddress = virtualCluster.getBrokerAddress(nodeIdGetter.apply(broker));
+        Integer nodeId = nodeIdGetter.apply(broker);
+        var downstreamHost = virtualCluster.getBrokerAddress(nodeId).host();
+        var advertisedPort = virtualCluster.getAdvertisedPort(nodeId);
 
-        LOGGER.trace("{}: Rewriting broker address in response {}:{} -> {}", context, incomingHost, incomingPort, downstreamAddress);
-        hostSetter.accept(broker, downstreamAddress.host());
-        portSetter.accept(broker, downstreamAddress.port());
+        LOGGER.trace("{}: Rewriting broker address in response {}:{} -> {}:{}", context, incomingHost, incomingPort, downstreamHost, advertisedPort);
+        hostSetter.accept(broker, downstreamHost);
+        portSetter.accept(broker, advertisedPort);
     }
 
     private CompletionStage<ResponseFilterResult> doReconcileThenForwardResponse(ResponseHeaderData header, ApiMessage data, FilterContext context,

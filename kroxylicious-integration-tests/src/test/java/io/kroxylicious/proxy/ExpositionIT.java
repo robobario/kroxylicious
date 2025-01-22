@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.net.IntegrationTestInetAddressResolverProvider;
+import io.kroxylicious.net.PassthroughProxy;
 import io.kroxylicious.proxy.config.ClusterNetworkAddressConfigProviderDefinitionBuilder;
 import io.kroxylicious.proxy.config.ConfigurationBuilder;
 import io.kroxylicious.proxy.config.VirtualClusterBuilder;
@@ -138,6 +139,60 @@ class ExpositionIT extends BaseIT {
                 try (var admin = tester.admin("cluster" + i)) {
                     // do some work to ensure virtual cluster is operational
                     createTopic(admin, TOPIC + i, 1);
+                }
+            }
+        }
+    }
+
+    /**
+     * This is to test the case where Kroxylicious is behind yet-another-proxy that may bind to a different port than
+     * Kroxylicious. For example OpenShift TLS passthrough Routes will listen on port 443 by default. The proxy container
+     * won't be running as root, so binding to 443 so all the ports align isn't straightforward. Instead, we make it
+     * possible for Kroxylicious to change the port it advertises its brokers at. So that clients will be told to connect
+     * to the advertised port (e.g. 443) rather than the listening port for the VirtualCluster.
+     */
+    @Test
+    void exposesUpstreamClustersUsingSniRoutingBehindPassthroughProxy(KafkaCluster cluster) throws Exception {
+        try (var proxy = new PassthroughProxy(9192, "localhost")) {
+            var virtualClusterCommonNamePattern = IntegrationTestInetAddressResolverProvider.generateFullyQualifiedDomainName(".cluster");
+            var virtualClusterBootstrapPattern = "bootstrap" + virtualClusterCommonNamePattern;
+            var virtualClusterBrokerAddressPattern = "broker-$(nodeId)" + virtualClusterCommonNamePattern;
+
+            var builder = new ConfigurationBuilder();
+
+            var base = new VirtualClusterBuilder()
+                    .withNewTargetCluster()
+                    .withBootstrapServers(cluster.getBootstrapServers())
+                    .endTargetCluster()
+                    .build();
+
+            var keystoreTrustStorePair = buildKeystoreTrustStorePair("*" + virtualClusterCommonNamePattern);
+
+            var virtualCluster = new VirtualClusterBuilder(base)
+                    .withClusterNetworkAddressConfigProvider(
+                            new ClusterNetworkAddressConfigProviderDefinitionBuilder(SniRoutingClusterNetworkAddressConfigProvider.class.getName())
+                                    .withConfig("bootstrapAddress", virtualClusterBootstrapPattern + ":9192",
+                                            "advertisedBrokerAddressPattern", virtualClusterBrokerAddressPattern + ":" + proxy.getLocalPort())
+                                    .build())
+                    .withNewTls()
+                    .withNewKeyStoreKey()
+                    .withStoreFile(keystoreTrustStorePair.brokerKeyStore())
+                    .withNewInlinePasswordStoreProvider(keystoreTrustStorePair.password())
+                    .endKeyStoreKey()
+                    .endTls()
+                    .withLogNetwork(true)
+                    .withLogFrames(true)
+                    .build();
+            builder.addToVirtualClusters("cluster", virtualCluster);
+
+            try (var tester = kroxyliciousTester(builder)) {
+                // the tester is aware that it should connect to the Virtual Cluster's advertised port
+                try (var admin = tester.admin("cluster", Map.of(
+                        CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SSL.name,
+                        SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, keystoreTrustStorePair.clientTrustStore(),
+                        SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keystoreTrustStorePair.password()))) {
+                    // do some work to ensure virtual cluster is operational
+                    createTopic(admin, TOPIC, 1);
                 }
             }
         }

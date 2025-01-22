@@ -6,12 +6,14 @@
 
 package io.kroxylicious.proxy.internal.clusternetworkaddressconfigprovider;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import io.kroxylicious.proxy.internal.clusternetworkaddressconfigprovider.BrokerAddressPatternUtils.PatternAndPort;
 import io.kroxylicious.proxy.plugin.Plugin;
 import io.kroxylicious.proxy.service.ClusterNetworkAddressConfigProvider;
 import io.kroxylicious.proxy.service.ClusterNetworkAddressConfigProviderService;
@@ -25,14 +27,16 @@ import static io.kroxylicious.proxy.internal.clusternetworkaddressconfigprovider
 import static io.kroxylicious.proxy.internal.clusternetworkaddressconfigprovider.BrokerAddressPatternUtils.validateStringContainsRequiredTokens;
 
 /**
- * A ClusterNetworkAddressConfigProvider implementation that uses a single, shared, port for bootstrap and
- * all brokers.  SNI information is used to route the connection to the correct target.
+ * A ClusterNetworkAddressConfigProvider implementation that binds to a single, shared, port for bootstrap and
+ * all brokers. SNI information is used to route the connection to the correct target.
  * <br/>
  * The following configuration is required:
  * <ul>
  *    <li>{@code bootstrapAddress} a {@link HostPort} defining the host and port of the bootstrap address.</li>
- *    <li>{@code brokerAddressPattern} an address pattern used to form broker addresses.  It is addresses made from this pattern that are returned to the kafka
- *  *    client in the Metadata response so must be resolvable by the client.  One pattern is supported: {@code $(nodeId)} which interpolates the node id into the address.
+ *    <li>Either {@code brokerAddressPattern} (deprecated) or ${@code advertisedBrokerAddressPattern} must be set (but not both).  These properties contain an address
+ *    pattern used to advertise broker addresses.  It is addresses made from this pattern that are returned to the kafka client in the Metadata response so must be
+ *    resolvable by the client.  Optionally these properties can specify a port which will be advertised to the clients.  One pattern is supported: {@code $(nodeId)}
+ *    which interpolates the node id into the address.
  * </ul>
  */
 @Plugin(configType = SniRoutingClusterNetworkAddressConfigProvider.SniRoutingClusterNetworkAddressConfigProviderConfig.class)
@@ -49,6 +53,7 @@ public class SniRoutingClusterNetworkAddressConfigProvider implements
         private final HostPort bootstrapAddress;
         private final String brokerAddressPattern;
         private final Pattern brokerAddressNodeIdCapturingRegex;
+        private final int advertisedPort;
 
         /**
          * Creates the provider.
@@ -57,8 +62,9 @@ public class SniRoutingClusterNetworkAddressConfigProvider implements
          */
         private Provider(SniRoutingClusterNetworkAddressConfigProviderConfig config) {
             this.bootstrapAddress = config.bootstrapAddress;
-            this.brokerAddressPattern = config.brokerAddressPattern;
+            this.brokerAddressPattern = config.parsedBrokerAddressPattern;
             this.brokerAddressNodeIdCapturingRegex = config.brokerAddressNodeIdCapturingRegex;
+            advertisedPort = Optional.ofNullable(config.getAdvertisedPort()).orElse(bootstrapAddress.port());
         }
 
         @Override
@@ -74,6 +80,11 @@ public class SniRoutingClusterNetworkAddressConfigProvider implements
             }
             // TODO: consider introducing an cache (LRU?)
             return new HostPort(BrokerAddressPatternUtils.replaceLiteralNodeId(brokerAddressPattern, nodeId), bootstrapAddress.port());
+        }
+
+        @Override
+        public int getAdvertisedPort(int nodeId) {
+            return advertisedPort;
         }
 
         @Override
@@ -113,41 +124,77 @@ public class SniRoutingClusterNetworkAddressConfigProvider implements
 
         private final HostPort bootstrapAddress;
 
-        private final String brokerAddressPattern;
+        @JsonIgnore
+        private final String parsedBrokerAddressPattern;
         @JsonIgnore
         private final Pattern brokerAddressNodeIdCapturingRegex;
+        @JsonIgnore
+        private final Integer advertisedPort;
+        // present for serialize/deserialize fidelity
+        @SuppressWarnings("unused")
+        private final String brokerAddressPattern;
+        // present for serialize/deserialize fidelity
+        @SuppressWarnings("unused")
+        private final String advertisedBrokerAddressPattern;
 
         public SniRoutingClusterNetworkAddressConfigProviderConfig(@JsonProperty(required = true) HostPort bootstrapAddress,
-                                                                   @JsonProperty(required = true) String brokerAddressPattern) {
+                                                                   @Deprecated(forRemoval = true, since = "0.10.0") @JsonProperty String brokerAddressPattern,
+                                                                   @JsonProperty String advertisedBrokerAddressPattern) {
+            this.brokerAddressPattern = brokerAddressPattern;
+            this.advertisedBrokerAddressPattern = advertisedBrokerAddressPattern;
             if (bootstrapAddress == null) {
                 throw new IllegalArgumentException("bootstrapAddress cannot be null");
             }
-            if (brokerAddressPattern == null) {
-                throw new IllegalArgumentException("brokerAddressPattern cannot be null");
+            validateOneSpecified(brokerAddressPattern, advertisedBrokerAddressPattern);
+            String brokerAddressPatternProp;
+            String brokerAddressPatternToParse;
+            if (advertisedBrokerAddressPattern != null) {
+                brokerAddressPatternProp = "advertisedBrokerAddressPattern";
+                brokerAddressPatternToParse = advertisedBrokerAddressPattern;
+            }
+            else {
+                brokerAddressPatternProp = "brokerAddressPattern";
+                brokerAddressPatternToParse = brokerAddressPattern;
             }
 
-            validatePortSpecifier(brokerAddressPattern, s -> {
-                throw new IllegalArgumentException("brokerAddressPattern cannot have port specifier.  Found port : " + s + " within " + brokerAddressPattern);
+            PatternAndPort patternAndPort = BrokerAddressPatternUtils.parse(brokerAddressPatternToParse);
+            String brokerAddressPatternPart = patternAndPort.addressPattern();
+            advertisedPort = patternAndPort.port().orElse(bootstrapAddress.port());
+
+            validatePortSpecifier(brokerAddressPatternPart, s -> {
+                throw new IllegalArgumentException(
+                        brokerAddressPatternProp + " address pattern cannot have port specifier.  Found port : " + s + " within " + brokerAddressPatternPart);
             });
 
-            validateStringContainsOnlyExpectedTokens(brokerAddressPattern, EXPECTED_TOKEN_SET, (tok) -> {
-                throw new IllegalArgumentException("brokerAddressPattern contains an unexpected replacement token '" + tok + "'");
+            validateStringContainsOnlyExpectedTokens(brokerAddressPatternPart, EXPECTED_TOKEN_SET, (tok) -> {
+                throw new IllegalArgumentException(brokerAddressPatternProp + " contains an unexpected replacement token '" + tok + "'");
             });
 
-            validateStringContainsRequiredTokens(brokerAddressPattern, EXPECTED_TOKEN_SET, (tok) -> {
-                throw new IllegalArgumentException("brokerAddressPattern must contain at least one nodeId replacement pattern '" + tok + "'");
+            validateStringContainsRequiredTokens(brokerAddressPatternPart, EXPECTED_TOKEN_SET, (tok) -> {
+                throw new IllegalArgumentException(brokerAddressPatternProp + " must contain at least one nodeId replacement pattern '" + tok + "'");
             });
 
             this.bootstrapAddress = bootstrapAddress;
-            this.brokerAddressPattern = brokerAddressPattern;
-            this.brokerAddressNodeIdCapturingRegex = BrokerAddressPatternUtils.createNodeIdCapturingRegex(brokerAddressPattern);
+            this.parsedBrokerAddressPattern = brokerAddressPatternPart;
+            this.brokerAddressNodeIdCapturingRegex = BrokerAddressPatternUtils.createNodeIdCapturingRegex(brokerAddressPatternPart);
+        }
 
+        private static void validateOneSpecified(String brokerAddressPattern, String advertisedBrokerAddressPattern) {
+            if (brokerAddressPattern != null && advertisedBrokerAddressPattern != null) {
+                throw new IllegalArgumentException("brokerAddressPattern and advertisedBrokerAddressPattern cannot both be specified");
+            }
+            if (brokerAddressPattern == null && advertisedBrokerAddressPattern == null) {
+                throw new IllegalArgumentException("brokerAddressPattern and advertisedBrokerAddressPattern both null");
+            }
         }
 
         public HostPort getBootstrapAddress() {
             return bootstrapAddress;
         }
 
+        public Integer getAdvertisedPort() {
+            return advertisedPort;
+        }
     }
 
 }
