@@ -1,0 +1,64 @@
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: my-proxy-bootstrap
+  namespace: kroxylicious
+spec:
+  host: my-proxy-bootstrap.$$INGRESS_DOMAIN$$
+  port:
+    targetPort: 9092
+  tls:
+    termination: passthrough 
+    insecureEdgeTerminationPolicy: None 
+  to:
+    kind: Service
+    name: kroxylicious-service
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: my-proxy-broker-0
+  namespace: kroxylicious
+spec:
+  host: my-proxy-broker-0.$$INGRESS_DOMAIN$$
+  port:
+    targetPort: 9092
+  tls:
+    termination: passthrough 
+    insecureEdgeTerminationPolicy: None 
+  to:
+    kind: Service
+    name: kroxylicious-service
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: my-proxy-broker-1
+  namespace: kroxylicious
+spec:
+  host: my-proxy-broker-1.$$INGRESS_DOMAIN$$
+  port:
+    targetPort: 9092
+  tls:
+    termination: passthrough 
+    insecureEdgeTerminationPolicy: None 
+  to:
+    kind: Service
+    name: kroxylicious-service
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: my-proxy-broker-2
+  namespace: kroxylicious
+spec:
+  host: my-proxy-broker-2.$$INGRESS_DOMAIN$$
+  port:
+    targetPort: 9092
+  tls:
+    termination: passthrough 
+    insecureEdgeTerminationPolicy: None 
+  to:
+    kind: Service
+    name: kroxylicious-service
