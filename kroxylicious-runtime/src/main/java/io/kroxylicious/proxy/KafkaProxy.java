@@ -5,11 +5,16 @@
  */
 package io.kroxylicious.proxy;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -64,6 +69,7 @@ public final class KafkaProxy implements AutoCloseable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaProxy.class);
     private static final Logger STARTUP_SHUTDOWN_LOGGER = LoggerFactory.getLogger("io.kroxylicious.proxy.StartupShutdownLogger");
+    private final ScheduledExecutorService service;
 
     private record EventGroupConfig(String name, EventLoopGroup bossGroup, EventLoopGroup workerGroup, Class<? extends ServerChannel> clazz) {
 
@@ -93,6 +99,18 @@ public final class KafkaProxy implements AutoCloseable {
         this.virtualClusters = config.virtualClusterModel(pfr);
         this.adminHttpConfig = config.adminHttpConfig();
         this.micrometerConfig = config.getMicrometer();
+        service = Executors.newScheduledThreadPool(1);
+        var removed = new AtomicBoolean(false);
+        service.scheduleWithFixedDelay(() -> {
+            if (Files.exists(Path.of("/tmp/remove-all-clusters"))) {
+                if (removed.compareAndSet(false, true)) {
+                    LOGGER.info("removing all the clusters :O !");
+                    for (VirtualCluster virtualCluster : virtualClusters) {
+                        endpointRegistry.deregisterVirtualCluster(virtualCluster);
+                    }
+                }
+            }
+        }, 1, 1, TimeUnit.SECONDS);
     }
 
     @VisibleForTesting
