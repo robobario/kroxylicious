@@ -10,6 +10,15 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
+import io.kroxylicious.proxy.internal.KafkaProxyInitializer;
+
+import io.netty.channel.group.ChannelGroup;
+
+import io.netty.channel.group.ChannelGroupFutureListener;
+import io.netty.channel.group.DefaultChannelGroup;
+
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,9 +49,17 @@ public class NetworkUnbindRequest extends NetworkBindingOperation<Void> {
     public void performBindingOperation(ServerBootstrap serverBootstrap, ExecutorService executorService) {
         try {
             var addr = channel.localAddress();
-            LOGGER.info("Unbinding {}", addr);
 
-            channel.close().addListener((ChannelFutureListener) channelFuture -> {
+            ChannelGroup channels = channel.attr(KafkaProxyInitializer.CHILD_CHANNELS).get();
+            if (channels == null) {
+                channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+            }
+
+            LOGGER.info("Unbinding {}, closing {} child channels", addr, channels.size());
+            channels.add(channel);
+
+
+            channels.close().addListener((ChannelGroupFutureListener) channelFuture -> {
                 executorService.execute(() -> {
                     if (channelFuture.cause() != null) {
                         LOGGER.debug("Unbind failed {}", addr, channelFuture.cause());

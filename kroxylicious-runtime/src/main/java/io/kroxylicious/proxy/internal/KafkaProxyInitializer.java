@@ -10,6 +10,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.util.Attribute;
+import io.netty.util.AttributeKey;
+
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.apache.kafka.common.security.auth.AuthenticateCallbackHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +56,8 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaProxyInitializer.class);
 
+    public static final AttributeKey<ChannelGroup> CHILD_CHANNELS = AttributeKey.newInstance("childChannels");
+
     private final boolean haproxyProtocol;
     private final Map<KafkaAuthnHandler.SaslMechanism, AuthenticateCallbackHandler> authnHandlers;
     private final boolean tls;
@@ -86,12 +95,34 @@ public class KafkaProxyInitializer extends ChannelInitializer<SocketChannel> {
         int targetPort = ch.localAddress().getPort();
         var bindingAddress = ch.parent().localAddress().getAddress().isAnyLocalAddress() ? Optional.<String> empty()
                 : Optional.of(ch.localAddress().getAddress().getHostAddress());
+
         if (tls) {
             initTlsChannel(ch, pipeline, bindingAddress, targetPort);
         }
         else {
             initPlainChannel(ch, pipeline, bindingAddress, targetPort);
         }
+        pipeline.addLast(new ChannelInboundHandlerAdapter() {
+            @Override
+            public void channelActive(ChannelHandlerContext ctx) {
+                try {
+                    Attribute<ChannelGroup> attr = ch.parent().attr(CHILD_CHANNELS);
+                    ChannelGroup channels = attr.get();
+                    if(channels == null) {
+                        DefaultChannelGroup group = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+                        boolean set = attr.compareAndSet(null, group);
+                        channels = set ? group: attr.get();
+                    }
+                    channels.add(ctx.channel());
+                } catch (Exception e) {
+                    LOGGER.error("Failed to add channel to channel group", e);
+                }
+                finally {
+                    pipeline.remove(this);
+                    ctx.fireChannelActive();
+                }
+            }
+        });
     }
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
