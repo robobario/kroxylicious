@@ -7,10 +7,17 @@
 package io.kroxylicious.proxy.internal;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
+import io.kroxylicious.proxy.internal.net.EndpointListener;
+import io.kroxylicious.proxy.model.VirtualClusterModel;
+
+import io.kroxylicious.proxy.model.VirtualClusterModel.VirtualClusterListenerModel;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -167,9 +174,18 @@ class PortConflictDetectorTest {
     }
 
     private static VirtualClusterModel createMockVirtualCluster(String clusterName, Set<Integer> exclusivePorts, Set<Integer> sharedPorts, String bindAddress,
-                                                                boolean tls) {
-        VirtualClusterModel cluster = mock(VirtualClusterModel.class);
-        when(cluster.getClusterName()).thenReturn(clusterName);
+                                                             boolean tls) {
+        var listenerModel = getVirtualClusterListenerModel(exclusivePorts, sharedPorts, bindAddress, tls);
+
+        var virtualClusterModel = mock(VirtualClusterModel.class);
+        when(virtualClusterModel.listeners()).thenReturn(Map.of("default", listenerModel));
+        when(virtualClusterModel.getClusterName()).thenReturn(clusterName);
+        return virtualClusterModel;
+    }
+
+    @NonNull
+    private static VirtualClusterListenerModel getVirtualClusterListenerModel(Set<Integer> exclusivePorts, Set<Integer> sharedPorts, String bindAddress, boolean tls) {
+        var cluster = mock(VirtualClusterListenerModel.class);
         when(cluster.getExclusivePorts()).thenReturn(exclusivePorts);
         when(cluster.getSharedPorts()).thenReturn(sharedPorts);
         when(cluster.getBindAddress()).thenReturn(Optional.ofNullable(bindAddress));
