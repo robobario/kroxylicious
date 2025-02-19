@@ -9,15 +9,11 @@ package io.kroxylicious.proxy.model;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.provider.Arguments;
 
 import io.kroxylicious.proxy.config.IllegalConfigurationException;
 import io.kroxylicious.proxy.config.TargetCluster;
@@ -31,7 +27,6 @@ import io.kroxylicious.proxy.config.tls.TrustStore;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
 class VirtualClusterModelTest {
 
@@ -61,30 +56,6 @@ class VirtualClusterModelTest {
         client = TlsTestConstants.getResourceLocationOnFilesystem("client.jks");
         keyPair = new KeyPair(privateKeyFile, cert, null);
     }
-
-
-    static Stream<Arguments> clientAuthSettings() {
-        return Stream.of(
-                argumentSet("don't expect client side auth",
-                        TlsClientAuth.NONE,
-                        (Consumer<SSLEngine>) (SSLEngine sslEngine) -> {
-                            assertThat(sslEngine.getWantClientAuth()).isFalse();
-                            assertThat(sslEngine.getNeedClientAuth()).isFalse();
-                        }),
-                argumentSet("want client side auth",
-                        TlsClientAuth.REQUESTED,
-                        (Consumer<SSLEngine>) (SSLEngine sslEngine) -> {
-                            assertThat(sslEngine.getWantClientAuth()).isTrue();
-                            assertThat(sslEngine.getNeedClientAuth()).isFalse();
-                        }),
-                argumentSet("need client side auth",
-                        TlsClientAuth.REQUIRED,
-                        (Consumer<SSLEngine>) (SSLEngine sslEngine) -> {
-                            assertThat(sslEngine.getWantClientAuth()).isFalse();
-                            assertThat(sslEngine.getNeedClientAuth()).isTrue();
-                        }));
-    }
-
 
     @Test
     void shouldNotAllowUpstreamToProvideTlsServerOptions() {

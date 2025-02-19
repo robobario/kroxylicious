@@ -148,7 +148,6 @@ class VirtualClusterListenerTest {
                                 }));
     }
 
-
     static Stream<Arguments> protocolRestrictions() {
         return Stream.of(
                 argumentSet("allow single protocol",

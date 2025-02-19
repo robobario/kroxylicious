@@ -52,7 +52,7 @@ public class PortConflictDetector {
                 .sorted(Comparator.comparing(VirtualClusterModel::getClusterName))
                 .forEach(virtualCluster -> {
                     var name = virtualCluster.getClusterName();
-                    
+
                     virtualCluster.listeners().forEach((listenerName, listener) -> {
                         var proposedSharedPorts = listener.getSharedPorts();
                         var proposedExclusivePorts = listener.getExclusivePorts();
@@ -94,7 +94,6 @@ public class PortConflictDetector {
                         proposedSharedPorts.forEach(p -> sharedMap.put(p, listener.isUseTls()));
 
                     });
-                    
 
                 });
     }

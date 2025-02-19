@@ -12,12 +12,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-
-import io.kroxylicious.proxy.internal.net.EndpointListener;
-import io.kroxylicious.proxy.model.VirtualClusterModel;
-
-import io.kroxylicious.proxy.model.VirtualClusterModel.VirtualClusterListenerModel;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -25,7 +19,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import io.kroxylicious.proxy.model.VirtualClusterModel;
+import io.kroxylicious.proxy.model.VirtualClusterModel.VirtualClusterListenerModel;
 import io.kroxylicious.proxy.service.HostPort;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -174,7 +171,7 @@ class PortConflictDetectorTest {
     }
 
     private static VirtualClusterModel createMockVirtualCluster(String clusterName, Set<Integer> exclusivePorts, Set<Integer> sharedPorts, String bindAddress,
-                                                             boolean tls) {
+                                                                boolean tls) {
         var listenerModel = getVirtualClusterListenerModel(exclusivePorts, sharedPorts, bindAddress, tls);
 
         var virtualClusterModel = mock(VirtualClusterModel.class);

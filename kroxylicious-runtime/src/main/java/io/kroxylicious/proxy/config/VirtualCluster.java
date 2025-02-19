@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +49,8 @@ public record VirtualCluster(TargetCluster targetCluster,
                 listeners = Map.of("default", new VirtualClusterListener(clusterNetworkAddressConfigProvider, tls));
             }
             else {
-                throw new IllegalConfigurationException("When using listeners, the virtualCluster properties 'clusterNetworkAddressConfigProvider' and 'tls' must be omitted");
+                throw new IllegalConfigurationException(
+                        "When using listeners, the virtualCluster properties 'clusterNetworkAddressConfigProvider' and 'tls' must be omitted");
             }
         }
     }
@@ -63,14 +63,4 @@ public record VirtualCluster(TargetCluster targetCluster,
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * A virtual cluster listener.
-     *
-     * @param clusterNetworkAddressConfigProvider network config
-     * @param tls tls settings
-     */
-    public record VirtualClusterListener(@JsonProperty(required = true) ClusterNetworkAddressConfigProviderDefinition clusterNetworkAddressConfigProvider,
-                                         Optional<Tls> tls) {
-
-    }
 }

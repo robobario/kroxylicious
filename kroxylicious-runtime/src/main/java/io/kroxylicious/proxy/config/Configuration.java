@@ -18,8 +18,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import io.kroxylicious.proxy.model.VirtualClusterModel;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +29,7 @@ import io.kroxylicious.proxy.config.tls.AllowDeny;
 import io.kroxylicious.proxy.config.tls.Tls;
 import io.kroxylicious.proxy.config.tls.TrustOptions;
 import io.kroxylicious.proxy.config.tls.TrustProvider;
+import io.kroxylicious.proxy.model.VirtualClusterModel;
 import io.kroxylicious.proxy.service.ClusterNetworkAddressConfigProvider;
 import io.kroxylicious.proxy.service.ClusterNetworkAddressConfigProviderService;
 import io.kroxylicious.proxy.service.HostPort;
@@ -173,7 +172,6 @@ public record Configuration(
                                                              @NonNull List<NamedFilterDefinition> filterDefinitions,
                                                              @NonNull String virtualClusterNodeName) {
 
-
         VirtualClusterModel virtualClusterModel = new VirtualClusterModel(virtualClusterNodeName,
                 virtualCluster.targetCluster(),
                 virtualCluster.logNetwork(),
@@ -232,7 +230,8 @@ public record Configuration(
     }
 
     private static ClusterNetworkAddressConfigProvider buildNetworkAddressProviderService(
-            @NonNull  ClusterNetworkAddressConfigProviderDefinition definition, @NonNull PluginFactoryRegistry registry) {
+                                                                                          @NonNull ClusterNetworkAddressConfigProviderDefinition definition,
+                                                                                          @NonNull PluginFactoryRegistry registry) {
         var provider = registry.pluginFactory(ClusterNetworkAddressConfigProviderService.class)
                 .pluginInstance(definition.type());
         return provider.build(definition.config());
