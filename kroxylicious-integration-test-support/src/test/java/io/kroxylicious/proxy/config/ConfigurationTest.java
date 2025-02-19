@@ -12,8 +12,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import io.kroxylicious.proxy.internal.clusternetworkaddressconfigprovider.SniRoutingClusterNetworkAddressConfigProvider;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -114,8 +112,8 @@ class ConfigurationTest {
         assertThat(vc.listeners())
                 .hasSize(1)
                 .hasEntrySatisfying("default", listener -> {
-                   assertThat(listener.clusterNetworkAddressConfigProvider().type())
-                           .isEqualTo("SniRoutingClusterNetworkAddressConfigProvider");
+                    assertThat(listener.clusterNetworkAddressConfigProvider().type())
+                            .isEqualTo("SniRoutingClusterNetworkAddressConfigProvider");
                 });
     }
 

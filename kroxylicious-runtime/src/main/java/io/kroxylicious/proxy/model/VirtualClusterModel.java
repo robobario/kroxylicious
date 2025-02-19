@@ -63,12 +63,11 @@ public class VirtualClusterModel {
 
     private final Optional<SslContext> upstreamSslContext;
 
-
     public VirtualClusterModel(String clusterName,
-                            TargetCluster targetCluster,
-                            boolean logNetwork,
-                            boolean logFrames,
-                            @NonNull List<NamedFilterDefinition> filters) {
+                               TargetCluster targetCluster,
+                               boolean logNetwork,
+                               boolean logFrames,
+                               @NonNull List<NamedFilterDefinition> filters) {
         this.clusterName = clusterName;
         this.targetCluster = targetCluster;
         this.logNetwork = logNetwork;
@@ -85,7 +84,6 @@ public class VirtualClusterModel {
         listeners.put(name, new VirtualClusterListenerModel(this, provider, tls));
     }
 
-
     public TargetCluster targetCluster() {
         return targetCluster;
     }
@@ -93,7 +91,6 @@ public class VirtualClusterModel {
     public String getClusterName() {
         return clusterName;
     }
-
 
     public boolean isLogNetwork() {
         return logNetwork;
@@ -145,7 +142,6 @@ public class VirtualClusterModel {
         });
     }
 
-
     private static void configureCipherSuites(SslContextBuilder sslContextBuilder, Tls tlsConfiguration) {
         Optional.ofNullable(tlsConfiguration.cipherSuites())
                 .ifPresent(ciphers -> sslContextBuilder.ciphers(
@@ -189,12 +185,9 @@ public class VirtualClusterModel {
         });
     }
 
-
     public Optional<SslContext> getUpstreamSslContext() {
         return upstreamSslContext;
     }
-
-
 
     private static SSLParameters getDefaultSSLParameters() {
         try {
@@ -279,7 +272,6 @@ public class VirtualClusterModel {
                     "tls=" + tls + ']';
         }
 
-
         public HostPort getClusterBootstrapAddress() {
             return getClusterNetworkAddressConfigProvider().getClusterBootstrapAddress();
         }
@@ -320,6 +312,7 @@ public class VirtualClusterModel {
         public Optional<SslContext> getDownstreamSslContext() {
             return downstreamSslContext;
         }
+
         private Optional<SslContext> buildDownstreamSslContext() {
             return tls.map(tlsConfiguration -> {
                 try {
@@ -337,16 +330,13 @@ public class VirtualClusterModel {
             });
         }
 
-
         public HostPort getAdvertisedBrokerAddress(int nodeId) {
             return getClusterNetworkAddressConfigProvider().getAdvertisedBrokerAddress(nodeId);
         }
 
-
         public boolean isUseTls() {
             return tls.isPresent();
         }
-
 
     }
 }

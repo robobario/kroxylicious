@@ -305,7 +305,7 @@ public class KafkaProxyFrontendHandler
      */
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        proxyChannelStateMachine.onClientException(cause, /*endpointListener.getDownstreamSslContext().isPresent()*/false ); // TODO fixme
+        proxyChannelStateMachine.onClientException(cause, /* endpointListener.getDownstreamSslContext().isPresent() */false); // TODO fixme
     }
 
     /**
