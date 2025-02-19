@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.SSLHandshakeException;
 
+import io.kroxylicious.proxy.model.VirtualClusterModel;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +31,6 @@ import io.netty.handler.ssl.SslHandshakeCompletionEvent;
 
 import io.kroxylicious.proxy.config.TargetCluster;
 import io.kroxylicious.proxy.internal.clusternetworkaddressconfigprovider.PortPerBrokerClusterNetworkAddressConfigProvider;
-import io.kroxylicious.proxy.model.VirtualClusterModel;
 import io.kroxylicious.proxy.service.ClusterNetworkAddressConfigProvider;
 import io.kroxylicious.proxy.service.HostPort;
 
@@ -55,9 +56,11 @@ class KafkaProxyBackendHandlerTest {
     @BeforeEach
     void setUp() {
         outboundChannel = new EmbeddedChannel();
+        var virtualClusterModel = new VirtualClusterModel("wibble", new TargetCluster("localhost:9090", Optional.empty()), false, false,
+                List.of());
+        virtualClusterModel.addListener("default", ADDRESS_CONFIG_PROVIDER, Optional.empty());
         kafkaProxyBackendHandler = new KafkaProxyBackendHandler(proxyChannelStateMachine,
-                new VirtualClusterModel("wibble", new TargetCluster("localhost:9090", Optional.empty()), ADDRESS_CONFIG_PROVIDER, Optional.empty(), false, false,
-                        List.of()));
+                virtualClusterModel);
         outboundChannel.pipeline().addFirst(kafkaProxyBackendHandler);
         outboundContext = outboundChannel.pipeline().firstContext();
     }

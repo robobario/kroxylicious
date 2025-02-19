@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import io.kroxylicious.proxy.model.VirtualClusterModel.VirtualClusterListenerModel;
 import org.apache.kafka.common.message.ApiVersionsRequestData;
 import org.apache.kafka.common.message.MetadataRequestData;
 import org.apache.kafka.common.message.RequestHeaderData;
@@ -187,7 +188,9 @@ class KafkaProxyFrontendHandlerTest {
     void testHandleFrameOversizedExceptionDownstreamTlsDisabled() throws Exception {
         // Given
         VirtualClusterModel virtualClusterModel = mock(VirtualClusterModel.class);
-        when(virtualClusterModel.getDownstreamSslContext()).thenReturn(Optional.empty());
+        VirtualClusterListenerModel virtualClusterListenerModel = mock(VirtualClusterListenerModel.class);
+        when(virtualClusterListenerModel.getDownstreamSslContext()).thenReturn(Optional.empty());
+        when(virtualClusterModel.listeners()).thenReturn(Map.of("default", virtualClusterListenerModel));
         KafkaProxyFrontendHandler handler = handler(connectContext::set, new SaslDecodePredicate(false), virtualClusterModel);
         ChannelPipeline pipeline = inboundChannel.pipeline();
         pipeline.addLast(throwOnReadHandler(new DecoderException(new FrameOversizedException(5, 6))));
@@ -208,7 +211,10 @@ class KafkaProxyFrontendHandlerTest {
     void testHandleFrameOversizedExceptionDownstreamTlsEnabled() throws Exception {
         // Given
         VirtualClusterModel virtualClusterModel = mock(VirtualClusterModel.class);
-        when(virtualClusterModel.getDownstreamSslContext()).thenReturn(Optional.of(SslContextBuilder.forClient().build()));
+        VirtualClusterListenerModel virtualClusterListenerModel = mock(VirtualClusterListenerModel.class);
+        when(virtualClusterListenerModel.getDownstreamSslContext()).thenReturn(Optional.of(SslContextBuilder.forClient().build()));
+        when(virtualClusterModel.listeners()).thenReturn(Map.of("default", virtualClusterListenerModel));
+
         KafkaProxyFrontendHandler handler = handler(connectContext::set, new SaslDecodePredicate(false), virtualClusterModel);
         ChannelPipeline pipeline = inboundChannel.pipeline();
         pipeline.addLast(throwOnReadHandler(new DecoderException(new FrameOversizedException(5, 6))));
