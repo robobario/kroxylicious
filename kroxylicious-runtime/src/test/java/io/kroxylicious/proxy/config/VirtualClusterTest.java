@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ExtendWith(MockitoExtension.class)
 class VirtualClusterTest {
 
+    private static final List<String> NO_FILTERS = List.of();
     @Mock
     TargetCluster targetCluster;
 
@@ -35,7 +36,7 @@ class VirtualClusterTest {
     @Test
     void supportsDeprecatedConfigProviderTreatedAsSingletonListener() {
         // Given/When
-        var vc = new VirtualCluster(targetCluster, provider1, Optional.empty(), null, false, false, List.of());
+        var vc = new VirtualCluster(targetCluster, provider1, Optional.empty(), null, false, false, NO_FILTERS);
 
         // Then
         assertThat(vc.listeners())
@@ -52,7 +53,7 @@ class VirtualClusterTest {
                 "mylistener2", new VirtualClusterListener(provider2, Optional.empty()));
 
         // When
-        var vc = new VirtualCluster(targetCluster, null, null, listeners, false, false, List.of());
+        var vc = new VirtualCluster(targetCluster, null, null, listeners, false, false, NO_FILTERS);
 
         // Then
         assertThat(vc.listeners())
@@ -66,7 +67,7 @@ class VirtualClusterTest {
         var listeners = Map.of("mylistener", new VirtualClusterListener(provider1, Optional.empty()));
 
         // When/Then
-        assertThatThrownBy(() -> new VirtualCluster(targetCluster, provider2, null, listeners, false, false, List.of()))
+        assertThatThrownBy(() -> new VirtualCluster(targetCluster, provider2, null, listeners, false, false, NO_FILTERS))
                 .isInstanceOf(IllegalConfigurationException.class);
     }
 
@@ -77,21 +78,23 @@ class VirtualClusterTest {
         var tls = Optional.of(new Tls(null, null, null, null));
 
         // When/Then
-        assertThatThrownBy(() -> new VirtualCluster(targetCluster, null, tls, listeners, false, false, List.of()))
+        assertThatThrownBy(() -> new VirtualCluster(targetCluster, null, tls, listeners, false, false, NO_FILTERS))
                 .isInstanceOf(IllegalConfigurationException.class);
     }
 
     @Test
     void disallowMissingListeners() {
         // Given/When/Then
-        assertThatThrownBy(() -> new VirtualCluster(targetCluster, null, null, null, false, false, List.of()))
+        assertThatThrownBy(() -> new VirtualCluster(targetCluster, null, null, null, false, false, NO_FILTERS))
                 .isInstanceOf(IllegalConfigurationException.class);
     }
 
     @Test
     void disallowNoListeners() {
-        // Given/When/Then
-        assertThatThrownBy(() -> new VirtualCluster(targetCluster, null, null, Map.of(), false, false, List.of()))
+        // Given
+        var noListeners = Map.<String, VirtualClusterListener> of();
+        // When/Then
+        assertThatThrownBy(() -> new VirtualCluster(targetCluster, null, null, noListeners, false, false, NO_FILTERS))
                 .isInstanceOf(IllegalConfigurationException.class);
     }
 }
