@@ -44,7 +44,7 @@ public record VirtualCluster(TargetCluster targetCluster,
 
     @SuppressWarnings("removal")
     public VirtualCluster {
-        if (clusterNetworkAddressConfigProvider != null || tls.isPresent()) {
+        if (clusterNetworkAddressConfigProvider != null || (tls != null && tls.isPresent())) {
             if (clusterNetworkAddressConfigProvider == null) {
                 throw new IllegalConfigurationException("Deprecated virtualCluster property 'tls' supplied, but 'clusterNetworkAddressConfigProvider' is null");
             }
