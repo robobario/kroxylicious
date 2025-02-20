@@ -43,7 +43,7 @@ public record VirtualCluster(TargetCluster targetCluster,
 
     private static final Logger LOGGER = LoggerFactory.getLogger(VirtualCluster.class);
 
-    @SuppressWarnings({ "removal", " java:S2789" }) // S2789 - checking for null tls is the intent
+    @SuppressWarnings({ "removal", "java:S2789" }) // S2789 - checking for null tls is the intent
     public VirtualCluster {
         if (clusterNetworkAddressConfigProvider != null || (tls != null && tls.isPresent())) {
             if (clusterNetworkAddressConfigProvider == null) {
