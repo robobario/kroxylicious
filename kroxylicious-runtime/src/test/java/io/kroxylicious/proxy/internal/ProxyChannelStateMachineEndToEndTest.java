@@ -643,7 +643,7 @@ class ProxyChannelStateMachineEndToEndTest {
     private KafkaProxyFrontendHandler handler(
                                               NetFilter filter,
                                               SaslDecodePredicate dp,
-                                              VirtualClusterModel virtualClusterModel, EndpointListener endpointListener) {
+                                              EndpointListener endpointListener) {
         return new KafkaProxyFrontendHandler(filter, dp, endpointListener, proxyChannelStateMachine) {
             @NonNull
             @Override
@@ -696,7 +696,7 @@ class ProxyChannelStateMachineEndToEndTest {
         }
         when(virtualClusterModel.getUpstreamSslContext()).thenReturn(sslContext);
 
-        this.handler = handler(filter, dp, virtualClusterModel, endpointListener);
+        this.handler = handler(filter, dp, endpointListener);
         this.inboundCtx = mock(ChannelHandlerContext.class);
         when(inboundCtx.channel()).thenReturn(inboundChannel);
         when(inboundCtx.pipeline()).thenReturn(inboundChannel.pipeline());
