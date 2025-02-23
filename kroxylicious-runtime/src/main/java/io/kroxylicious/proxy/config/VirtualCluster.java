@@ -46,7 +46,7 @@ public record VirtualCluster(TargetCluster targetCluster,
     /**
      * Name given to the listener defined using the deprecated fields.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true, since = "0.11.0")
     static final String DEFAULT_LISTENER_NAME = "default";
 
     @SuppressWarnings({ "removal", "java:S2789" }) // S2789 - checking for null tls is the intent
