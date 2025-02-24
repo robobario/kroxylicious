@@ -47,7 +47,7 @@ import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class VirtualClusterListenerTest {
+class VirtualClusterListenerModelTest {
 
     private static final InlinePassword PASSWORD_PROVIDER = new InlinePassword("storepass");
 
