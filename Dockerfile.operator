@@ -8,9 +8,12 @@ FROM registry.access.redhat.com/ubi9/openjdk-17:1.20 AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG BASELINE_MAVEN_DEPENDENCIES_TAG
 
 USER root
 WORKDIR /opt/kroxylicious
+COPY scripts/seed-maven-cache.sh /seed-maven-cache.sh
+RUN /seed-maven-cache.sh "${BASELINE_MAVEN_DEPENDENCIES_TAG}"
 COPY . .
 RUN mvn -q -B clean package -Pdist -Dquick
 

@@ -9,6 +9,7 @@ etc
 kubernetes-examples
 !etc/eclipse-formatter-config.xml
 scripts
+!scripts/seed-maven-cache.sh
 Dockerfile
 .dockerignore
 .github
