@@ -25,7 +25,7 @@ import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngress;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngressBuilder;
 import io.kroxylicious.kubernetes.operator.assertj.KafkaProxyIngressStatusAssert;
 import io.kroxylicious.kubernetes.operator.assertj.OperatorAssertions;
-import io.kroxylicious.kubernetes.operator.checksum.Crc32ChecksumGenerator;
+import io.kroxylicious.kubernetes.operator.checksum.MetadataChecksumGenerator;
 
 import static io.kroxylicious.kubernetes.operator.assertj.KafkaProxyIngressStatusAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -133,7 +133,7 @@ class KafkaProxyIngressReconcilerTest {
                 .satisfies(uc -> Assertions.assertThat(update.getResource())
                         .isPresent()
                         .satisfies(kpi -> OperatorAssertions.assertThat(kpi.get())
-                                .hasAnnotationSatisfying(Crc32ChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
+                                .hasAnnotationSatisfying(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
                                         actualValue -> Assertions.assertThat(actualValue)
                                                 .isNotBlank()
                                                 .isBase64())));
@@ -153,7 +153,7 @@ class KafkaProxyIngressReconcilerTest {
         var initial = reconciler.reconcile(INGRESS, context);
 
         Assertions.assertThat(initial.getResource()).isPresent();
-        String initialChecksum = initial.getResource().get().getMetadata().getAnnotations().get(Crc32ChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION);
+        String initialChecksum = initial.getResource().get().getMetadata().getAnnotations().get(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION);
 
         // when
         var update = reconciler.reconcile(INGRESS, context);
@@ -164,7 +164,7 @@ class KafkaProxyIngressReconcilerTest {
                 .satisfies(uc -> {
                     Assertions.assertThat(update.getResource()).isPresent();
                     Assertions.assertThat(update.getResource().get()).satisfies(kpi -> OperatorAssertions.assertThat(kpi)
-                            .hasAnnotationSatisfying(Crc32ChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
+                            .hasAnnotationSatisfying(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
                                     actualValue -> Assertions.assertThat(actualValue)
                                             .isNotBlank()
                                             .isNotEqualTo(initialChecksum)));
