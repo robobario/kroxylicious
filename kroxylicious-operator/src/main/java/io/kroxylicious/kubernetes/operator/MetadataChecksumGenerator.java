@@ -14,6 +14,7 @@ import java.util.zip.CRC32;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 
 @NotThreadSafe
 public class MetadataChecksumGenerator {
@@ -33,10 +34,18 @@ public class MetadataChecksumGenerator {
 
         for (HasMetadata metadataSource : metadataSources) {
             var objectMeta = metadataSource.getMetadata();
-            checksum.appendString(objectMeta.getUid());
-            checksum.appendLong(objectMeta.getGeneration());
+            checksum.appendMetadata(objectMeta);
         }
         return checksum.encode();
+    }
+
+    public void appendMetadata(ObjectMeta objectMeta) {
+        appendString(objectMeta.getUid());
+        appendLong(objectMeta.getGeneration());
+    }
+
+    public void appendMetadata(HasMetadata proxyIngress) {
+        appendMetadata(proxyIngress.getMetadata());
     }
 
     public void appendString(String value) {
@@ -52,6 +61,4 @@ public class MetadataChecksumGenerator {
         byteBuffer.putLong(0, checksum.getValue());
         return Base64.getEncoder().withoutPadding().encodeToString(byteBuffer.array());
     }
-
-
 }
