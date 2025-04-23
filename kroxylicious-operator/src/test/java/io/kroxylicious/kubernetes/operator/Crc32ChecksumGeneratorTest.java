@@ -6,6 +6,7 @@
 
 package io.kroxylicious.kubernetes.operator;
 
+import java.util.Map;
 import java.util.UUID;
 
 import org.assertj.core.api.Assertions;
@@ -13,10 +14,12 @@ import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxy;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyBuilder;
+import io.kroxylicious.kubernetes.operator.checksum.Crc32ChecksumGenerator;
+import io.kroxylicious.kubernetes.operator.checksum.MetadataChecksumGenerator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class MetadataChecksumGeneratorTest {
+class Crc32ChecksumGeneratorTest {
     private static final KafkaProxy PROXY = new KafkaProxyBuilder()
             .withNewMetadata()
             .withName("my-proxy")
@@ -51,6 +54,18 @@ class MetadataChecksumGeneratorTest {
         assertThat(checksum)
                 .isNotBlank()
                 .isEqualTo("AAAAAHM+5SM");
+    }
+
+    @Test
+    void shouldGenerationSameChecksumForTheSameInput() {
+        // Given
+        String checksumA = MetadataChecksumGenerator.checksumFor(PROXY);
+
+        // When
+        String checksumB = MetadataChecksumGenerator.checksumFor(PROXY);
+
+        // Then
+        assertThat(checksumA).isEqualTo(checksumB);
     }
 
     @Test
@@ -106,14 +121,14 @@ class MetadataChecksumGeneratorTest {
     @Test
     void shouldIncludeUidFromHasMetadata() {
         // Given
-        MetadataChecksumGenerator metadataChecksumGenerator = new MetadataChecksumGenerator();
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
         String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
 
         // When
         metadataChecksumGenerator.appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata()).withUid("updated-uid").endMetadata().build());
 
         // Then
-        Assertions.assertThat(metadataChecksumGenerator.encode())
+        assertThat(metadataChecksumGenerator.encode())
                 .isNotBlank()
                 .isNotEqualTo(proxyChecksum);
     }
@@ -121,14 +136,15 @@ class MetadataChecksumGeneratorTest {
     @Test
     void shouldIncludeUidFromObjectMeta() {
         // Given
-        MetadataChecksumGenerator metadataChecksumGenerator = new MetadataChecksumGenerator();
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
         String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
 
         // When
-        metadataChecksumGenerator.appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata()).withUid("updated-uid").endMetadata().build().getMetadata());
+        metadataChecksumGenerator
+                .appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata()).withUid("updated-uid").endMetadata().build().getMetadata());
 
         // Then
-        Assertions.assertThat(metadataChecksumGenerator.encode())
+        assertThat(metadataChecksumGenerator.encode())
                 .isNotBlank()
                 .isNotEqualTo(proxyChecksum);
     }
@@ -136,14 +152,14 @@ class MetadataChecksumGeneratorTest {
     @Test
     void shouldIncludeGenerationFromHasMetadata() {
         // Given
-        MetadataChecksumGenerator metadataChecksumGenerator = new MetadataChecksumGenerator();
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
         String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
 
         // When
         metadataChecksumGenerator.appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata()).withGeneration(3456789L).endMetadata().build());
 
         // Then
-        Assertions.assertThat(metadataChecksumGenerator.encode())
+        assertThat(metadataChecksumGenerator.encode())
                 .isNotBlank()
                 .isNotEqualTo(proxyChecksum);
     }
@@ -151,15 +167,78 @@ class MetadataChecksumGeneratorTest {
     @Test
     void shouldIncludeGenerationFromObjectMeta() {
         // Given
-        MetadataChecksumGenerator metadataChecksumGenerator = new MetadataChecksumGenerator();
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
         String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
 
         // When
-        metadataChecksumGenerator.appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata()).withGeneration(3456789L).endMetadata().build().getMetadata());
+        metadataChecksumGenerator
+                .appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata()).withGeneration(3456789L).endMetadata().build().getMetadata());
 
         // Then
-        Assertions.assertThat(metadataChecksumGenerator.encode())
+        assertThat(metadataChecksumGenerator.encode())
                 .isNotBlank()
                 .isNotEqualTo(proxyChecksum);
+    }
+
+    @Test
+    void shouldIncludeReferentAnnotation() {
+        // Given
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
+        String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
+
+        // When
+        metadataChecksumGenerator
+                .appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata())
+                        .withAnnotations(Map.of(Crc32ChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION, "checksumB")).endMetadata().build().getMetadata());
+
+        // Then
+        assertThat(metadataChecksumGenerator.encode())
+                .isNotBlank()
+                .isNotEqualTo(proxyChecksum);
+    }
+
+    @Test
+    void shouldIgnoreOtherAnnotation() {
+        // Given
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
+        String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
+
+        // When
+        metadataChecksumGenerator
+                .appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata())
+                        .withAnnotations(Map.of("annotation1", "value1")).endMetadata().build().getMetadata());
+
+        // Then
+        assertThat(metadataChecksumGenerator.encode())
+                .isNotBlank()
+                .isEqualTo(proxyChecksum);
+    }
+
+    @Test
+    void shouldIgnoreNullAnnotation() {
+        // Given
+        MetadataChecksumGenerator metadataChecksumGenerator = new Crc32ChecksumGenerator();
+        String proxyChecksum = MetadataChecksumGenerator.checksumFor(PROXY);
+
+        // When
+        metadataChecksumGenerator
+                .appendMetadata(new KafkaProxyBuilder().withNewMetadataLike(PROXY.getMetadata())
+                        .withAnnotations(null).endMetadata().build().getMetadata());
+
+        // Then
+        assertThat(metadataChecksumGenerator.encode())
+                .isNotBlank()
+                .isEqualTo(proxyChecksum);
+    }
+
+    @Test
+    void shouldNotEncodeIfValueIsZero() {
+        // Given
+
+        // When
+        String encoded = new Crc32ChecksumGenerator().encode();
+
+        // Then
+        assertThat(encoded).isBlank();
     }
 }

@@ -25,11 +25,11 @@ public class ObjectMetaAssert extends AbstractObjectAssert<ObjectMetaAssert, Obj
     }
 
     public MapAssert<String, String> hasAnnotationSatisfying(String annotationName, Consumer<String> expectedValueConsumer) {
-        return assertHasAnnotations()
+        return assertAnnotations()
                 .hasEntrySatisfying(annotationName, expectedValueConsumer);
     }
 
-    public MapAssert<String, String> assertHasAnnotations() {
+    public MapAssert<String, String> assertAnnotations() {
         return assertThat(actual)
                 .isNotNull()
                 .extracting(ObjectMeta::getAnnotations)

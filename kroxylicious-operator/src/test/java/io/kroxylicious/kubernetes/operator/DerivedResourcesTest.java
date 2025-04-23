@@ -50,6 +50,8 @@ import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngress;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaService;
 import io.kroxylicious.kubernetes.api.v1alpha1.VirtualKafkaCluster;
 import io.kroxylicious.kubernetes.filter.api.v1alpha1.KafkaProtocolFilter;
+import io.kroxylicious.kubernetes.operator.checksum.Crc32ChecksumGenerator;
+import io.kroxylicious.kubernetes.operator.checksum.FixedChecksumGenerator;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -317,9 +319,10 @@ class DerivedResourcesTest {
                     Collectors.joining(", "));
             throw new RuntimeException("Unmocked method: " + invocation.getMethod() + "(" + stringifiedArgs + ")");
         };
-        Context<KafkaProxy> context = mock(Context.class, throwOnUnmockedInvocation);
+        Context<KafkaProxy> context = mock(Context.class);
 
         var resourceContext = new DefaultManagedWorkflowAndDependentResourceContext(null, null, context);
+        resourceContext.put(Crc32ChecksumGenerator.CHECKSUM_CONTEXT_KEY, new FixedChecksumGenerator(123654L));
         doReturn(resourceContext).when(context).managedWorkflowAndDependentResourceContext();
 
         Set<KafkaProtocolFilter> filterInstances = new HashSet<>();
