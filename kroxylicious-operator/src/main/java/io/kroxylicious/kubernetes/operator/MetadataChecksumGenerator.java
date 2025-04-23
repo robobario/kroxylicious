@@ -11,26 +11,47 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.zip.CRC32;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import io.fabric8.kubernetes.api.model.HasMetadata;
 
+@NotThreadSafe
 public class MetadataChecksumGenerator {
 
     public static final String REFERENT_CHECKSUM_ANNOTATION = "kroxylicious.io/referent-checksum";
     public static final String NO_CHECKSUM_SPECIFIED = "";
+    private final CRC32 checksum;
+    private final ByteBuffer byteBuffer;
 
-    private MetadataChecksumGenerator() {
+    public MetadataChecksumGenerator() {
+        checksum = new CRC32();
+        byteBuffer = ByteBuffer.wrap(new byte[Long.BYTES]);
     }
 
     public static String checksumFor(HasMetadata... metadataSources) {
-        var checksum = new CRC32();
-        ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[Long.BYTES]);
+        var checksum = new MetadataChecksumGenerator();
+
         for (HasMetadata metadataSource : metadataSources) {
             var objectMeta = metadataSource.getMetadata();
-            byteBuffer.putLong(0, objectMeta.getGeneration());
-            checksum.update(objectMeta.getUid().getBytes(StandardCharsets.UTF_8));
-            checksum.update(byteBuffer);
+            checksum.appendString(objectMeta.getUid());
+            checksum.appendLong(objectMeta.getGeneration());
         }
+        return checksum.encode();
+    }
+
+    public void appendString(String value) {
+        checksum.update(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public void appendLong(Long value) {
+        byteBuffer.putLong(0, value);
+        checksum.update(byteBuffer);
+    }
+
+    public String encode() {
         byteBuffer.putLong(0, checksum.getValue());
         return Base64.getEncoder().withoutPadding().encodeToString(byteBuffer.array());
     }
+
+
 }
