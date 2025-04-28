@@ -14,7 +14,7 @@ metadata:
     app.kubernetes.io/name: kroxylicious
     app.kubernetes.io/component: operator
 rules:
-  - # The operator needs to know about its own CRs
+  - # The operator needs to know about its own CRs, and patch them with annotations
     apiGroups:
       - "kroxylicious.io"
     resources:
@@ -26,6 +26,7 @@ rules:
       - get
       - list
       - watch
+      - patch
   - # The operator needs to update the status on its own CRs
     apiGroups:
       - "kroxylicious.io"

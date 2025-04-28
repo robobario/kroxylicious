@@ -88,7 +88,7 @@ public class KafkaProxyIngressReconciler implements
         if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Completed reconciliation of {}/{}", namespace(ingress), name(ingress));
         }
-        return UpdateControl.patchStatus(patch);
+        return UpdateControl.patchResourceAndStatus(patch);
     }
 
     @Override

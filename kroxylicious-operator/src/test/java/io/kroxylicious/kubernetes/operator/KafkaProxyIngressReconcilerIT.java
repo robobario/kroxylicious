@@ -26,6 +26,7 @@ import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyBuilder;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngress;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaProxyIngressBuilder;
 import io.kroxylicious.kubernetes.operator.assertj.KafkaProxyIngressStatusAssert;
+import io.kroxylicious.kubernetes.operator.checksum.MetadataChecksumGenerator;
 
 import static io.kroxylicious.kubernetes.api.v1alpha1.kafkaproxyingressspec.ClusterIP.Protocol.TCP;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -121,6 +122,11 @@ class KafkaProxyIngressReconcilerIT {
                     .conditionList()
                     .singleElement()
                     .isResolvedRefsTrue(kpi);
+        });
+        AWAIT.alias("referent checksum annotation present").untilAsserted(() -> {
+            var kpi = testActor.resources(KafkaProxyIngress.class)
+                    .withName(ResourcesUtil.name(ingressBar)).get();
+            assertThat(kpi.getMetadata().getAnnotations()).isNotNull().containsKey(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION);
         });
     }
 

@@ -83,7 +83,7 @@ class KafkaProxyIngressReconcilerTest {
 
         // then
         assertThat(update).isNotNull();
-        assertThat(update.isPatchStatus()).isTrue();
+        assertThat(update.isPatchResourceAndStatus()).isTrue();
         assertThat(update.getResource()).isPresent();
         assertThat(update.getResource().get().getStatus())
                 .hasObservedGenerationInSyncWithMetadataOf(INGRESS)
@@ -106,7 +106,7 @@ class KafkaProxyIngressReconcilerTest {
 
         // then
         assertThat(update).isNotNull();
-        assertThat(update.isPatchStatus()).isTrue();
+        assertThat(update.isPatchResourceAndStatus()).isTrue();
         assertThat(update.getResource()).isPresent();
         KafkaProxyIngressStatusAssert.assertThat(update.getResource().get().getStatus())
                 .hasObservedGenerationInSyncWithMetadataOf(INGRESS)
@@ -130,13 +130,16 @@ class KafkaProxyIngressReconcilerTest {
         // then
         assertThat(update)
                 .isNotNull()
-                .satisfies(uc -> Assertions.assertThat(update.getResource())
-                        .isPresent()
-                        .satisfies(kpi -> OperatorAssertions.assertThat(kpi.get())
-                                .hasAnnotationSatisfying(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
-                                        actualValue -> Assertions.assertThat(actualValue)
-                                                .isNotBlank()
-                                                .isBase64())));
+                .satisfies(uc -> {
+                    assertThat(update.isPatchResourceAndStatus()).isTrue();
+                    Assertions.assertThat(update.getResource())
+                            .isPresent()
+                            .satisfies(kpi -> OperatorAssertions.assertThat(kpi.get())
+                                    .hasAnnotationSatisfying(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
+                                            actualValue -> Assertions.assertThat(actualValue)
+                                                    .isNotBlank()
+                                                    .isBase64()));
+                });
 
     }
 
@@ -163,6 +166,7 @@ class KafkaProxyIngressReconcilerTest {
                 .isNotNull()
                 .satisfies(uc -> {
                     Assertions.assertThat(update.getResource()).isPresent();
+                    Assertions.assertThat(update.isPatchResourceAndStatus()).isTrue();
                     Assertions.assertThat(update.getResource().get()).satisfies(kpi -> OperatorAssertions.assertThat(kpi)
                             .hasAnnotationSatisfying(MetadataChecksumGenerator.REFERENT_CHECKSUM_ANNOTATION,
                                     actualValue -> Assertions.assertThat(actualValue)
