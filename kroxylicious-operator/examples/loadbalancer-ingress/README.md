@@ -18,9 +18,12 @@ To try this example out:
    kubectl apply -f .
    ```
 5. Start up a `minikube tunnel` in another terminal
-6. Create an `/etc/hosts` entry like `10.106.236.189 my-cluster.kafkaproxy my-cluster-0.kafkaproxy my-cluster-1.kafkaproxy my-cluster-2.kafkaproxy` where 10.106.236.189 is replaced with the
-external ip of the `my-cluster-sni` LoadBalancer Service that should have been materialized.
-5. Try producing and consuming some messages with commands like this (obtain a kafka distribution):
+6. Wait for external ip to be allocated to service `my-cluster-sni`.
+   ```shell
+   oc get service -n  my-proxy simple-sni -o jsonpath='{.status.loadBalancer.ingress[0].ip}' --watch
+   ```
+7. Create an `/etc/hosts` entry like `10.106.236.189 my-cluster.kafkaproxy my-cluster-0.kafkaproxy my-cluster-1.kafkaproxy my-cluster-2.kafkaproxy` where 10.106.236.189 is replaced with the allocated IP.
+8. Try producing and consuming some messages with commands like this (obtain a kafka distribution):
    ```
    CA=$(kubectl get secret -n my-proxy server-certificate -o json | jq -r ".data.\"ca.crt\" | @base64d")
    ./bin/kafka-console-producer.sh --bootstrap-server my-cluster.kafkaproxy:9083 --topic mytopic --producer-property ssl.truststore.type=PEM --producer-property security.protocol=SSL --producer-property ssl.truststore.certificates="${CA}"
