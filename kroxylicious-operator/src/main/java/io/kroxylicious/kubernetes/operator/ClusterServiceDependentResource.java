@@ -59,22 +59,22 @@ public class ClusterServiceDependentResource
                                                  Context<KafkaProxy> context) {
         KafkaProxyContext kafkaProxyContext = KafkaProxyContext.proxyContext(context);
         var model = kafkaProxyContext.model();
-        Stream<Service> serviceStream = model.clustersWithValidNetworking().stream()
+        var clusterNetworkingModels = model.clustersWithValidNetworking().stream()
                 .map(ClusterResolutionResult::cluster)
                 .filter(cluster -> !kafkaProxyContext.isBroken(cluster))
-                .flatMap(cluster -> model.networkingModel().clusterIngressModel(cluster)
-                        .map(ProxyNetworkingModel.ClusterNetworkingModel::services)
-                        .orElse(Stream.empty()));
+                .flatMap(cluster -> model.networkingModel().clusterIngressModel(cluster).stream())
+                .toList();
 
-        List<Integer> sharedSniLoadbalancerPorts = model.clustersWithValidNetworking().stream()
-                .map(ClusterResolutionResult::cluster)
-                .filter(cluster -> !kafkaProxyContext.isBroken(cluster))
-                .flatMap(cluster -> model.networkingModel().clusterIngressModel(cluster)
-                        .map(ingressModel -> ingressModel.requiredSniLoadbalancerPorts(primary))
-                        .orElse(Stream.empty()))
+        var serviceStream = clusterNetworkingModels.stream()
+                .flatMap(ProxyNetworkingModel.ClusterNetworkingModel::services);
+
+        var sharedSniLoadbalancerPorts = clusterNetworkingModels.stream()
+                .flatMap(ingressModel -> ingressModel.requiredSniLoadbalancerPorts(primary))
                 .distinct().sorted().toList();
 
-        return Stream.concat(serviceStream, sniLoadbalancerServices(primary, sharedSniLoadbalancerPorts)).collect(toByNameMap());
+        var sniServiceStream = sniLoadbalancerServices(primary, sharedSniLoadbalancerPorts);
+
+        return Stream.concat(serviceStream, sniServiceStream).collect(toByNameMap());
     }
 
     private ObjectMeta serviceMetadata(KafkaProxy primary, String name) {

@@ -775,6 +775,7 @@ class VirtualKafkaClusterReconcilerTest {
         // Then
         assertThat(secondaryResourceIDs).isEmpty();
     }
+
     @Test
     void canMapFromVirtualKafkaClusterWithoutTrustAnchorToConfigMap() {
         // Given
@@ -812,6 +813,7 @@ class VirtualKafkaClusterReconcilerTest {
         var primaryResourceIDs = mapper.toPrimaryResourceIDs(PEM_CONFIG_MAP);
         assertThat(primaryResourceIDs).isEmpty();
     }
+
     @Test
     void canMapFromConfigMapToVirtualKafkaClusterToleratesVirtualKafkaClusterWithoutTrustAnchor() {
         // Given
