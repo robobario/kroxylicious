@@ -69,7 +69,7 @@ public class ClusterServiceDependentResource
                 .flatMap(ProxyNetworkingModel.ClusterNetworkingModel::services);
 
         var sharedSniLoadbalancerPorts = clusterNetworkingModels.stream()
-                .flatMap(ingressModel -> ingressModel.requiredSniLoadbalancerPorts())
+                .flatMap(ProxyNetworkingModel.ClusterNetworkingModel::requiredSniLoadbalancerPorts)
                 .distinct().sorted().toList();
 
         var sniServiceStream = sniLoadbalancerServices(primary, sharedSniLoadbalancerPorts);
