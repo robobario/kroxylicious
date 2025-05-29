@@ -78,6 +78,8 @@ import io.kroxylicious.kubernetes.operator.assertj.ProxyConfigAssert;
 import io.kroxylicious.kubernetes.operator.model.networking.LoadBalancerClusterIngressNetworkingModel;
 import io.kroxylicious.proxy.config.ConfigParser;
 import io.kroxylicious.proxy.config.Configuration;
+import io.kroxylicious.proxy.config.VirtualCluster;
+import io.kroxylicious.proxy.config.VirtualClusterGateway;
 import io.kroxylicious.proxy.service.HostPort;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -88,6 +90,7 @@ import static io.kroxylicious.kubernetes.operator.ResourcesUtil.findOnlyResource
 import static io.kroxylicious.kubernetes.operator.ResourcesUtil.generation;
 import static io.kroxylicious.kubernetes.operator.ResourcesUtil.name;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.list;
 import static org.awaitility.Awaitility.await;
 
 @EnabledIf(value = "io.kroxylicious.kubernetes.operator.OperatorTestUtils#isKubeClientAvailable", disabledReason = "no viable kube client available")
@@ -101,6 +104,7 @@ class KafkaProxyReconcilerIT {
     private static final String FILTER_NAME = "validation";
     private static final String CLUSTER_FOO = "foo";
     private static final String CLUSTER_FOO_CLUSTERIP_INGRESS = "foo-cluster-ip";
+    private static final String CLUSTER_FOO_LOADBALANCER_INGRESS = "foo-load-balancer";
     private static final String CLUSTER_FOO_BOOTSTRAP = "my-cluster-kafka-bootstrap.foo.svc.cluster.local:9092";
     private static final String CLUSTER_BAR_REF = "barref";
     private static final String CLUSTER_BAR = "bar";
@@ -178,7 +182,7 @@ class KafkaProxyReconcilerIT {
     }
 
     @Test
-    void createVirtualClusterUsingTls() {
+    void virtualClusterWithClusterIpIngress() {
         // Given
         KafkaProxy proxy = testActor.create(kafkaProxy(PROXY_A));
 
@@ -202,7 +206,7 @@ class KafkaProxyReconcilerIT {
     }
 
     @Test
-    void createVirtualClusterUsingTlsWithTrustAnchors() {
+    void virtualClusterWithClusterIpIngressWithTrustAnchor() {
         // Given
         KafkaProxy proxy = testActor.create(kafkaProxy(PROXY_A));
 
@@ -233,22 +237,22 @@ class KafkaProxyReconcilerIT {
     }
 
     @Test
-    void loadBalancerIngress() {
+    void virtualClusterWIthLoadBalancerIngressWithTrustAnchor() {
         KafkaProxy proxy = testActor.create(kafkaProxy(PROXY_A));
-        KafkaService kafkaService = testActor.create(kafkaService(CLUSTER_BAR_REF, CLUSTER_BAR_BOOTSTRAP));
-        kafkaService = updateStatusObservedGeneration(kafkaService);
+        KafkaService kafkaService = updateStatusObservedGeneration(testActor.create(kafkaService(CLUSTER_BAR_REF, CLUSTER_BAR_BOOTSTRAP)));
+
         String loadbalancerBootstrap = "bootstrap.kafka";
         String loadbalancerBrokerAddressPattern = "broker-$(nodeId).kafka";
-        KafkaProxyIngress loadBalancer = testActor.create(loadBalancerIngress(CLUSTER_BAR_LOADBALANCER_INGRESS, proxy, loadbalancerBootstrap,
-                loadbalancerBrokerAddressPattern));
-        KafkaProxyIngress ingress = updateStatusObservedGeneration(loadBalancer);
+        KafkaProxyIngress loadBalancerIngress = updateStatusObservedGeneration(
+                testActor.create(loadBalancerIngress(CLUSTER_BAR_LOADBALANCER_INGRESS, proxy, loadbalancerBootstrap,
+                        loadbalancerBrokerAddressPattern)));
 
         Secret tlsServerCert = testActor.create(tlsKeyAndCertSecret("downstream-tls-certificate"));
         String downstreamTrustAnchorName = "downstream-tls-trust-anchor";
         ConfigMap trustAnchor = testActor.create(trustAnchorConfigMap(downstreamTrustAnchorName, "tls.pem"));
 
         Ingresses clusterIngress = new IngressesBuilder()
-                .withIngressRef(toIngressRef(ingress))
+                .withIngressRef(toIngressRef(loadBalancerIngress))
                 .withNewTls()
                 .withCertificateRef(toCertificateRef(tlsServerCert))
                 .withTrustAnchorRef(toTrustAnchorRef(trustAnchor))
@@ -300,10 +304,123 @@ class KafkaProxyReconcilerIT {
         AWAIT.alias("proxy config - gateway configured for SNI loadbalancer ingress").untilAsserted(() -> {
             assertProxyConfigInConfigMap(proxy)
                     .cluster(name(cluster))
-                    .gateway(name(ingress))
+                    .gateway(name(loadBalancerIngress))
                     .sniHostIdentifiesNode()
                     .hasBootstrapAddress(new HostPort(loadbalancerBootstrap, proxyListenPort).toString())
                     .hasAdvertisedBrokerAddressPattern(new HostPort(loadbalancerBrokerAddressPattern, clientFacingPort).toString());
+        });
+    }
+
+    @Test
+    void virtualClusterWithLoadBalancerAndClusterIpIngress() {
+        KafkaProxy proxy = testActor.create(kafkaProxy(PROXY_A));
+        KafkaService kafkaService = updateStatusObservedGeneration(testActor.create(kafkaService(CLUSTER_BAR_REF, CLUSTER_BAR_BOOTSTRAP)));
+
+        KafkaProxyIngress loadBalancerIngress = updateStatusObservedGeneration(testActor.create(loadBalancerIngress(CLUSTER_BAR_LOADBALANCER_INGRESS, proxy,
+                "bootstrap.kafka",
+                "broker-$(nodeId).kafka")));
+
+        Secret loadBalancerTlsServerCert = testActor.create(tlsKeyAndCertSecret("loadbalancer-tls-certificate"));
+
+        Ingresses lbIngress = new IngressesBuilder()
+                .withIngressRef(toIngressRef(loadBalancerIngress))
+                .withNewTls()
+                .withCertificateRef(toCertificateRef(loadBalancerTlsServerCert))
+                .endTls()
+                .build();
+
+        Secret clusterIpTlsServerCert = testActor.create(tlsKeyAndCertSecret("clusterip-tls-certificate"));
+
+        KafkaProxyIngress clusterIpIngress = updateStatusObservedGeneration(testActor.create(clusterIpIngress(CLUSTER_BAR_CLUSTERIP_INGRESS, proxy, TLS)));
+
+        Ingresses cipIngress = new IngressesBuilder()
+                .withIngressRef(toIngressRef(clusterIpIngress))
+                .withNewTls()
+                .withCertificateRef(toCertificateRef(clusterIpTlsServerCert))
+                .endTls()
+                .build();
+
+        VirtualKafkaCluster cluster = virtualKafkaCluster(CLUSTER_BAR, proxy, kafkaService, List.of(lbIngress, cipIngress), Optional.empty());
+
+        // when
+        updateStatusObservedGeneration(testActor.create(cluster));
+
+        // then
+        AWAIT.alias("services manifested").untilAsserted(() -> {
+            String sharedSniServiceName = name(proxy) + "-sni";
+            String clusterIpServiceName = CLUSTER_BAR + "-" + clusterIpIngress.getMetadata().getName();
+            var services = testActor.resources(Service.class).list().getItems();
+            assertThat(services)
+                    .extracting(service -> service.getMetadata().getName())
+                    .contains(sharedSniServiceName, clusterIpServiceName);
+        });
+
+        AWAIT.alias("proxy config - gateway configured for both ingress types").untilAsserted(() -> {
+            assertProxyConfigInConfigMap(proxy)
+                    .cluster(name(cluster))
+                    .extracting(VirtualCluster::gateways, list(VirtualClusterGateway.class))
+                    .extracting(VirtualClusterGateway::name)
+                    .containsExactly(name(loadBalancerIngress), name(clusterIpIngress));
+        });
+    }
+
+    @Test
+    void twoVirtualClusterUsingLoadBalancer() {
+        KafkaProxy proxy = testActor.create(kafkaProxy(PROXY_A));
+        KafkaService kafkaService = updateStatusObservedGeneration(testActor.create(kafkaService(CLUSTER_BAR_REF, CLUSTER_BAR_BOOTSTRAP)));
+
+        KafkaProxyIngress loadBalancerIngressFoo = updateStatusObservedGeneration(testActor.create(loadBalancerIngress(CLUSTER_FOO_LOADBALANCER_INGRESS, proxy,
+                "bootstrap.foo.kafka",
+                "broker-$(nodeId).foo.kafka")));
+
+        KafkaProxyIngress loadBalancerIngressBar = updateStatusObservedGeneration(testActor.create(loadBalancerIngress(CLUSTER_BAR_LOADBALANCER_INGRESS, proxy,
+                "bootstrap.bar.kafka",
+                "broker-$(nodeId).bar.kafka")));
+
+        Secret loadBalancerTlsServerCertFoo = testActor.create(tlsKeyAndCertSecret("loadbalancer-tls-certificate-foo"));
+        Secret loadBalancerTlsServerCertBar = testActor.create(tlsKeyAndCertSecret("loadbalancer-tls-certificate-bar"));
+
+        Ingresses lbIngressFoo = new IngressesBuilder()
+                .withIngressRef(toIngressRef(loadBalancerIngressFoo))
+                .withNewTls()
+                .withCertificateRef(toCertificateRef(loadBalancerTlsServerCertFoo))
+                .endTls()
+                .build();
+
+        Ingresses lbIngressBar = new IngressesBuilder()
+                .withIngressRef(toIngressRef(loadBalancerIngressBar))
+                .withNewTls()
+                .withCertificateRef(toCertificateRef(loadBalancerTlsServerCertBar))
+                .endTls()
+                .build();
+
+        VirtualKafkaCluster fooCluster = testActor.create(virtualKafkaCluster(CLUSTER_FOO, proxy, kafkaService, List.of(lbIngressFoo), Optional.empty()));
+        VirtualKafkaCluster barCluster = testActor.create(virtualKafkaCluster(CLUSTER_BAR, proxy, kafkaService, List.of(lbIngressBar), Optional.empty()));
+
+        // when
+        List.of(fooCluster, barCluster).forEach(this::updateStatusObservedGeneration);
+
+        // then
+        AWAIT.alias("shared sni service manifested").untilAsserted(() -> {
+            String sharedSniServiceName = name(proxy) + "-sni";
+            var services = testActor.resources(Service.class).list().getItems();
+            assertThat(services)
+                    .extracting(service -> service.getMetadata().getName())
+                    .containsExactly(sharedSniServiceName);
+        });
+
+        AWAIT.alias("proxy config - each virtual cluster configured with correct ingress").untilAsserted(() -> {
+            assertProxyConfigInConfigMap(proxy)
+                    .cluster(name(fooCluster))
+                    .gateway(name(loadBalancerIngressFoo))
+                    .sniHostIdentifiesNode()
+                    .hasBootstrapAddress("bootstrap.foo.kafka:" + ProxyDeploymentDependentResource.SHARED_SNI_PORT);
+
+            assertProxyConfigInConfigMap(proxy)
+                    .cluster(name(barCluster))
+                    .gateway(name(loadBalancerIngressBar))
+                    .sniHostIdentifiesNode()
+                    .hasBootstrapAddress("bootstrap.bar.kafka:" + ProxyDeploymentDependentResource.SHARED_SNI_PORT);
         });
     }
 
