@@ -15,6 +15,8 @@
 import static java.lang.System.*;
 
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.Callable;
@@ -35,28 +37,28 @@ import com.fasterxml.jackson.databind.node.*;
         description = "Converts Asciidoc standalone HTML output into content ready for kroxylicious.io")
 public class webify implements Callable<Integer> {
 
-    @Option(names = {"--project-version"}, required = true, description = "The kroxy version.")
+    @Option(names = { "--project-version" }, required = true, description = "The kroxy version.")
     private String projectVersion;
 
-    @Option(names = {"--src-dir"}, required = true, description = "The source directory containing Asciidoc standalone HTML.")
+    @Option(names = { "--src-dir" }, required = true, description = "The source directory containing Asciidoc standalone HTML.")
     private Path srcDir;
 
-    @Option(names = {"--dest-dir"}, required = true, description = "The output directory ready for copying to the website.")
+    @Option(names = { "--dest-dir" }, required = true, description = "The output directory ready for copying to the website.")
     private Path destdir;
 
-    @Option(names = {"--tocify-omit"}, description = "Glob matching file(s) to omit from the HTML output.")
+    @Option(names = { "--tocify-omit" }, description = "Glob matching file(s) to omit from the HTML output.")
     private List<String> omitGlobs = List.of();
 
-    @Option(names = {"--tocify"}, description = "Glob matching HTML files within --src-dir to tocify.")
+    @Option(names = { "--tocify" }, description = "Glob matching HTML files within --src-dir to tocify.")
     private String tocifyGlob;
 
-    @Option(names = {"--tocify-toc-file"}, description = "The name to give to output TOC files")
+    @Option(names = { "--tocify-toc-file" }, description = "The name to give to output TOC files")
     private String tocifyTocName;
 
-    @Option(names = {"--tocify-tocless-file"}, description = "The name to give to output TOC-less files")
+    @Option(names = { "--tocify-tocless-file" }, description = "The name to give to output TOC-less files")
     private String tocifyToclessName;
 
-    @Option(names = {"--datafy"}, description = "Glob matching data yamls")
+    @Option(names = { "--datafy" }, description = "Glob matching data yamls")
     private String datafyGlob;
 
     private Path outdir;
@@ -71,7 +73,6 @@ public class webify implements Callable<Integer> {
         int exitCode = new CommandLine(new webify()).execute(args);
         System.exit(exitCode);
     }
-
 
     @Override
     public Integer call() throws Exception {
@@ -88,18 +89,38 @@ public class webify implements Callable<Integer> {
 
         Files.writeString(outdir.getParent().resolve("index.md"),
                 docIndexFrontMatter(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
+        createReleaseManifestFile();
+        createDownloadPageFile();
         return 0;
+    }
+
+    private void createDownloadPageFile() throws IOException {
+        var indexFile = """
+                ---
+                layout: download-release
+                ---
+                """;
+        Path outputIndex = destdir.resolve("download").resolve(projectVersion).resolve("index.md");
+        Files.createDirectories(outputIndex.getParent());
+        Files.writeString(outputIndex, indexFile, StandardCharsets.UTF_8);
+    }
+
+    public void createReleaseManifestFile() throws IOException {
+        Path inputManifest = srcDir.resolve("release-manifest.yaml");
+        String underscoredVersion = projectVersion.replace(".", "_");
+        Path outputManifest = destdir.resolve("_data").resolve("release").resolve(underscoredVersion + ".yaml");
+        Files.createDirectories(outputManifest.getParent());
+        Files.copy(inputManifest, outputManifest);
     }
 
     String docIndexFrontMatter() {
         return """
----
-layout: released-documentation
-title: Documentation
-permalink: /documentation/${project.version}/
----
-        """.replace("${project.version}", this.projectVersion);
+                ---
+                layout: released-documentation
+                title: Documentation
+                permalink: /documentation/${project.version}/
+                ---
+                """.replace("${project.version}", this.projectVersion);
     }
 
     private void walk(List<PathMatcher> omitGlobs,
@@ -169,7 +190,7 @@ permalink: /documentation/${project.version}/
     String guideFrontMatter(ObjectNode dataDocObject, String relPath) throws IOException {
         return "---\n" + this.mapper.writeValueAsString(this.mapper.createObjectNode()
                 .put("layout", "guide")
-                .<ObjectNode>setAll(dataDocObject)
+                .<ObjectNode> setAll(dataDocObject)
                 .put("version", this.projectVersion)
                 .put("permalink", "/documentation/${project.version}/${relPath}/"
                         .replace("${project.version}", this.projectVersion)
@@ -177,7 +198,7 @@ permalink: /documentation/${project.version}/
     }
 
     ObjectNode readMetadata(Path filePath,
-                             Path relFilePath) throws IOException {
+                            Path relFilePath) throws IOException {
         var dataDocObject = (ObjectNode) this.mapper.readTree(filePath.toFile());
         var resultDocObject = this.mapper.createObjectNode();
         var dataDocFields = dataDocObject.fields();
@@ -222,7 +243,7 @@ permalink: /documentation/${project.version}/
         writeRaw(doc, toclessPath);
         return true;
     }
-    
+
     static void writeRaw(Node node,
                          Path path) throws IOException {
         // Jekyll/Liquid doesn't have a way of {% include ... %} which
@@ -235,6 +256,6 @@ permalink: /documentation/${project.version}/
             writer.append(node.toString());
             writer.append("\n{% endraw %}\n");
             writer.flush();
-        }    
+        }
     }
 }

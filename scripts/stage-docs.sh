@@ -137,6 +137,9 @@ git checkout -b "${RELEASE_DOCS_BRANCH}"
 echo "Copying release docs from ${KROXYLICIOUS_DOCS_LOCATION} to ${WEBSITE_DOCS_LOCATION}"
 cp -R "${KROXYLICIOUS_DOCS_LOCATION}"/* "${WEBSITE_DOCS_LOCATION}"
 
+echo "Updating latest release to ${RELEASE_VERSION}"
+${SED} -i -e "s/^latestRelease: .*$/latestRelease: ${RELEASE_VERSION}/g" _data/kroxylicious.yml
+
 echo "Committing release documentation to git"
 # Commit and push changes to branch in `kroxylicious/kroxylicious.github.io`
 git add "${WEBSITE_DOCS_LOCATION}"
@@ -159,7 +162,7 @@ gh repo set-default "$(git remote get-url "${REPOSITORY}")"
 
 echo "Creating pull request to publish release documentation to website."
 # Open PR to merge branch to `main` in `kroxylicious/kroxylicious.github.io`
-BODY="Prepare ${RELEASE_TAG} release documentation for publishing to website"
+BODY="Prepare ${RELEASE_TAG} release documentation for publishing to website.\n\nRemember to replace the container image SHAs in _date/release/[this-version].yaml, when they are available, before merging!"
 gh pr create --head "${RELEASE_DOCS_BRANCH}" \
              --base "${BRANCH_FROM}" \
              --title "Kroxylicious ${RELEASE_TAG} release documentation ${RELEASE_DATE}" \
