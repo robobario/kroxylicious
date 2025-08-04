@@ -135,7 +135,7 @@ echo "Creating branch ${RELEASE_DOCS_BRANCH} from ${BRANCH_FROM} in $(git remote
 git checkout -b "${RELEASE_DOCS_BRANCH}"
 
 echo "Copying release docs from ${KROXYLICIOUS_DOCS_LOCATION} to ${WEBSITE_DOCS_LOCATION}"
-cp -R "${KROXYLICIOUS_DOCS_LOCATION}/*" "${WEBSITE_DOCS_LOCATION}"
+cp -R "${KROXYLICIOUS_DOCS_LOCATION}"/* "${WEBSITE_DOCS_LOCATION}"
 
 echo "Committing release documentation to git"
 # Commit and push changes to branch in `kroxylicious/kroxylicious.github.io`
