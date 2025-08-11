@@ -11,6 +11,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
 
+import org.apache.kafka.common.Uuid;
+
 import io.kroxylicious.proxy.plugin.Plugin;
 import io.kroxylicious.proxy.plugin.PluginConfigurationException;
 
@@ -46,7 +48,7 @@ public class UpperCasing implements ByteBufferTransformationFactory<UpperCasing.
         }
 
         @Override
-        public ByteBuffer transform(String topicName, ByteBuffer in) {
+        public ByteBuffer transform(String topicName, ByteBuffer in, Uuid topicId) {
             return ByteBuffer.wrap(new String(charset.decode(in).array()).toUpperCase().getBytes(charset));
         }
     }

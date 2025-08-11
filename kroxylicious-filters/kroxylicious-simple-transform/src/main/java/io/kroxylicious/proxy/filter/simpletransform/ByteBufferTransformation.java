@@ -7,10 +7,12 @@ package io.kroxylicious.proxy.filter.simpletransform;
 
 import java.nio.ByteBuffer;
 
+import org.apache.kafka.common.Uuid;
+
 /**
  * A transformation of the key or value of a produce record.
  */
 @FunctionalInterface
 public interface ByteBufferTransformation {
-    ByteBuffer transform(String topicName, ByteBuffer original);
+    ByteBuffer transform(String topicName, ByteBuffer original, Uuid topicId);
 }

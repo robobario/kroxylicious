@@ -17,6 +17,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.apache.kafka.common.Uuid;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import io.kroxylicious.proxy.plugin.Plugin;
@@ -86,7 +88,7 @@ public class Replacing implements ByteBufferTransformationFactory<Replacing.Conf
         }
 
         @Override
-        public ByteBuffer transform(String topicName, ByteBuffer in) {
+        public ByteBuffer transform(String topicName, ByteBuffer in, Uuid topicId) {
             return ByteBuffer.wrap(new String(charset.decode(in).array()).replaceAll(targetPattern, replaceWith).getBytes(charset));
         }
     }

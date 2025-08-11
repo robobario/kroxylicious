@@ -46,7 +46,7 @@ class ReplacingTest {
         ByteBuffer expected = ByteBuffer.wrap(EMPTY_STRING_BYTES);
 
         // When
-        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)));
+        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)), null);
 
         // Then
         assertThat(resultBuffer).isNotNull()
@@ -60,7 +60,7 @@ class ReplacingTest {
         ByteBuffer expected = ByteBuffer.wrap(REPLACEMENT_VALUE.getBytes(StandardCharsets.UTF_8));
 
         // When
-        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)));
+        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)), null);
 
         // Then
         assertThat(resultBuffer).isNotNull()
@@ -79,7 +79,7 @@ class ReplacingTest {
         ByteBuffer expected = ByteBuffer.wrap(REPLACEMENT_VALUE.getBytes(StandardCharsets.UTF_8));
 
         // When
-        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)));
+        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)), null);
 
         // Then
         assertThat(resultBuffer).isNotNull()
@@ -98,7 +98,7 @@ class ReplacingTest {
         ByteBuffer expected = ByteBuffer.wrap(EMPTY_STRING_BYTES);
 
         // When
-        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)));
+        ByteBuffer resultBuffer = transformation.transform(TOPIC_NAME, ByteBuffer.wrap(TARGET_PATTERN.getBytes(StandardCharsets.UTF_8)), null);
 
         // Then
         assertThat(resultBuffer).isNotNull()
