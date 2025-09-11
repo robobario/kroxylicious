@@ -61,7 +61,7 @@ class ProduceRequestTransformationFilter implements ProduceRequestFilter {
                     for (MutableRecordBatch batch : records.batches()) {
                         for (Record batchRecord : batch) {
                             newRecords.appendWithOffset(batchRecord.offset(), batchRecord.timestamp(), batchRecord.key(),
-                                    valueTransformation.transform(topicData.name(), batchRecord.value()));
+                                    valueTransformation.transform(topicData.name(), batchRecord.value(), topicData.topicId()));
                         }
                     }
 

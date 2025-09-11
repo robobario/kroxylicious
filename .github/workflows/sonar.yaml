@@ -55,6 +55,18 @@ jobs:
         with:
           java-version: 21
           distribution: 'temurin'
+      - name: 'Check out robobario/kroxylicious-junit5-extension'
+        uses: actions/checkout@v5
+        with:
+          repository: robobario/kroxylicious-junit5-extension
+          ref: kafka-41
+          path: kroxylicious-junit5-extension # This is the subdirectory name
+          fetch-depth: 0
+      - name: 'Build junit extension'
+        env:
+          TEST_CLUSTER_EXECUTION_MODE: CONTAINER
+        run: |
+          cd kroxylicious-junit5-extension && mvn -B install -DskipTests -Dmaven.javadoc.skip=true -DskipDocs=true -Dcheckstyle.skip=true -Dspotbugs.skip=true -Djapicmp.skip=true && cd .. && rm -rf kroxylicious-junit5-extension
       - name: 'Cache Maven packages'
         uses: actions/cache/restore@v4
         with:

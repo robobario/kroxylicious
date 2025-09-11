@@ -19,9 +19,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.InvalidTopicException;
 import org.apache.kafka.common.message.ApiVersionsRequestData;
 import org.apache.kafka.common.message.ApiVersionsResponseData;
@@ -137,18 +140,18 @@ class FilterIT {
         return out;
     }
 
-    private static byte getRot(String topicName, int index) {
-        char c = topicName.charAt(index % topicName.length());
-        int i = topicName.hashCode() + c;
+    private static byte getRot(String topicNameOrId, int index) {
+        char c = topicNameOrId.charAt(index % topicNameOrId.length());
+        int i = topicNameOrId.hashCode() + c;
         return (byte) (i % Byte.MAX_VALUE);
     }
 
-    static ByteBuffer decode(String topicName, ByteBuffer in) {
+    static ByteBuffer decode(String topicNameOrId, ByteBuffer in) {
         var out = ByteBuffer.allocate(in.limit());
         out.limit(in.limit());
         for (int index = 0; index < in.limit(); index++) {
             byte b = in.get(index);
-            byte rot = (byte) -getRot(topicName, index);
+            byte rot = (byte) -getRot(topicNameOrId, index);
             byte rotated = (byte) (b + rot);
             out.put(index, rotated);
         }
@@ -387,11 +390,13 @@ class FilterIT {
     }
 
     @Test
-    void shouldModifyProduceMessage(KafkaCluster cluster, Topic topic1, Topic topic2) throws Exception {
+    void shouldModifyProduceMessage(KafkaCluster cluster, Topic topic1, Topic topic2, Admin admin) throws Exception {
 
         var bytes = PLAINTEXT.getBytes(StandardCharsets.UTF_8);
-        var expectedEncoded1 = encode(topic1.name(), ByteBuffer.wrap(bytes)).array();
-        var expectedEncoded2 = encode(topic2.name(), ByteBuffer.wrap(bytes)).array();
+        DescribeTopicsResult topics = admin.describeTopics(List.of(topic1.name(), topic2.name()));
+        Map<String, TopicDescription> topicDescription = topics.allTopicNames().get(10, TimeUnit.SECONDS);
+        var expectedEncoded1 = encode(topicDescription.get(topic1.name()).topicId().toString(), ByteBuffer.wrap(bytes)).array();
+        var expectedEncoded2 = encode(topicDescription.get(topic2.name()).topicId().toString(), ByteBuffer.wrap(bytes)).array();
 
         NamedFilterDefinition namedFilterDefinition = new NamedFilterDefinitionBuilder(ProduceRequestTransformation.class.getName(),
                 ProduceRequestTransformation.class.getName())
@@ -494,14 +499,18 @@ class FilterIT {
     // zero-ack produce requests require special handling because they have no response associated
     // this checks that Kroxy can handle the basics of forwarding them.
     @Test
-    void shouldModifyZeroAckProduceMessage(KafkaCluster cluster, Topic topic) throws Exception {
+    void shouldModifyZeroAckProduceMessage(KafkaCluster cluster, Topic topic, Admin admin) throws Exception {
         String className = ProduceRequestTransformation.class.getName();
         var config = proxy(cluster)
                 .addToFilterDefinitions(new NamedFilterDefinitionBuilder(className, className)
                         .withConfig("transformation", TestEncoderFactory.class.getName()).build())
                 .addToDefaultFilters(className);
 
-        var expectedEncoded = encode(topic.name(), ByteBuffer.wrap(PLAINTEXT.getBytes(StandardCharsets.UTF_8))).array();
+        // todo, add topicId to io.kroxylicious.testing.kafka.junit5ext.Topic
+        DescribeTopicsResult topics = admin.describeTopics(List.of(topic.name()));
+        TopicDescription topicDescription = topics.topicNameValues().get(topic.name()).get(10, TimeUnit.SECONDS);
+        Uuid uuid = topicDescription.topicId();
+        var expectedEncoded = encode(uuid.toString(), ByteBuffer.wrap(PLAINTEXT.getBytes(StandardCharsets.UTF_8))).array();
 
         try (var tester = kroxyliciousTester(config);
                 var producer = tester.producer(Map.of(CLIENT_ID_CONFIG, "shouldModifyProduceMessage", DELIVERY_TIMEOUT_MS_CONFIG, 3_600_000, ACKS_CONFIG, "0"));

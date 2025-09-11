@@ -8,6 +8,8 @@ package io.kroxylicious.proxy;
 
 import java.nio.ByteBuffer;
 
+import org.apache.kafka.common.Uuid;
+
 import io.kroxylicious.proxy.filter.simpletransform.ByteBufferTransformation;
 import io.kroxylicious.proxy.filter.simpletransform.ByteBufferTransformationFactory;
 import io.kroxylicious.proxy.plugin.Plugin;
@@ -29,8 +31,9 @@ public class TestEncoderFactory implements ByteBufferTransformationFactory<Void>
     public static class TestEncoder implements ByteBufferTransformation {
 
         @Override
-        public ByteBuffer transform(String topicName, ByteBuffer in) {
-            return FilterIT.encode(topicName, in);
+        public ByteBuffer transform(String topicName, ByteBuffer in, Uuid topicId) {
+            String topicNameOrId = topicName.equals("") ? topicId.toString() : topicName;
+            return FilterIT.encode(topicNameOrId, in);
         }
     }
 
