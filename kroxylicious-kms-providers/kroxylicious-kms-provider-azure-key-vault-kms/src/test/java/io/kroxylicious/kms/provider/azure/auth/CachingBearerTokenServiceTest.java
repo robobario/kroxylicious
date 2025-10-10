@@ -214,7 +214,7 @@ class CachingBearerTokenServiceTest {
         CachingBearerTokenService.State postFailState = service.getState();
         assertThat(postFailState).isInstanceOf(Closed.class);
         assertThat(refreshPromise).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
-                .isInstanceOf(InterruptedException.class).withMessage("token service closed");
+                .isInstanceOf(IllegalStateException.class).withMessage("token service closed");
         assertThat(service.getBearerToken()).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
                 .isInstanceOf(IllegalStateException.class).withMessage("service is closed");
     }
@@ -239,7 +239,7 @@ class CachingBearerTokenServiceTest {
         CachingBearerTokenService.State postFailState = service.getState();
         assertThat(postFailState).isInstanceOf(Closed.class);
         assertThat(refreshPromise).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
-                .isInstanceOf(InterruptedException.class).withMessage("token service closed");
+                .isInstanceOf(IllegalStateException.class).withMessage("token service closed");
         assertThat(service.getBearerToken()).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
                 .isInstanceOf(IllegalStateException.class).withMessage("service is closed");
     }
@@ -254,7 +254,7 @@ class CachingBearerTokenServiceTest {
         service.close();
         // then
         assertThat(initialPromise).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
-                .isInstanceOf(InterruptedException.class);
+                .isInstanceOf(IllegalStateException.class);
         CachingBearerTokenService.State state = service.getState();
         assertThat(state).isInstanceOf(Closed.class);
         assertThat(service.getBearerToken()).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
@@ -271,7 +271,7 @@ class CachingBearerTokenServiceTest {
         service.close();
         // then
         assertThat(refreshPromise).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()
-                .isInstanceOf(InterruptedException.class);
+                .isInstanceOf(IllegalStateException.class);
         CachingBearerTokenService.State state = service.getState();
         assertThat(state).isInstanceOf(Closed.class);
         assertThat(service.getBearerToken()).failsWithin(Duration.ZERO).withThrowableThat().isInstanceOf(ExecutionException.class).havingCause()

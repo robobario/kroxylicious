@@ -13,7 +13,7 @@ public class UnexpectedHttpStatusCodeException extends RuntimeException {
     private final int statusCode;
 
     public UnexpectedHttpStatusCodeException(HttpResponse<?> response) {
-        super("response has an unexpected status code: " + response.statusCode());
+        super("response has an unexpected status code: " + response.statusCode() + " with body: " + response.body());
         this.statusCode = response.statusCode();
     }
 

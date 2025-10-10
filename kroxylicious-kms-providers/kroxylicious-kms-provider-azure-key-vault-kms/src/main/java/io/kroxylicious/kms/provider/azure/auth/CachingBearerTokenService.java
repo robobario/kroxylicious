@@ -182,10 +182,10 @@ public class CachingBearerTokenService implements BearerTokenService {
                 closed -> {
                     delegate.close();
                     if (current instanceof State.Refreshing refreshing) {
-                        refreshing.promise.completeExceptionally(new InterruptedException("token service closed"));
+                        refreshing.promise.completeExceptionally(new IllegalStateException("token service closed"));
                     }
                     else if (current instanceof State.Initial initial) {
-                        initial.tokenPromise().completeExceptionally(new InterruptedException("token service closed"));
+                        initial.tokenPromise().completeExceptionally(new IllegalStateException("token service closed"));
                     }
                 });
         if (!transitioned) {

@@ -6,9 +6,9 @@
 
 package io.kroxylicious.kms.provider.azure;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
@@ -34,17 +34,15 @@ class AzureKeyVaultEdekTest {
 
     @Test
     void testKeyVersion128Bits() {
-        AzureKeyVaultEdek azureKeyVaultEdek = new AzureKeyVaultEdek(KEY_NAME, KEY_VERSION, EDEK, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek azureKeyVaultEdek = createEdek(KEY_NAME, KEY_VERSION, EDEK, VAULT_NAME, KEY_TYPE);
         Optional<byte[]> bytes = azureKeyVaultEdek.keyVersion128bit();
-        assertThat(bytes).isPresent().hasValueSatisfying(bytes1 -> {
-            assertThat(bytes1).hasSize(16)
-                    .containsExactly(120, -34, -21, -19, 23, 59, 72, -28, -113, 85, -85, -8, 126, -44, -49, 113);
-        });
+        assertThat(bytes).isPresent().hasValueSatisfying(bytes1 -> assertThat(bytes1).hasSize(16)
+                .containsExactly(120, -34, -21, -19, 23, 59, 72, -28, -113, 85, -85, -8, 126, -44, -49, 113));
     }
 
     @Test
     void testKeyVersion128BitsWhenNonHex() {
-        AzureKeyVaultEdek azureKeyVaultEdek = new AzureKeyVaultEdek(KEY_NAME, repeatString(32, "z"), EDEK, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek azureKeyVaultEdek = createEdek(KEY_NAME, repeatString(32, "z"), EDEK, VAULT_NAME, KEY_TYPE);
         Optional<byte[]> bytes = azureKeyVaultEdek.keyVersion128bit();
         assertThat(bytes).isEmpty();
     }
@@ -60,7 +58,7 @@ class AzureKeyVaultEdekTest {
     @MethodSource
     @ParameterizedTest
     void validEdek(String keyName, String keyVersion, byte[] edek) {
-        AzureKeyVaultEdek azureKeyVaultEdek = new AzureKeyVaultEdek(keyName, keyVersion, edek, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek azureKeyVaultEdek = createEdek(keyName, keyVersion, edek, VAULT_NAME, KEY_TYPE);
         assertThat(azureKeyVaultEdek.keyName()).isEqualTo(keyName);
         assertThat(azureKeyVaultEdek.keyVersion()).isEqualTo(keyVersion);
         assertThat(azureKeyVaultEdek.edek()).containsExactly(edek);
@@ -77,7 +75,7 @@ class AzureKeyVaultEdekTest {
     @MethodSource
     @ParameterizedTest
     void invalidKeyName(String keyName, Class<? extends Exception> expectedException, String expectedMessage) {
-        assertThatThrownBy(() -> new AzureKeyVaultEdek(keyName, KEY_VERSION, EDEK, VAULT_NAME, KEY_TYPE)).isInstanceOf(expectedException)
+        assertThatThrownBy(() -> createEdek(keyName, KEY_VERSION, EDEK, VAULT_NAME, KEY_TYPE)).isInstanceOf(expectedException)
                 .hasMessageContaining(expectedMessage);
     }
 
@@ -92,7 +90,7 @@ class AzureKeyVaultEdekTest {
     @MethodSource
     @ParameterizedTest
     void invalidKeyVersion(String keyVersion, Class<? extends Exception> expectedException, String expectedMessage) {
-        assertThatThrownBy(() -> new AzureKeyVaultEdek(KEY_NAME, keyVersion, EDEK, VAULT_NAME, KEY_TYPE)).isInstanceOf(expectedException)
+        assertThatThrownBy(() -> createEdek(KEY_NAME, keyVersion, EDEK, VAULT_NAME, KEY_TYPE)).isInstanceOf(expectedException)
                 .hasMessageContaining(expectedMessage);
     }
 
@@ -104,7 +102,7 @@ class AzureKeyVaultEdekTest {
     @MethodSource
     @ParameterizedTest
     void invalidEdek(byte[] edek, Class<? extends Exception> expectedException, String expectedMessage) {
-        assertThatThrownBy(() -> new AzureKeyVaultEdek(KEY_NAME, KEY_VERSION, edek, VAULT_NAME, KEY_TYPE)).isInstanceOf(expectedException)
+        assertThatThrownBy(() -> createEdek(KEY_NAME, KEY_VERSION, edek, VAULT_NAME, KEY_TYPE)).isInstanceOf(expectedException)
                 .hasMessageContaining(expectedMessage);
     }
 
@@ -125,31 +123,27 @@ class AzureKeyVaultEdekTest {
         }
     }
 
-    static Stream<Arguments> testEqualsHashCode() {
-        List<AzureKeyVaultEdek> permutations = getAzureKeyVaultEdeks();
-        Stream<Arguments> allPermutationsNotEqualToOtherPermutations = permutations.stream()
-                .flatMap(a -> permutations.stream().filter(x -> x != a).map(b -> Arguments.arguments(a, b, false)));
-        // checking that an EDEK with the same component values, but different objects are equal
-        Stream<Arguments> allPermutationsDeepEqualThemselves = permutations.stream()
-                .map(edek -> Arguments.arguments(edek,
-                        new AzureKeyVaultEdek(edek.keyName(), edek.keyVersion(), edek.edek().clone(), edek.vaultName(), edek.supportedKeyType()), true));
-        Stream<Arguments> allPermutationsEqualThemselves = permutations.stream()
-                .map(edek -> Arguments.arguments(edek, edek, true));
-        return Stream.of(allPermutationsEqualThemselves, allPermutationsDeepEqualThemselves, allPermutationsNotEqualToOtherPermutations).flatMap(Function.identity());
+    static List<Arguments> testEqualsHashCode() {
+        AzureKeyVaultEdek baseline = createEdek(KEY_NAME, KEY_VERSION, EDEK, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek baselineClone = createEdek(KEY_NAME, KEY_VERSION, EDEK.clone(), VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek differentName = createEdek("another-name", KEY_VERSION, EDEK, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek differentVersion = createEdek(KEY_NAME, "a".repeat(32), EDEK, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek differentEdek = createEdek(KEY_NAME, KEY_VERSION, new byte[]{ 4, 5, 6 }, VAULT_NAME, KEY_TYPE);
+        AzureKeyVaultEdek differentVaultName = createEdek(KEY_NAME, KEY_VERSION, EDEK, "anotherVault", KEY_TYPE);
+        AzureKeyVaultEdek differentKeyType = createEdek(KEY_NAME, KEY_VERSION, EDEK, VAULT_NAME, SupportedKeyType.OCT);
+        List<Arguments> arguments = new ArrayList<>();
+        arguments.add(argumentSet("baseline equals itself", baseline, baseline, true));
+        arguments.add(argumentSet("edek deep-equals", baseline, baselineClone, true)); // ensure they don't have to be the same array instance
+        arguments.add(argumentSet("not equal when key names differ", baseline, differentName, false));
+        arguments.add(argumentSet("not equal when key versions differ", baseline, differentVersion, false));
+        arguments.add(argumentSet("not equal when edeks differ", baseline, differentEdek, false));
+        arguments.add(argumentSet("not equal when vault names differ", baseline, differentVaultName, false));
+        arguments.add(argumentSet("not equal when key types differ", baseline, differentKeyType, false));
+        return arguments;
     }
 
-    private static List<AzureKeyVaultEdek> getAzureKeyVaultEdeks() {
-        return Stream.of("key-name-a", "key-name-b").flatMap(keyName -> {
-            return Stream.of(KEY_VERSION, "18deebed173b48e48f55abf87ed4cf77").flatMap(version -> {
-                return Stream.of(new byte[]{ 1, 2, 3 }, new byte[]{ 4, 5, 6 }).flatMap(edekBytes -> {
-                    return Stream.of("vault-name-a", "vault-name-b").flatMap(vaultName -> {
-                        return Stream.of(KEY_TYPE, SupportedKeyType.OCT).map(supportedKeyType -> {
-                            return new AzureKeyVaultEdek(keyName, version, edekBytes, vaultName, supportedKeyType);
-                        });
-                    });
-                });
-            });
-        }).toList();
+    private static AzureKeyVaultEdek createEdek(String keyName, String keyVersion, byte[] edek, String vaultName, SupportedKeyType keyType) {
+        return new AzureKeyVaultEdek(keyName, keyVersion, edek, vaultName, keyType);
     }
 
     static String repeatString(int times, String string) {
