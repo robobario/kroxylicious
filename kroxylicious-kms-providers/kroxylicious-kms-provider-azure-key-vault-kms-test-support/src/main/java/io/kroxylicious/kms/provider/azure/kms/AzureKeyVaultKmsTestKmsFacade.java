@@ -126,7 +126,7 @@ public class AzureKeyVaultKmsTestKmsFacade implements TestKmsFacade<AzureKeyVaul
         URI defaultVaultBaseUrl = URI.create(kms.getDefaultVaultBaseUrl());
         return new AzureKeyVaultConfig(
                 new EntraIdentityConfig(URI.create(entraMock.baseUrl()), TENANT_ID, new InlinePassword("abc"), new InlinePassword("def"), null, INSECURE_TLS),
-                "default", defaultVaultBaseUrl.getHost(), null, defaultVaultBaseUrl.getPort(), true, INSECURE_TLS);
+                "default", defaultVaultBaseUrl.getHost(), null, defaultVaultBaseUrl.getPort(), false, INSECURE_TLS);
     }
 
     @Override
@@ -152,7 +152,7 @@ public class AzureKeyVaultKmsTestKmsFacade implements TestKmsFacade<AzureKeyVaul
 
         private AzureKmsTestKekManager(LowkeyVaultContainer kms) {
             keyClient = new KeyClientBuilder().credential(new BasicAuthenticationCredential("abc", "def"))
-                    .httpClient(createHttpClient(kms.getEndpointAuthority(), kms.getDefaultVaultAuthority())).vaultUrl(kms.getDefaultVaultBaseUrl())
+                    .httpClient(createHttpClient(kms.getEndpointAuthority(), kms.getDefaultVaultAuthority())).vaultUrl(kms.getVaultBaseUrl("default"))
                     .disableChallengeResourceVerification().buildClient();
         }
 
