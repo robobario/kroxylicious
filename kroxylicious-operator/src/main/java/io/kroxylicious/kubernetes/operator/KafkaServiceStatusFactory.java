@@ -10,6 +10,8 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import io.kroxylicious.kubernetes.api.common.Condition;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaService;
 import io.kroxylicious.kubernetes.api.v1alpha1.KafkaServiceBuilder;
@@ -24,7 +26,8 @@ public class KafkaServiceStatusFactory extends StatusFactory<KafkaService> {
 
     private KafkaService serviceStatusPatch(KafkaService observedIngress,
                                             Condition condition,
-                                            String checksum) {
+                                            String checksum,
+                                            @Nullable String bootstrapServers) {
         // @formatter:off
         var metadataBuilder = new KafkaServiceBuilder()
                 .withNewMetadata()
@@ -35,25 +38,18 @@ public class KafkaServiceStatusFactory extends StatusFactory<KafkaService> {
             Annotations.annotateWithReferentChecksum(metadataBuilder, checksum);
         }
 
-        if (observedIngress.getStatus() != null && observedIngress.getStatus().getBootstrapServerAddress() != null) {
-            return metadataBuilder
-                    .endMetadata()
-                    .withNewStatus()
-                        .withObservedGeneration(ResourcesUtil.generation(observedIngress))
-                        .withBootstrapServerAddress(observedIngress.getStatus().getBootstrapServerAddress())
-                        .withConditions(ResourceState.newConditions(Optional.ofNullable(observedIngress.getStatus()).map(KafkaServiceStatus::getConditions).orElse(List.of()), ResourceState.of(condition)))
-                    .endStatus()
-                    .build();
-        }
-        else {
-            return metadataBuilder
-                    .endMetadata()
-                    .withNewStatus()
+        KafkaServiceBuilder service = metadataBuilder
+                .endMetadata()
+                .withNewStatus()
                     .withObservedGeneration(ResourcesUtil.generation(observedIngress))
                     .withConditions(ResourceState.newConditions(Optional.ofNullable(observedIngress.getStatus()).map(KafkaServiceStatus::getConditions).orElse(List.of()), ResourceState.of(condition)))
-                    .endStatus()
-                    .build();
+                .endStatus();
+
+        if (bootstrapServers != null) {
+            service.editStatus().withBootstrapServerAddress(bootstrapServers).endStatus();
         }
+
+        return service.build();
         // @formatter:on
     }
 
@@ -61,7 +57,7 @@ public class KafkaServiceStatusFactory extends StatusFactory<KafkaService> {
                                                 Condition.Type type,
                                                 Exception e) {
         Condition unknownCondition = newUnknownCondition(observedFilter, type, e);
-        return serviceStatusPatch(observedFilter, unknownCondition, MetadataChecksumGenerator.NO_CHECKSUM_SPECIFIED);
+        return serviceStatusPatch(observedFilter, unknownCondition, MetadataChecksumGenerator.NO_CHECKSUM_SPECIFIED, null);
     }
 
     KafkaService newFalseConditionStatusPatch(KafkaService observedProxy,
@@ -69,14 +65,22 @@ public class KafkaServiceStatusFactory extends StatusFactory<KafkaService> {
                                               String reason,
                                               String message) {
         Condition falseCondition = newFalseCondition(observedProxy, type, reason, message);
-        return serviceStatusPatch(observedProxy, falseCondition, MetadataChecksumGenerator.NO_CHECKSUM_SPECIFIED);
+        return serviceStatusPatch(observedProxy, falseCondition, MetadataChecksumGenerator.NO_CHECKSUM_SPECIFIED, null);
     }
 
     KafkaService newTrueConditionStatusPatch(KafkaService observedProxy,
                                              Condition.Type type,
                                              String checksum) {
         Condition trueCondition = newTrueCondition(observedProxy, type);
-        return serviceStatusPatch(observedProxy, trueCondition, checksum);
+        return serviceStatusPatch(observedProxy, trueCondition, checksum, null);
+    }
+
+    KafkaService newTrueConditionStatusPatch(KafkaService observedProxy,
+                                             Condition.Type type,
+                                             String checksum,
+                                             String bootstrapServers) {
+        Condition trueCondition = newTrueCondition(observedProxy, type);
+        return serviceStatusPatch(observedProxy, trueCondition, checksum, bootstrapServers);
     }
 
     @SuppressWarnings("removal")

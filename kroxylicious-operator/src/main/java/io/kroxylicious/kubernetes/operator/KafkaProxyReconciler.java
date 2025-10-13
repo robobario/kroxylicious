@@ -32,6 +32,7 @@ import io.fabric8.kubernetes.api.model.VolumeMount;
 import io.fabric8.kubernetes.api.model.VolumeMountBuilder;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentStatus;
+import io.fabric8.kubernetes.client.ResourceNotFoundException;
 import io.javaoperatorsdk.operator.OperatorException;
 import io.javaoperatorsdk.operator.api.config.informer.InformerEventSourceConfiguration;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
@@ -324,8 +325,11 @@ public class KafkaProxyReconciler implements
                     if (kafkaServiceRef.getSpec().getStrimziKafkaRef() != null) {
                         return new TargetCluster(kafkaServiceRef.getStatus().getBootstrapServerAddress(), tls);
                     }
-                    else {
+                    else if (kafkaServiceRef.getSpec().getBootstrapServers() != null) {
                         return new TargetCluster(kafkaServiceRef.getSpec().getBootstrapServers(), tls);
+                    }
+                    else {
+                        throw new ResourceNotFoundException("Bootstrap server address not found");
                     }
                 });
     }

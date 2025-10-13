@@ -26,7 +26,6 @@ import io.fabric8.kubernetes.api.model.OwnerReference;
 import io.fabric8.kubernetes.api.model.OwnerReferenceBuilder;
 import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.client.CustomResource;
-import io.fabric8.kubernetes.client.ResourceNotFoundException;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.api.reconciler.EventSourceContext;
 import io.javaoperatorsdk.operator.processing.event.ResourceID;
@@ -567,13 +566,13 @@ public class ResourcesUtil {
                             path + " must specify 'listenerName'"), List.of());
                 }
 
-                if (isSupportedListenerType(listenerName)) {
+                if (!isSupportedListenerType(listenerName)) {
                     return new ResourceCheckResult<>(statusFactory.newFalseConditionStatusPatch(resource, ResolvedRefs,
                             Condition.REASON_INVALID,
                             path + "listener should be `plain`"), List.of());
                 }
                 else {
-                    return new ResourceCheckResult<>(null, List.of(kafkaOpt.get()));
+                    return handleListener(resource, strimziKafkaRef, statusFactory, kafkaOpt.get());
                 }
             }
         }
@@ -584,27 +583,16 @@ public class ResourcesUtil {
         }
     }
 
-    static KafkaService updateServiceWithBootstrapAddress(Context<KafkaService> context,
-                                                          KafkaService service,
-                                                          String eventSourceName) {
+    static Optional<ListenerStatus> retrieveBootstrapServerAddress(Context<KafkaService> context,
+                                                                   KafkaService service,
+                                                                   String eventSourceName) {
+
         Optional<Kafka> kafka = getKafka(context, eventSourceName);
-        Optional<ListenerStatus> listener = retrieveBootstrapServerAddress(kafka);
-        return service.edit()
-                .editStatus()
-                .withBootstrapServerAddress(listener.get().getBootstrapServers())
-                .endStatus()
-                .build();
-    }
 
-    static Optional<ListenerStatus> retrieveBootstrapServerAddress(Optional<Kafka> kafka) {
-
-        if (kafka.isPresent()) {
-            return kafka.get().getStatus().getListeners().stream()
-                    .filter(listenerStatus -> listenerStatus.getName().equals("plain")).findFirst();
-        }
-        else {
-            throw new ResourceNotFoundException("Cannot find the required Kafka cluster");
-        }
+        return kafka.get().getStatus().getListeners().stream()
+                .filter(listenerStatus -> listenerStatus.getName()
+                        .equals(service.getSpec().getStrimziKafkaRef().getListenerName()))
+                .findFirst();
     }
 
     private static <T extends CustomResource<?, ?>> @NonNull ResourceCheckResult<T> handleSupportedFileExtension(T resource, TrustAnchorRef trustAnchorRef, String path,
@@ -619,6 +607,27 @@ public class ResourcesUtil {
         }
     }
 
+    private static <T extends CustomResource<?, ?>> ResourceCheckResult<T> handleListener(T resource, StrimziKafkaRef strimziKafkaRef,
+                                                                                          StatusFactory<T> statusFactory,
+                                                                                          Kafka kafka) {
+        if (!isListenerPresent(strimziKafkaRef, kafka)) {
+            return new ResourceCheckResult<>(statusFactory.newFalseConditionStatusPatch(resource, ResolvedRefs,
+                    Condition.REASON_INVALID_REFERENCED_RESOURCE,
+                    "Referenced resource does not contain listener name: "
+                            + strimziKafkaRef.getListenerName()),
+                    List.of());
+        }
+        else {
+            return new ResourceCheckResult<>(null, List.of(kafka));
+        }
+    }
+
+    private static boolean isListenerPresent(StrimziKafkaRef strimziKafkaRef, Kafka kafka) {
+        return kafka.getStatus().getListeners() != null && kafka.getStatus().getListeners().stream()
+                .anyMatch(listenerStatus -> listenerStatus.getName()
+                        .equals(strimziKafkaRef.getListenerName()));
+    }
+
     private static boolean keyIsMissingFromConfigMap(TrustAnchorRef trustAnchorRef, ConfigMap configMap) {
         return !configMap.getData().containsKey(trustAnchorRef.getKey());
     }
@@ -630,7 +639,7 @@ public class ResourcesUtil {
     }
 
     private static boolean isSupportedListenerType(String listenerName) {
-        return !listenerName.equals("plain");
+        return listenerName.equals("plain");
     }
 
     /**
