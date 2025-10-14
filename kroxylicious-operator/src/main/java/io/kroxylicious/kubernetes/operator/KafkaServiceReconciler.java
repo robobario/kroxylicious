@@ -216,7 +216,7 @@ public final class KafkaServiceReconciler implements
             if (service.getSpec().getStrimziKafkaRef() != null) {
                 Optional<ListenerStatus> result = retrieveBootstrapServerAddress(context, service, CONFIG_MAPS_EVENT_SOURCE_NAME);
                 updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs,
-                        checksumGenerator.encode(), result.isPresent() ? result.get().getBootstrapServers(): "");
+                        checksumGenerator.encode(), result.isPresent() ? result.get().getBootstrapServers() : "");
             }
             else {
                 updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs, checksumGenerator.encode(), service.getSpec().getBootstrapServers());

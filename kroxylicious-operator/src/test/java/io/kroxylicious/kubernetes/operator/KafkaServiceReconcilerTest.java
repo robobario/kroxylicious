@@ -62,7 +62,6 @@ class KafkaServiceReconcilerTest {
     public static final long OBSERVED_GENERATION = 1345L;
     public static final String KAFKA_GROUP_NAME = "kafka.strimzi.io";
 
-
     // @formatter:off
     public static final KafkaService SERVICE = new KafkaServiceBuilder()
             .withNewMetadata()
