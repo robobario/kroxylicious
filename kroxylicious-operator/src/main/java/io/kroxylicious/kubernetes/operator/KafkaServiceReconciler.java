@@ -29,6 +29,7 @@ import io.javaoperatorsdk.operator.processing.event.source.PrimaryToSecondaryMap
 import io.javaoperatorsdk.operator.processing.event.source.SecondaryToPrimaryMapper;
 import io.javaoperatorsdk.operator.processing.event.source.informer.InformerEventSource;
 import io.strimzi.api.kafka.model.kafka.Kafka;
+import io.strimzi.api.kafka.model.kafka.listener.ListenerStatus;
 
 import io.kroxylicious.kubernetes.api.common.Condition;
 import io.kroxylicious.kubernetes.api.common.StrimziKafkaRef;
@@ -91,8 +92,13 @@ public final class KafkaServiceReconciler implements
                 .build();
 
         APIGroup apiGroup = context.getClient().getApiGroup(KAFKA_GROUP_NAME);
+        List<EventSource<?, KafkaService>> informersList = new ArrayList<>();
+
+        informersList.add(new InformerEventSource<>(serviceToSecret, context));
+        informersList.add(new InformerEventSource<>(serviceToConfigMap, context));
 
         if (apiGroup != null) {
+            LOGGER.info("Strimzi Kafka cluster detected in namespace: {}", context.getClient().getNamespace());
             InformerEventSourceConfiguration<Kafka> serviceToStrimziKafka = InformerEventSourceConfiguration.from(
                     Kafka.class,
                     KafkaService.class)
@@ -100,16 +106,10 @@ public final class KafkaServiceReconciler implements
                     .withPrimaryToSecondaryMapper(kafkaServiceToKafka())
                     .withSecondaryToPrimaryMapper(kafkaToKafkaService(context))
                     .build();
-
-            return List.of(
-                    new InformerEventSource<>(serviceToSecret, context),
-                    new InformerEventSource<>(serviceToStrimziKafka, context),
-                    new InformerEventSource<>(serviceToConfigMap, context));
+            informersList.add(new InformerEventSource<>(serviceToStrimziKafka, context));
         }
 
-        return List.of(
-                new InformerEventSource<>(serviceToSecret, context),
-                new InformerEventSource<>(serviceToConfigMap, context));
+        return informersList;
     }
 
     @VisibleForTesting
@@ -186,6 +186,7 @@ public final class KafkaServiceReconciler implements
 
         var strimziKafkaRefOpt = Optional.ofNullable(service.getSpec())
                 .map(KafkaServiceSpec::getStrimziKafkaRef);
+
         if (strimziKafkaRefOpt.isPresent()) {
             ResourceCheckResult<KafkaService> result = ResourcesUtil.checkStrimziKafkaRef(service, context, KAFKA_EVENT_SOURCE_NAME, strimziKafkaRefOpt.get(),
                     SPEC_REF,
@@ -213,11 +214,12 @@ public final class KafkaServiceReconciler implements
             }
 
             if (service.getSpec().getStrimziKafkaRef() != null) {
+                Optional<ListenerStatus> result = retrieveBootstrapServerAddress(context, service, CONFIG_MAPS_EVENT_SOURCE_NAME);
                 updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs,
-                        checksumGenerator.encode(), retrieveBootstrapServerAddress(context, service, KAFKA_EVENT_SOURCE_NAME).get().getBootstrapServers());
+                        checksumGenerator.encode(), result.isPresent() ? result.get().getBootstrapServers(): "");
             }
             else {
-                updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs, checksumGenerator.encode());
+                updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs, checksumGenerator.encode(), service.getSpec().getBootstrapServers());
             }
         }
 

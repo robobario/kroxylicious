@@ -54,22 +54,23 @@ spec:
                   type: object
                   properties:
                     kind:
-                      description: The API kind of the resource containing the TLS client certificate.
+                      description: The API kind of the resource
                       type: string
                       default: Kafka
                     group:
-                      description: The API group of the resource containing the TLS client certificate.
+                      description: The API group of the resource
                       type: string
                       default: "kafka.strimzi.io"
                     name:
                       description: Name of the cluster
                       type: string
                     namespace:
-                      description: Namespace of the Kafka cluster
+                      description: Namespace of the Kafka cluster(same as KafkaService namespace)
                       type: string
                     listenerName:
                       description: listener type of the cluster
                       type: string
+                      default: plain
                 bootstrapServers:
                   description: Bootstrap servers of the Kafka cluster.
                   type: string

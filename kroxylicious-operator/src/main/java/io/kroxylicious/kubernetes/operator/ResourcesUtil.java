@@ -550,9 +550,15 @@ public class ResourcesUtil {
                                                                                                StrimziKafkaRef strimziKafkaRef,
                                                                                                String path,
                                                                                                StatusFactory<T> statusFactory) {
+
+        if (context.getClient().getApiGroup("kafka.strimzi.io") == null) {
+            return new ResourceCheckResult<>(statusFactory.newFalseConditionStatusPatch(resource, ResolvedRefs,
+                    Condition.REASON_REFS_NOT_FOUND,
+                    "strimziKafkaRef present but Kafka resource not found"), List.of());
+        }
+
         if (isKafka(strimziKafkaRef.getRef())) {
             Optional<Kafka> kafkaOpt = getKafka(context, eventSourceName);
-
             if (kafkaOpt.isEmpty()) {
                 return new ResourceCheckResult<>(statusFactory.newFalseConditionStatusPatch(resource, ResolvedRefs,
                         Condition.REASON_REFS_NOT_FOUND,
@@ -588,11 +594,10 @@ public class ResourcesUtil {
                                                                    String eventSourceName) {
 
         Optional<Kafka> kafka = getKafka(context, eventSourceName);
-
-        return kafka.get().getStatus().getListeners().stream()
+        return kafka.flatMap(value -> value.getStatus().getListeners().stream()
                 .filter(listenerStatus -> listenerStatus.getName()
                         .equals(service.getSpec().getStrimziKafkaRef().getListenerName()))
-                .findFirst();
+                .findFirst());
     }
 
     private static <T extends CustomResource<?, ?>> @NonNull ResourceCheckResult<T> handleSupportedFileExtension(T resource, TrustAnchorRef trustAnchorRef, String path,
