@@ -37,6 +37,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SniCompletionEvent;
 import io.netty.handler.ssl.SslHandler;
 
+import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
 import io.kroxylicious.proxy.filter.FilterAndInvoker;
 import io.kroxylicious.proxy.filter.NetFilter;
 import io.kroxylicious.proxy.frame.DecodedRequestFrame;
@@ -73,6 +74,7 @@ public class KafkaProxyFrontendHandler
 
     /** Cache ApiVersions response which we use when returning ApiVersions ourselves */
     private static final ApiVersionsResponseData API_VERSIONS_RESPONSE;
+    private static final String HANDLER_NAME_SSL = "ssl";
 
     private final boolean logNetwork;
     private final boolean logFrames;
@@ -81,6 +83,7 @@ public class KafkaProxyFrontendHandler
     private final NetFilter netFilter;
     private final SaslDecodePredicate dp;
     private final ProxyChannelStateMachine proxyChannelStateMachine;
+    private final TransportSubjectBuilder subjectBuilder;
 
     private @Nullable ChannelHandlerContext clientCtx;
     @VisibleForTesting
@@ -107,13 +110,26 @@ public class KafkaProxyFrontendHandler
         }
     }
 
+    private @Nullable ClientSubjectManager clientSubjectManager;
+
+    /**
+     * Returns the SslHandler on the pipeline, or null if the pipeline doesn't have that handler
+     * @param pipeline The pipeline.
+     * @return The SslHandler
+     */
+    static @Nullable SslHandler sslHandler(ChannelPipeline pipeline) {
+        return (SslHandler) pipeline.get(HANDLER_NAME_SSL);
+    }
+
     KafkaProxyFrontendHandler(
                               NetFilter netFilter,
                               SaslDecodePredicate dp,
+                              TransportSubjectBuilder subjectBuilder,
                               EndpointBinding endpointBinding,
                               ProxyChannelStateMachine proxyChannelStateMachine) {
         this.netFilter = netFilter;
         this.dp = dp;
+        this.subjectBuilder = Objects.requireNonNull(subjectBuilder);
         this.endpointBinding = endpointBinding;
         this.virtualClusterModel = endpointBinding.endpointGateway().virtualCluster();
         this.proxyChannelStateMachine = proxyChannelStateMachine;
@@ -176,7 +192,7 @@ public class KafkaProxyFrontendHandler
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         this.clientCtx = ctx;
         this.proxyChannelStateMachine.onClientActive(this);
-        super.channelActive(this.clientCtx);
+
     }
 
     /**
@@ -244,10 +260,22 @@ public class KafkaProxyFrontendHandler
     void inClientActive() {
         Channel clientChannel = clientCtx().channel();
         LOGGER.trace("{}: channelActive", clientChannel.id());
-        // Initially the channel is not auto reading, so read the first batch of requests
+        // Initially the channel is not auto reading
         clientChannel.config().setAutoRead(false);
-        // TODO why doesn't the initializer set autoread to false so we don't have to set it here?
-        clientChannel.read();
+        this.clientSubjectManager = ClientSubjectManager.create(clientChannel);
+        subjectBuilder.buildTransportSubject(clientSubjectManager)
+                .thenAccept(newSubject -> {
+                    clientSubjectManager.replaceSubject(newSubject);
+                    // TODO authz on whether the subject should be allowed to proceed
+                    // read the first batch of requests only once we have a subject
+                    clientChannel.read();
+                    try {
+                        super.channelActive(this.clientCtx);
+                    }
+                    catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 
     /**
@@ -476,7 +504,7 @@ public class KafkaProxyFrontendHandler
         }
         virtualClusterModel.getUpstreamSslContext().ifPresent(sslContext -> {
             final SslHandler handler = sslContext.newHandler(outboundChannel.alloc(), remote.host(), remote.port());
-            pipeline.addFirst("ssl", handler);
+            pipeline.addFirst(HANDLER_NAME_SSL, handler);
         });
 
         LOGGER.debug("Configured broker channel pipeline: {}", pipeline);
@@ -623,7 +651,7 @@ public class KafkaProxyFrontendHandler
                                       ChannelPipeline pipeline,
                                       Channel inboundChannel) {
         int num = 0;
-        var clientSaslManager = new ClientSaslManager();
+
         for (var protocolFilter : filters) {
             // TODO configurable timeout
             // Handler name must be unique, but filters are allowed to appear multiple times
@@ -636,8 +664,8 @@ public class KafkaProxyFrontendHandler
                             sniHostname,
                             virtualClusterModel,
                             inboundChannel,
-                            clientSaslManager,
-                            proxyChannelStateMachine));
+                            proxyChannelStateMachine,
+                            clientSubjectManager));
         }
     }
 
