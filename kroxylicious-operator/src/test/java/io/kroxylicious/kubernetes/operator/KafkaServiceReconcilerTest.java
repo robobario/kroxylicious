@@ -306,6 +306,7 @@ class KafkaServiceReconcilerTest {
                             .withKind("Kafka")
                             .withName("my-cluster")
                             .endRef()
+                            .withListenerName("")
                             .endStrimziKafkaRef()
                             .endSpec().build(),
                     context,
@@ -313,7 +314,7 @@ class KafkaServiceReconcilerTest {
                             .singleElement()
                             .isResolvedRefsFalse(
                                     Condition.REASON_INVALID,
-                                    "spec.strimziKafkaRef must specify 'listenerName'")));
+                                    "spec.strimziKafkaReflistener should be `plain`")));
         }
 
         // unsupported kind
@@ -585,7 +586,7 @@ class KafkaServiceReconcilerTest {
     @Test
     void shouldNotSetReferentAnnotationWhenServiceHasNoReferents() {
         Context<KafkaService> context = mockContext();
-        KafkaService service = new KafkaServiceBuilder(SERVICE).editSpec().editTls().withTrustAnchorRef(null).endTls().endSpec().build();
+        KafkaService service = new KafkaServiceBuilder(SERVICE).editSpec().withStrimziKafkaRef(null).editTls().withTrustAnchorRef(null).endTls().endSpec().build();
         // When
         final UpdateControl<KafkaService> updateControl = kafkaServiceReconciler.reconcile(service, context);
 

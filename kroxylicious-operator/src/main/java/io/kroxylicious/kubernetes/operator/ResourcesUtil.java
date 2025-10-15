@@ -566,12 +566,6 @@ public class ResourcesUtil {
             }
             else {
                 String listenerName = strimziKafkaRef.getListenerName();
-                if (listenerName == null) {
-                    return new ResourceCheckResult<>(statusFactory.newFalseConditionStatusPatch(resource, ResolvedRefs,
-                            Condition.REASON_INVALID,
-                            path + " must specify 'listenerName'"), List.of());
-                }
-
                 if (!isSupportedListenerType(listenerName)) {
                     return new ResourceCheckResult<>(statusFactory.newFalseConditionStatusPatch(resource, ResolvedRefs,
                             Condition.REASON_INVALID,
