@@ -91,6 +91,8 @@ public final class KafkaServiceReconciler implements
                 .withSecondaryToPrimaryMapper(configMapToKafkaService(context))
                 .build();
 
+        // TODO we want to revisit this as we are currently making
+        //  to make numerous API calls to check if it exists
         APIGroup apiGroup = context.getClient().getApiGroup(KAFKA_GROUP_NAME);
         List<EventSource<?, KafkaService>> informersList = new ArrayList<>();
 
@@ -215,8 +217,13 @@ public final class KafkaServiceReconciler implements
 
             if (service.getSpec().getStrimziKafkaRef() != null) {
                 Optional<ListenerStatus> result = retrieveBootstrapServerAddress(context, service, CONFIG_MAPS_EVENT_SOURCE_NAME);
-                updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs,
-                        checksumGenerator.encode(), result.isPresent() ? result.get().getBootstrapServers() : "");
+                if (result.isEmpty()) {
+                    throw new IllegalStateException("Bootstrap server address is empty");
+                }
+                else {
+                    updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs,
+                            checksumGenerator.encode(), result.get().getBootstrapServers());
+                }
             }
             else {
                 updatedService = statusFactory.newTrueConditionStatusPatch(service, ResolvedRefs, checksumGenerator.encode(), service.getSpec().getBootstrapServers());

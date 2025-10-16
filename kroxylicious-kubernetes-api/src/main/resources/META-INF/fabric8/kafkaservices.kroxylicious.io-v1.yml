@@ -70,7 +70,8 @@ spec:
                     listenerName:
                       description: listener type of the cluster
                       type: string
-                      default: plain
+                  required:
+                    - listenerName
                 bootstrapServers:
                   description: Bootstrap servers of the Kafka cluster.
                   type: string
