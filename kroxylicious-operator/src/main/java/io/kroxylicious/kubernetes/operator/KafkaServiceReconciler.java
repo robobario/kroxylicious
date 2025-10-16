@@ -92,7 +92,7 @@ public final class KafkaServiceReconciler implements
                 .build();
 
         // TODO we want to revisit this as we are currently making
-        //  to make numerous API calls to check if it exists
+        // to make numerous API calls to check if it exists
         APIGroup apiGroup = context.getClient().getApiGroup(KAFKA_GROUP_NAME);
         List<EventSource<?, KafkaService>> informersList = new ArrayList<>();
 
