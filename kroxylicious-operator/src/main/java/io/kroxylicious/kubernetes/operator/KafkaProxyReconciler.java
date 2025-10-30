@@ -75,6 +75,7 @@ import io.kroxylicious.proxy.config.NamedFilterDefinition;
 import io.kroxylicious.proxy.config.NodeIdentificationStrategyFactory;
 import io.kroxylicious.proxy.config.PortIdentifiesNodeIdentificationStrategy;
 import io.kroxylicious.proxy.config.SniHostIdentifiesNodeIdentificationStrategy;
+import io.kroxylicious.proxy.config.SubjectBuilderConfig;
 import io.kroxylicious.proxy.config.TargetCluster;
 import io.kroxylicious.proxy.config.VirtualCluster;
 import io.kroxylicious.proxy.config.VirtualClusterGateway;
@@ -275,7 +276,8 @@ public class KafkaProxyReconciler implements
                         clusterCfs,
                         false,
                         false,
-                        filterNamesForCluster(cluster))));
+                        filterNamesForCluster(cluster),
+                        (SubjectBuilderConfig) null)));
         return ConfigurationFragment.combine(virtualClusterConfigurationFragment,
                 gatewayFragments,
                 (virtualCluster, gateways) -> virtualCluster);
