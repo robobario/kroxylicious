@@ -104,16 +104,6 @@ public class FilterHandler extends ChannelDuplexHandler {
         super.channelActive(ctx);
     }
 
-    private void disableAutoRead(BackPressureReason backPressureReason) {
-        inboundAutoReadState |= backPressureReason.mask;
-        inboundChannel.config().setAutoRead(false);
-    }
-
-    private void maybeEnableAutoRead(BackPressureReason backPressureReason) {
-        inboundAutoReadState &= (byte) ~backPressureReason.mask;
-        inboundChannel.config().setAutoRead(inboundAutoReadState == 0);
-    }
-
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof InternalResponseFrame<?> decodedFrame) {
@@ -222,7 +212,7 @@ public class FilterHandler extends ChannelDuplexHandler {
         final var future = dispatchDecodedResponseFrame(decodedFrame, filterContext);
         boolean defer = !future.isDone();
         if (defer) {
-            return configureResponseFilterChain(decodedFrame, handleDeferredStage(BackPressureReason.DEFERRED_RESPONSE, decodedFrame, future))
+            return configureResponseFilterChain(decodedFrame, handleDeferredStage(decodedFrame, future))
                     .whenComplete(this::deferredResponseCompleted)
                     .thenApply(responseFilterResult -> null);
         }
@@ -254,7 +244,7 @@ public class FilterHandler extends ChannelDuplexHandler {
         final var future = dispatchDecodedRequest(decodedFrame, filterContext);
         boolean defer = !future.isDone();
         if (defer) {
-            return configureRequestFilterChain(decodedFrame, promise, handleDeferredStage(BackPressureReason.DEFERRED_REQUEST, decodedFrame, future))
+            return configureRequestFilterChain(decodedFrame, promise, handleDeferredStage(decodedFrame, future))
                     .whenComplete(this::deferredRequestCompleted)
                     .thenApply(requestFilterResult -> null);
         }
@@ -341,18 +331,15 @@ public class FilterHandler extends ChannelDuplexHandler {
                     .addArgument(filterDescriptor())
                     .addArgument(decodedFrame.apiKey())
                     .addArgument(t.getMessage())
-                    .setCause(t)
+                    .setCause(LOGGER.isDebugEnabled() ? t : null)
                     .log();
         }
         closeConnection();
         return null;
     }
 
-    private <F extends FilterResult> CompletableFuture<F> handleDeferredStage(
-                                                                              BackPressureReason reason,
-                                                                              DecodedFrame<?, ?> decodedFrame,
-                                                                              CompletableFuture<F> future) {
-        disableAutoRead(reason);
+    private <F extends FilterResult> CompletableFuture<F> handleDeferredStage(DecodedFrame<?, ?> decodedFrame, CompletableFuture<F> future) {
+        inboundChannel.config().setAutoRead(false);
         promiseFactory.wrapWithTimeLimit(future,
                 () -> "Deferred work for filter '%s' did not complete processing within %s ms %s %s".formatted(filterDescriptor(), timeoutMs,
                         decodedFrame instanceof DecodedRequestFrame ? "request" : "response", decodedFrame.apiKey()));
@@ -360,12 +347,12 @@ public class FilterHandler extends ChannelDuplexHandler {
     }
 
     private void deferredResponseCompleted(ResponseFilterResult ignored, Throwable throwable) {
-        maybeEnableAutoRead(BackPressureReason.DEFERRED_RESPONSE);
+        inboundChannel.config().setAutoRead(true);
         readFuture.whenComplete((u, t) -> inboundChannel.flush());
     }
 
     private void deferredRequestCompleted(RequestFilterResult ignored, Throwable throwable) {
-        maybeEnableAutoRead(BackPressureReason.DEFERRED_REQUEST);
+        inboundChannel.config().setAutoRead(true);
         // flush so that writes from this completion can be driven towards the broker
         ctx.flush();
         // chain a flush to force any pending writes towards the broker
