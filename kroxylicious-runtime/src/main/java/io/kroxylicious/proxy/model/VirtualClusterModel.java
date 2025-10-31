@@ -28,8 +28,10 @@ import org.slf4j.LoggerFactory;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 
+import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
 import io.kroxylicious.proxy.config.IllegalConfigurationException;
 import io.kroxylicious.proxy.config.NamedFilterDefinition;
+import io.kroxylicious.proxy.config.PluginFactoryRegistry;
 import io.kroxylicious.proxy.config.SubjectBuilderConfig;
 import io.kroxylicious.proxy.config.TargetCluster;
 import io.kroxylicious.proxy.config.tls.AllowDeny;
@@ -41,7 +43,10 @@ import io.kroxylicious.proxy.config.tls.Tls;
 import io.kroxylicious.proxy.config.tls.TrustOptions;
 import io.kroxylicious.proxy.config.tls.TrustProvider;
 import io.kroxylicious.proxy.internal.net.EndpointGateway;
+import io.kroxylicious.proxy.internal.subject.DefaultSubjectBuilderService;
+import io.kroxylicious.proxy.internal.subject.TransportSubjectBuilderService;
 import io.kroxylicious.proxy.internal.util.StableKroxyliciousLinkGenerator;
+import io.kroxylicious.proxy.plugin.PluginConfigurationException;
 import io.kroxylicious.proxy.service.HostPort;
 import io.kroxylicious.proxy.service.NodeIdentificationStrategy;
 import io.kroxylicious.proxy.tag.VisibleForTesting;
@@ -268,6 +273,28 @@ public class VirtualClusterModel {
 
     public Map<String, EndpointGateway> gateways() {
         return Collections.unmodifiableMap(gateways);
+    }
+
+    public TransportSubjectBuilder subjectBuilder(PluginFactoryRegistry pfr) {
+        var pf = pfr.pluginFactory(TransportSubjectBuilderService.class);
+        String type;
+        Object config;
+        if (this.subjectBuilderConfig == null) {
+            type = DefaultSubjectBuilderService.class.getName();
+            config = new DefaultSubjectBuilderService.Config(List.of());
+        }
+        else {
+            type = this.subjectBuilderConfig.type();
+            config = this.subjectBuilderConfig.config();
+        }
+        Class<?> configType = pf.configType(type);
+        if (config != null && !configType.isInstance(config)) {
+            throw new PluginConfigurationException("SubjectBuilder " + type + " accepts config of type " +
+                    configType.getName() + " but provided with config of type " + config.getClass().getName());
+        }
+        TransportSubjectBuilderService subjectBuilderService = pf.pluginInstance(type);
+        subjectBuilderService.initializeTransportSubjectBuilderService(config);
+        return subjectBuilderService.buildTransportSubjectBuilderService();
     }
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
