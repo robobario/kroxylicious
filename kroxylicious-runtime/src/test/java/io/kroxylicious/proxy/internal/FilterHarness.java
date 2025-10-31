@@ -82,7 +82,7 @@ public abstract class FilterHarness {
         final TargetCluster targetCluster = mock(TargetCluster.class);
         when(targetCluster.bootstrapServersList()).thenReturn(TARGET_CLUSTER_BOOTSTRAP);
         var testVirtualCluster = new VirtualClusterModel("TestVirtualCluster", targetCluster, false,
-                false, List.of(), null);
+                false, List.of());
         testVirtualCluster.addGateway("default", mock(NodeIdentificationStrategy.class), Optional.empty());
         var inboundChannel = new EmbeddedChannel();
         var channelProcessors = Stream.<ChannelHandler> of(new InternalRequestTracker(), new CorrelationIdIssuer());
