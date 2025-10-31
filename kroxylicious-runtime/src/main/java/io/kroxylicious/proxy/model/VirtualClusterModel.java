@@ -78,14 +78,6 @@ public class VirtualClusterModel {
                                TargetCluster targetCluster,
                                boolean logNetwork,
                                boolean logFrames,
-                               List<NamedFilterDefinition> filters) {
-        this(clusterName, targetCluster, logNetwork, logFrames, filters, null);
-    }
-
-    public VirtualClusterModel(String clusterName,
-                               TargetCluster targetCluster,
-                               boolean logNetwork,
-                               boolean logFrames,
                                List<NamedFilterDefinition> filters,
                                @Nullable SubjectBuilderConfig subjectBuilderConfig) {
         this.clusterName = Objects.requireNonNull(clusterName);
