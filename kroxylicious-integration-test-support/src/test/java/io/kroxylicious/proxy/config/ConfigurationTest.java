@@ -562,13 +562,7 @@ class ConfigurationTest {
         List<VirtualClusterGateway> defaultGateway = List.of(VIRTUAL_CLUSTER_GATEWAY);
         TargetCluster targetCluster = new TargetCluster("unused:9082", Optional.empty());
         List<VirtualCluster> virtualClusters = List
-                .of(new VirtualCluster("vc1",
-                        targetCluster,
-                        defaultGateway,
-                        false,
-                        false,
-                        List.of("missing"),
-                        null));
+                .of(new VirtualCluster("vc1", targetCluster, defaultGateway, false, false, List.of("missing")));
         assertThatThrownBy(() -> new Configuration(
                 null,
                 filterDefinitions,
@@ -594,14 +588,9 @@ class ConfigurationTest {
         List<String> defaultFilters = List.of("used1");
         List<VirtualClusterGateway> defaultGateway = List.of(VIRTUAL_CLUSTER_GATEWAY);
         TargetCluster targetCluster = new TargetCluster("unused:9082", Optional.empty());
-        List<VirtualCluster> virtualClusters = List.of(new VirtualCluster("vc1",
-                targetCluster,
-                defaultGateway,
-                false,
-                false,
-                List.of("used2"),
-                null));
-        assertThatThrownBy(() -> new Configuration(null, filterDefinitions,
+        List<VirtualCluster> virtualClusters = List.of(new VirtualCluster("vc1", targetCluster, defaultGateway, false, false, List.of("used2")));
+        assertThatThrownBy(() -> new Configuration(null,
+                filterDefinitions,
                 defaultFilters,
                 virtualClusters,
                 null,
@@ -625,8 +614,7 @@ class ConfigurationTest {
                         Optional.empty())),
                 false,
                 false,
-                List.of("foo"), // filters defined on cluster
-                null);
+                List.of("foo")); // filters defined on cluster
 
         VirtualCluster defaulted = new VirtualCluster("defaulted", new TargetCluster("x:9092", Optional.empty()),
                 List.of(new VirtualClusterGateway("mygateway",
@@ -635,8 +623,7 @@ class ConfigurationTest {
                         Optional.empty())),
                 false,
                 false,
-                null, // filters not defined => should default to the top level
-                null);
+                null); // filters not defined => should default to the top level
 
         Configuration configuration = new Configuration(
                 null,

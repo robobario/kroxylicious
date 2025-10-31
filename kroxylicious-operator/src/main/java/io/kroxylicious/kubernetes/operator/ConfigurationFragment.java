@@ -69,9 +69,7 @@ public record ConfigurationFragment<F>(F fragment, Set<Volume> volumes, Set<Volu
     }
 
     public static <F> ConfigurationFragment<List<F>> reduce(List<ConfigurationFragment<F>> fragments) {
-
-        var fStream = fragments.stream().map(ConfigurationFragment::fragment);
-        var list = fStream.toList();
+        var list = fragments.stream().map(ConfigurationFragment::fragment).toList();
         return new ConfigurationFragment<>(list,
                 fragments.stream().flatMap(cfs -> cfs.volumes().stream()).collect(Collectors.toSet()),
                 fragments.stream().flatMap(cfs -> cfs.mounts().stream()).collect(Collectors.toSet()));
