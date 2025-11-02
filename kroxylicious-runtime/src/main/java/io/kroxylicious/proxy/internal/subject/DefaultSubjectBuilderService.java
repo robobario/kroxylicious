@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilder;
 import io.kroxylicious.proxy.authentication.SaslSubjectBuilderService;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
+import io.kroxylicious.proxy.authentication.TransportSubjectBuilderService;
 import io.kroxylicious.proxy.plugin.Plugin;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
