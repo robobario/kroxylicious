@@ -8,7 +8,7 @@ package io.kroxylicious.proxy.config;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import io.kroxylicious.proxy.internal.subject.TransportSubjectBuilderService;
+import io.kroxylicious.proxy.authentication.TransportSubjectBuilderService;
 import io.kroxylicious.proxy.plugin.PluginImplConfig;
 import io.kroxylicious.proxy.plugin.PluginImplName;
 
