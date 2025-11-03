@@ -22,12 +22,12 @@ import io.kroxylicious.proxy.filter.RequestFilterResult;
 public class OffsetCommitEnforcement extends ApiEnforcement<OffsetCommitRequestData, OffsetCommitResponseData> {
     @Override
     short minSupportedVersion() {
-        return 0;
+        return 2;
     }
 
     @Override
     short maxSupportedVersion() {
-        return 0;
+        return 9; // doesn't currently support topicids
     }
 
     @Override
