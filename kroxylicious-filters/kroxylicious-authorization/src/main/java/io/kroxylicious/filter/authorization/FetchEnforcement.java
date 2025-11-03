@@ -16,11 +16,14 @@ import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.record.MemoryRecords;
+import org.apache.kafka.common.requests.FetchResponse;
 
 import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
+
+import static org.apache.kafka.common.requests.FetchResponse.partitionResponse;
 
 /**
  * Initially no support for topic ids
@@ -80,11 +83,8 @@ class FetchEnforcement extends ApiEnforcement<FetchRequestData, FetchResponseDat
                 .stream().map(t -> new FetchResponseData.FetchableTopicResponse()
                         .setTopic(t.topic())
                         .setTopicId(t.topicId())
-                        .setPartitions(t.partitions().stream().map(p -> new FetchResponseData.PartitionData()
-                                .setPartitionIndex(p.partition())
-                                .setHighWatermark(-1)
-                                .setRecords(MemoryRecords.EMPTY)
-                                .setErrorCode(Errors.TOPIC_AUTHORIZATION_FAILED.code())).toList()))
+                        .setPartitions(t.partitions().stream().map(p ->
+                                partitionResponse(p.partition(), Errors.TOPIC_AUTHORIZATION_FAILED)).toList()))
                 .toList();
     }
 
