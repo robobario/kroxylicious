@@ -6,12 +6,12 @@
 
 package io.kroxylicious.proxy.internal;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.authentication.Subject;
 import io.kroxylicious.proxy.authentication.User;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ClientSaslManagerTest {
 
