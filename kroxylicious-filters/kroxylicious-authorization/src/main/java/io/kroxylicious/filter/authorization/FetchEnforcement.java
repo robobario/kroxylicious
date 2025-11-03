@@ -47,8 +47,8 @@ class FetchEnforcement extends ApiEnforcement<FetchRequestData, FetchResponseDat
                 .thenCompose(authorization -> {
                     var topicReadDecisions = request.topics().stream()
                             .collect(Collectors.groupingBy(t -> authorization.decision(TopicResource.READ, t.topic())));
-                    List<FetchRequestData.FetchTopic> allowedTopics = topicReadDecisions.get(Decision.ALLOW);
-                    if (allowedTopics == null || allowedTopics.isEmpty()) {
+                    List<FetchRequestData.FetchTopic> allowedTopics = topicReadDecisions.getOrDefault(Decision.ALLOW, List.of());
+                    if (allowedTopics.isEmpty()) {
                         // Shortcircuit if there's no allowed topics
                         FetchResponseData response = new FetchResponseData();
                         response.setErrorCode(Errors.NONE.code());

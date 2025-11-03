@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AccessControlEntry;
@@ -39,6 +40,7 @@ public class FetchAuthzIT extends AuthzIT {
 
     public static final String EXISTING_TOPIC_NAME = "other-topic";
     public static final IntStream API_VERSIONS_WITHOUT_TOPIC_IDS = IntStream.rangeClosed(4, 12);
+    public static final IntStream API_VERSIONS_WITH_TOPIC_IDS = IntStream.rangeClosed(13, ApiKeys.FETCH.latestVersion(true));
     private Path rulesFile;
 
     private static final String ALICE_TO_READ_TOPIC_NAME = "alice-new-topic";
@@ -82,8 +84,11 @@ public class FetchAuthzIT extends AuthzIT {
     }
 
     List<Arguments> test() {
-        return API_VERSIONS_WITHOUT_TOPIC_IDS.mapToObj(
-                apiVersion -> (Arguments) Arguments.argumentSet("fetch version " + apiVersion, new FetchEquivalence((short) apiVersion)))
+        Stream<Arguments> supportedVersions = API_VERSIONS_WITHOUT_TOPIC_IDS.mapToObj(
+                apiVersion -> Arguments.argumentSet("fetch version " + apiVersion, new FetchEquivalence((short) apiVersion)));
+        Stream<Arguments> unsupportedVersions = API_VERSIONS_WITH_TOPIC_IDS
+                .mapToObj(apiVersion -> Arguments.argumentSet("unsupported version " + apiVersion, new UnsupportedApiVersion<>(ApiKeys.FETCH, (short) apiVersion)));
+        return Stream.concat(supportedVersions, unsupportedVersions)
                 .toList();
     }
 
