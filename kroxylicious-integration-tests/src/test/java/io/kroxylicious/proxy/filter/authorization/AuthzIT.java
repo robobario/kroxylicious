@@ -22,7 +22,9 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicCollection;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
@@ -62,6 +64,7 @@ import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 import static io.kroxylicious.test.tester.KroxyliciousConfigUtils.proxy;
@@ -157,7 +160,7 @@ public class AuthzIT extends BaseIT {
         }
 
         default Request newRequest(ApiMessage aliceRequest) {
-            return new Request(ApiKeys.forId(aliceRequest.apiKey()), apiVersion(), "test", aliceRequest);
+            return getRequest(apiVersion(), aliceRequest);
         }
     }
 
@@ -204,6 +207,9 @@ public class AuthzIT extends BaseIT {
                     referenceCluster,
                     proxiedCluster,
                     this);
+        }
+
+        public void prepareCluster(BaseClusterFixture cluster) {
         }
     }
 
@@ -391,22 +397,33 @@ public class AuthzIT extends BaseIT {
     protected static void authenticate(KafkaClient client, String username, String password) {
         // For this test we don't really care what the authn mechanism is, so we use the simplest, plain
         // because we have to do the SASL dance ourselves via the very basic `KafkaClient`
-        var handshakeResponse = (SaslHandshakeResponseData) client.getSync(new Request(ApiKeys.SASL_HANDSHAKE,
-                ApiKeys.SASL_HANDSHAKE.latestVersion(),
-                "test",
-                new SaslHandshakeRequestData()
-                        .setMechanism("PLAIN")))
+        var handshakeResponse = (SaslHandshakeResponseData) client.getSync(getRequest(ApiKeys.SASL_HANDSHAKE.latestVersion(),
+                new SaslHandshakeRequestData().setMechanism("PLAIN")))
                 .payload().message();
         assertThat(Errors.forCode(handshakeResponse.errorCode())).isEqualTo(Errors.NONE);
 
         byte[] bytes = (username + "\0" + username + "\0" + password).getBytes(StandardCharsets.UTF_8);
-        var authenticateResponse = (SaslAuthenticateResponseData) client.getSync(new Request(ApiKeys.SASL_AUTHENTICATE,
+        var authenticateResponse = (SaslAuthenticateResponseData) client.getSync(getRequest(
                 ApiKeys.SASL_AUTHENTICATE.latestVersion(),
-                "test",
                 new SaslAuthenticateRequestData()
                         .setAuthBytes(bytes)))
                 .payload().message();
         assertThat(Errors.forCode(authenticateResponse.errorCode())).isEqualTo(Errors.NONE);
+    }
+
+    @NonNull
+    static Request getRequest(short apiVersion, ApiMessage request) {
+        return new Request(
+                ApiKeys.forId(request.apiKey()),
+                apiVersion,
+                "test",
+                request);
+    }
+
+    @NonNull
+    static Request getRequest(short apiVersion, Function<Short, ApiMessage> requestFn) {
+        ApiMessage request = requestFn.apply(apiVersion);
+        return getRequest(apiVersion, request);
     }
 
     static AbstractComparableAssert<?, Errors> assertErrorCodeAtPointer(
@@ -481,12 +498,17 @@ public class AuthzIT extends BaseIT {
     protected <Q extends ApiMessage, S extends ApiMessage> void verifyApiEqivalence(ReferenceCluster referenceCluster,
                                                                                     ProxiedCluster proxiedCluster,
                                                                                     Equivalence<Q, S> scenario) {
+
+        scenario.prepareCluster(referenceCluster);
+
         var unproxiedResponsesByUser = responsesByUser(
                 referenceCluster,
                 scenario);
 
         scenario.assertUnproxiedResponses(unproxiedResponsesByUser);
         scenario.assertVisibleSideEffects(referenceCluster);
+
+        scenario.prepareCluster(proxiedCluster);
 
         var proxiedResponsesByUser = responsesByUser(
                 proxiedCluster,
@@ -521,6 +543,12 @@ public class AuthzIT extends BaseIT {
     protected Set<String> topicListing(BaseClusterFixture cluster) {
         try (var admin = Admin.create(cluster.backingCluster().getKafkaClientConfiguration(SUPER, "Super"))) {
             return admin.listTopics().names().toCompletionStage().toCompletableFuture().join();
+        }
+    }
+
+    protected Map<TopicPartition, OffsetAndMetadata> offsets(BaseClusterFixture cluster, String groupId) {
+        try (var admin = Admin.create(cluster.backingCluster().getKafkaClientConfiguration(SUPER, "Super"))) {
+            return admin.listConsumerGroupOffsets(groupId).partitionsToOffsetAndMetadata().toCompletionStage().toCompletableFuture().join();
         }
     }
 
