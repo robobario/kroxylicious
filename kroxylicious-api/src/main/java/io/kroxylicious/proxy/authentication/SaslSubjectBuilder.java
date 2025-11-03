@@ -13,7 +13,7 @@ import io.kroxylicious.proxy.tls.ClientTlsContext;
 /**
  * <p>Builds a {@link Subject} based on information available from a successful SASL authentication.</p>
  *
- * A {@code SaslSubjectBuilder} instance is constructed by a {@link SaslSubjectBuilderService}.</p>
+ * <p>A {@code SaslSubjectBuilder} instance is constructed by a {@link SaslSubjectBuilderService}.</p>
  *
  * <p>{@link TransportSubjectBuilder} is a similar interface use for building a
  * {@code Subject} based on transport-layer information.

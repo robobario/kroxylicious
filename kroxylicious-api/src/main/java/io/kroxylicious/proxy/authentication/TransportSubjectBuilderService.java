@@ -6,14 +6,16 @@
 
 package io.kroxylicious.proxy.authentication;
 
+import edu.umd.cs.findbugs.annotations.UnknownNullness;
+
 /**
  * The service interface used to construct a {@link TransportSubjectBuilder}.
  * A {@code TransportSubjectBuilderService} can be specified on a virtual cluster.
- * 
+ *
  * @param <C> The configuration type consumed by the particular {@link TransportSubjectBuilder} implementation.
  */
 public interface TransportSubjectBuilderService<C> extends AutoCloseable {
-    void initializeTransportSubjectBuilderService(C config);
+    void initializeTransportSubjectBuilderService(@UnknownNullness C config);
 
     TransportSubjectBuilder buildTransportSubjectBuilderService();
 
