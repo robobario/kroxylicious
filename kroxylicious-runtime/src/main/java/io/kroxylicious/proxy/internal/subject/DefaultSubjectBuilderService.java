@@ -20,6 +20,7 @@ import io.kroxylicious.proxy.authentication.SaslSubjectBuilderService;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilderService;
 import io.kroxylicious.proxy.plugin.Plugin;
+import io.kroxylicious.proxy.plugin.Plugins;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -101,8 +102,8 @@ public class DefaultSubjectBuilderService implements TransportSubjectBuilderServ
     List<PrincipalAdder> adders;
 
     @Override
-    public void initializeTransportSubjectBuilderService(Config config) {
-        adders = config.addPrincipals().stream()
+    public void initializeTransportSubjectBuilderService(@Nullable Config config) {
+        adders = Plugins.requireConfig(this, config).addPrincipals().stream()
                 .map(addConf -> new PrincipalAdder(buildExtractor(addConf.from()),
                         buildMappingRules(addConf.map()),
                         buildPrincipalFactory(addConf.principalFactory())))
@@ -111,7 +112,7 @@ public class DefaultSubjectBuilderService implements TransportSubjectBuilderServ
 
     @Override
     public void initializeSaslSubjectBuilderService(Config config) {
-        adders = config.addPrincipals().stream()
+        adders = Plugins.requireConfig(this, config).addPrincipals().stream()
                 .map(addConf -> new PrincipalAdder(buildExtractor(addConf.from()),
                         buildMappingRules(addConf.map()),
                         buildPrincipalFactory(addConf.principalFactory())))
