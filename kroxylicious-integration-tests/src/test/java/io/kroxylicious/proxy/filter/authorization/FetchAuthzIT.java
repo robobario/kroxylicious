@@ -135,9 +135,9 @@ public class FetchAuthzIT extends AuthzIT {
         @Override
         public FetchRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
             FetchRequestData fetchRequestData = new FetchRequestData();
-            FetchRequestData.FetchTopic topicA = createFetchTopic(ALICE_TO_READ_TOPIC_NAME, 0);
-            FetchRequestData.FetchTopic topicB = createFetchTopic(BOB_TO_READ_TOPIC_NAME, 0);
-            FetchRequestData.FetchTopic topicC = createFetchTopic(EXISTING_TOPIC_NAME, 0);
+            FetchRequestData.FetchTopic topicA = createFetchTopic(ALICE_TO_READ_TOPIC_NAME, 0, 20);
+            FetchRequestData.FetchTopic topicB = createFetchTopic(BOB_TO_READ_TOPIC_NAME, 0, 20);
+            FetchRequestData.FetchTopic topicC = createFetchTopic(EXISTING_TOPIC_NAME, 0, 20);
             fetchRequestData.setTopics(List.of(topicA, topicB, topicC));
             return fetchRequestData;
         }
