@@ -6,6 +6,8 @@
 
 package io.kroxylicious.filter.authorization;
 
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
@@ -15,8 +17,6 @@ import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.protocol.Errors;
-import org.apache.kafka.common.record.MemoryRecords;
-import org.apache.kafka.common.requests.FetchResponse;
 
 import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
@@ -66,15 +66,53 @@ class FetchEnforcement extends ApiEnforcement<FetchRequestData, FetchResponseDat
                         return context.forwardRequest(header, request);
                     }
                     else {
+                        List<String> requestTopicOrder = request.topics().stream().map(FetchRequestData.FetchTopic::topic).toList();
                         request.setTopics(allowedTopics);
-                        var fetchableTopicResponses = createDenyTopicResponses(topicReadDecisions);
-                        authorizationFilter.pushInflightState(header, (FetchResponseData response) -> {
-                            response.responses().addAll(fetchableTopicResponses);
-                            return response;
-                        });
+                        var erroneousResponses = new HashMap<>(createDenyTopicResponses(topicReadDecisions).stream().collect(Collectors.toMap(
+                                FetchResponseData.FetchableTopicResponse::topic, x -> x)));
+                        authorizationFilter.pushInflightState(header,
+                                (FetchResponseData response) -> combineDeniedWithUpstreamResponse(response, erroneousResponses, requestTopicOrder));
                         return context.forwardRequest(header, request);
                     }
                 });
+    }
+
+    /**
+     * Reimplements odd behaviour discovered in the broker where the order of successful/errored partitions influences what is emitted.
+     * See {@link org.apache.kafka.common.requests.FetchResponse#toMessage(Errors, int, int, Iterator, List)}
+     */
+    private static FetchResponseData combineDeniedWithUpstreamResponse(FetchResponseData response,
+                                                                       HashMap<String, FetchResponseData.FetchableTopicResponse> erroneousResponses,
+                                                                       List<String> requestTopicOrder) {
+        List<FetchResponseData.FetchableTopicResponse> responses = response.responses();
+        List<FetchResponseData.FetchableTopicResponse> emptied = responses.stream().filter(fetchableTopicResponse -> {
+            List<FetchResponseData.PartitionData> erroneous = fetchableTopicResponse.partitions().stream()
+                    .filter(partitionData -> Errors.forCode(partitionData.errorCode()) != Errors.NONE).toList();
+            if (!erroneous.isEmpty()) {
+                fetchableTopicResponse.partitions().removeAll(erroneous);
+                FetchResponseData.FetchableTopicResponse value = new FetchResponseData.FetchableTopicResponse();
+                value.setTopic(fetchableTopicResponse.topic());
+                value.setPartitions(erroneous);
+                erroneousResponses.put(fetchableTopicResponse.topic(), value);
+                return fetchableTopicResponse.partitions().isEmpty();
+            }
+            return false;
+        }).toList();
+        responses.removeAll(emptied); // remove any upstream topics that had all partitions respond erroneously (they will be re-added)
+        for (String topic : requestTopicOrder) {
+            if (erroneousResponses.containsKey(topic)) {
+                if (responses.isEmpty()) {
+                    responses.add(erroneousResponses.get(topic));
+                }
+                else if (responses.get(responses.size() - 1).topic().equals(topic)) {
+                    responses.get(responses.size() - 1).partitions().addAll(erroneousResponses.get(topic).partitions());
+                }
+                else {
+                    responses.add(erroneousResponses.get(topic));
+                }
+            }
+        }
+        return response;
     }
 
     private static List<FetchResponseData.FetchableTopicResponse> createDenyTopicResponses(
@@ -83,8 +121,7 @@ class FetchEnforcement extends ApiEnforcement<FetchRequestData, FetchResponseDat
                 .stream().map(t -> new FetchResponseData.FetchableTopicResponse()
                         .setTopic(t.topic())
                         .setTopicId(t.topicId())
-                        .setPartitions(t.partitions().stream().map(p ->
-                                partitionResponse(p.partition(), Errors.TOPIC_AUTHORIZATION_FAILED)).toList()))
+                        .setPartitions(t.partitions().stream().map(p -> partitionResponse(p.partition(), Errors.TOPIC_AUTHORIZATION_FAILED)).toList()))
                 .toList();
     }
 
