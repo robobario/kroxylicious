@@ -36,6 +36,11 @@ public final class ProxiedCluster implements BaseClusterFixture {
     }
 
     @Override
+    public String name() {
+        return "proxied";
+    }
+
+    @Override
     public String clientBootstrap() {
         return tester.getBootstrapAddress();
     }

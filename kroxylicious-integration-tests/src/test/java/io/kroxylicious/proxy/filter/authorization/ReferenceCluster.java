@@ -20,6 +20,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  *  attempting to replicate.
  */
 public final class ReferenceCluster implements BaseClusterFixture {
+
     private final KafkaCluster cluster;
     private final Map<String, Uuid> topicIds;
 
@@ -27,6 +28,11 @@ public final class ReferenceCluster implements BaseClusterFixture {
                      Map<String, Uuid> topicIds) {
         this.cluster = cluster;
         this.topicIds = topicIds;
+    }
+
+    @Override
+    public String name() {
+        return "reference";
     }
 
     @Override

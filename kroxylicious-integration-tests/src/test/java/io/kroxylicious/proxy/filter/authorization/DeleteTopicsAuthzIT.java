@@ -127,8 +127,8 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public DeleteTopicsRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
-            return requestTemplate.request(user, topicNameToId);
+        public DeleteTopicsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
+            return requestTemplate.request(user, clusterFixture);
         }
 
         @Override
@@ -202,7 +202,7 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
                 for (var request : requests) {
                     RequestTemplate<DeleteTopicsRequestData> requestTemplate = new RequestTemplate<>() {
                         @Override
-                        public DeleteTopicsRequestData request(String user, Map<String, Uuid> topicNameToId) {
+                        public DeleteTopicsRequestData request(String user, BaseClusterFixture clusterFixture) {
                             var result = request.duplicate();
                             String topicName = user + "-topic";
                             if (result.topicNames() != null) {
@@ -214,7 +214,7 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
                                         state.setName(topicName);
                                     }
                                     else if (state.topicId() != null) {
-                                        state.setTopicId(Objects.requireNonNull(topicNameToId.get(topicName)));
+                                        state.setTopicId(Objects.requireNonNull(clusterFixture.topicIds().get(topicName)));
                                     }
                                     else {
                                         throw new IllegalStateException();

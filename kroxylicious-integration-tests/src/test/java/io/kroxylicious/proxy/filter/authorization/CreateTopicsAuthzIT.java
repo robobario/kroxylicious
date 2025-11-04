@@ -126,8 +126,8 @@ public class CreateTopicsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public CreateTopicsRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
-            return requestTemplate.request(user, topicNameToId);
+        public CreateTopicsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
+            return requestTemplate.request(user, clusterFixture);
         }
 
         @Override
@@ -184,7 +184,7 @@ public class CreateTopicsAuthzIT extends AuthzIT {
                 result.add(
                         Arguments.of(new CreateTopicsEquivalence(apiVersion, new RequestTemplate<CreateTopicsRequestData>() {
                             @Override
-                            public CreateTopicsRequestData request(String user, Map<String, Uuid> topicIds) {
+                            public CreateTopicsRequestData request(String user, BaseClusterFixture clusterFixture) {
                                 var data = new CreateTopicsRequestData();
                                 data.topics().addAll(duplicateList(topics));
                                 return data;
