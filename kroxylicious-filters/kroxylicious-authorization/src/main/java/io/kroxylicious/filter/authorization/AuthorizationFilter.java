@@ -75,6 +75,7 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         apiEnforcement.put(ApiKeys.OFFSET_COMMIT, new OffsetCommitEnforcement());
         apiEnforcement.put(ApiKeys.OFFSET_FETCH, new CompositeEnforcement<>(List.of(new OffsetFetchNonBatchingEnforcement(), new OffsetFetchGroupBatchingEnforcement())));
         apiEnforcement.put(ApiKeys.OFFSET_DELETE, new OffsetDeleteEnforcement());
+        apiEnforcement.put(ApiKeys.OFFSET_FOR_LEADER_EPOCH, new OffsetForLeaderEpochEnforcement());
 
         apiEnforcement.put(ApiKeys.FIND_COORDINATOR, new Passthrough<>(0, 6));
         apiEnforcement.put(ApiKeys.JOIN_GROUP, new Passthrough<>(0, 9));
