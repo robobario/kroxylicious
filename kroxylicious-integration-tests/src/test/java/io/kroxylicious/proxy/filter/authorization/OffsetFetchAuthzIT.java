@@ -49,18 +49,17 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import io.kroxylicious.filter.authorization.AuthorizationFilter;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 
-import static java.util.function.Function.identity;
+import static io.kroxylicious.filter.authorization.OffsetFetchGroupBatchingEnforcement.FIRST_VERSION_USING_GROUP_BATCHING;
+import static java.util.stream.Stream.concat;
 
 public class OffsetFetchAuthzIT extends AuthzIT {
 
     public static final String EXISTING_TOPIC_NAME = "other-topic";
-    public static final IntStream API_VERSIONS_BEFORE_GROUP_BATCHING = IntStream.rangeClosed(1, 7);
-    public static final IntStream API_VERSIONS_WITH_GROUP_BATCHING = IntStream.rangeClosed(8, 9);
-    public static final IntStream API_VERSIONS_WITH_TOPIC_IDS = IntStream.rangeClosed(10, ApiKeys.OFFSET_FETCH.latestVersion(true));
     public static final String GROUP_ID = "groupid";
     private Path rulesFile;
 
@@ -93,13 +92,6 @@ public class OffsetFetchAuthzIT extends AuthzIT {
                 allowAllOnGroup(ALICE, GROUP_ID),
                 allowAllOnGroup(BOB, GROUP_ID),
                 allowAllOnGroup(EVE, GROUP_ID));
-    }
-
-    private static AclBinding allowAllOnGroup(String user, String groupId) {
-        return new AclBinding(
-                new ResourcePattern(ResourceType.GROUP, groupId, PatternType.LITERAL),
-                new AccessControlEntry("User:" + user, "*",
-                        AclOperation.ALL, AclPermissionType.ALLOW));
     }
 
     @BeforeEach
@@ -147,14 +139,17 @@ public class OffsetFetchAuthzIT extends AuthzIT {
     }
 
     List<Arguments> test() {
-        Stream<Arguments> supportedVersions = API_VERSIONS_BEFORE_GROUP_BATCHING.mapToObj(
-                apiVersion -> Arguments.argumentSet("api version before batching version " + apiVersion, new OffsetFetchEquivalence((short) apiVersion)));
-        Stream<Arguments> supportedVersionsWithGroupBatching = API_VERSIONS_WITH_GROUP_BATCHING.mapToObj(
+        Stream<Arguments> supportedVersionsBeforeGroupBatching = IntStream.range(AuthorizationFilter.minSupportedApiVersion(ApiKeys.OFFSET_FETCH),
+                FIRST_VERSION_USING_GROUP_BATCHING)
+                .mapToObj(apiVersion -> Arguments.argumentSet("api version before batching version " + apiVersion, new OffsetFetchEquivalence((short) apiVersion)));
+        Stream<Arguments> supportedVersionsWithGroupBatching = IntStream.rangeClosed(8, AuthorizationFilter.maxSupportedApiVersion(ApiKeys.OFFSET_FETCH)).mapToObj(
                 apiVersion -> Arguments.argumentSet("api version with batching version " + apiVersion, new OffsetFetchEquivalenceGroupBatching((short) apiVersion)));
-        Stream<Arguments> unsupportedVersions = API_VERSIONS_WITH_TOPIC_IDS
+        Stream<Arguments> unsupportedVersions = IntStream.rangeClosed(ApiKeys.OFFSET_FETCH.oldestVersion(), ApiKeys.OFFSET_FETCH.latestVersion(true))
+                .filter(version -> !AuthorizationFilter.isApiVersionSupported(ApiKeys.OFFSET_FETCH, (short) version))
                 .mapToObj(
                         apiVersion -> Arguments.argumentSet("unsupported version " + apiVersion, new UnsupportedApiVersion<>(ApiKeys.OFFSET_FETCH, (short) apiVersion)));
-        return Stream.of(supportedVersions, supportedVersionsWithGroupBatching, unsupportedVersions).flatMap(identity()).toList();
+        Stream<Arguments> allSupported = concat(supportedVersionsBeforeGroupBatching, supportedVersionsWithGroupBatching);
+        return concat(allSupported, unsupportedVersions).toList();
     }
 
     @ParameterizedTest

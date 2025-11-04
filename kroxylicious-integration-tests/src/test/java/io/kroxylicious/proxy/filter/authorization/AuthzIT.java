@@ -24,7 +24,10 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
+import org.apache.kafka.common.acl.AclOperation;
+import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.message.SaslAuthenticateRequestData;
 import org.apache.kafka.common.message.SaslAuthenticateResponseData;
@@ -34,6 +37,9 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.Message;
+import org.apache.kafka.common.resource.PatternType;
+import org.apache.kafka.common.resource.ResourcePattern;
+import org.apache.kafka.common.resource.ResourceType;
 import org.assertj.core.api.AbstractComparableAssert;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,6 +126,13 @@ public class AuthzIT extends BaseIT {
 
     Map<String, Uuid> topicIdsInUnproxiedCluster;
     Map<String, Uuid> topicIdsInProxiedCluster;
+
+    static AclBinding allowAllOnGroup(String user, String groupId) {
+        return new AclBinding(
+                new ResourcePattern(ResourceType.GROUP, groupId, PatternType.LITERAL),
+                new AccessControlEntry("User:" + user, "*",
+                        AclOperation.ALL, AclPermissionType.ALLOW));
+    }
 
     /**
      * A version-specific test scenario.

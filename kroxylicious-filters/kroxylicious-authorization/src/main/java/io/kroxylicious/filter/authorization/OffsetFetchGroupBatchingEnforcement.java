@@ -24,10 +24,18 @@ import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
 
-public class OffsetFetchV8PlusEnforcement extends ApiEnforcement<OffsetFetchRequestData, OffsetFetchResponseData> {
+/**
+ * At api version 8 the OffsetFetch API was evolved significantly, introducing an OffsetFetchRequestGroup list at the top level, so that
+ * offsets for multiple groups can be retrieved with a single RPC. The generated java types and merge logic are different enough
+ * to justify a distinct enforcer implementation.
+ */
+public class OffsetFetchGroupBatchingEnforcement extends ApiEnforcement<OffsetFetchRequestData, OffsetFetchResponseData> {
+
+    public static final short FIRST_VERSION_USING_GROUP_BATCHING = 8;
+
     @Override
     short minSupportedVersion() {
-        return 8;
+        return FIRST_VERSION_USING_GROUP_BATCHING;
     }
 
     // last version before switching to topic ids
@@ -123,7 +131,7 @@ public class OffsetFetchV8PlusEnforcement extends ApiEnforcement<OffsetFetchRequ
         return denied.stream().map(x -> new OffsetFetchResponseData.OffsetFetchResponseTopics()
                 .setName(x.name())
                 .setPartitions(x.partitionIndexes().stream()
-                        .map(OffsetFetchV8PlusEnforcement::unauthorizedPartition)
+                        .map(OffsetFetchGroupBatchingEnforcement::unauthorizedPartition)
                         .toList()))
                 .toList();
     }

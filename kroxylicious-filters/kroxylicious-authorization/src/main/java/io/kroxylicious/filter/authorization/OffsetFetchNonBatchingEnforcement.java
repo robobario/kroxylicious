@@ -23,7 +23,7 @@ import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
 
-public class OffsetFetchUpToV7Enforcement extends ApiEnforcement<OffsetFetchRequestData, OffsetFetchResponseData> {
+public class OffsetFetchNonBatchingEnforcement extends ApiEnforcement<OffsetFetchRequestData, OffsetFetchResponseData> {
     // lowest version supported by proxy
     @Override
     short minSupportedVersion() {
@@ -45,7 +45,7 @@ public class OffsetFetchUpToV7Enforcement extends ApiEnforcement<OffsetFetchRequ
                         .map(OffsetFetchRequestData.OffsetFetchRequestTopic::name));
         return authorizationFilter.authorization(context, actions)
                 .thenCompose(authorization -> {
-                    var decisions = authorization.partition(request.topics(), TopicResource.DESCRIBE, t -> t.name());
+                    var decisions = authorization.partition(request.topics(), TopicResource.DESCRIBE, OffsetFetchRequestData.OffsetFetchRequestTopic::name);
                     if (decisions.get(Decision.DENY).isEmpty()) {
                         return context.forwardRequest(header, request);
                     }
@@ -87,7 +87,7 @@ public class OffsetFetchUpToV7Enforcement extends ApiEnforcement<OffsetFetchRequ
         return offsetFetchRequestTopics.stream().map(x -> new OffsetFetchResponseData.OffsetFetchResponseTopic()
                 .setName(x.name())
                 .setPartitions(x.partitionIndexes().stream()
-                        .map(OffsetFetchUpToV7Enforcement::unauthorizedPartition)
+                        .map(OffsetFetchNonBatchingEnforcement::unauthorizedPartition)
                         .toList()))
                 .toList();
     }
