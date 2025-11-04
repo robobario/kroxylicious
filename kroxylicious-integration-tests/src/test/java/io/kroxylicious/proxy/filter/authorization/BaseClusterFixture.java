@@ -21,6 +21,8 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  */
 public interface BaseClusterFixture extends AutoCloseable {
 
+    String name();
+
     /**
      * @return The bootstrap server for test clients to use
      */

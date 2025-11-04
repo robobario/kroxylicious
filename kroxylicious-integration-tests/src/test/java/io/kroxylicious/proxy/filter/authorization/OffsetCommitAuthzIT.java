@@ -10,27 +10,33 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.FindCoordinatorRequestData;
+import org.apache.kafka.common.message.FindCoordinatorRequestDataJsonConverter;
 import org.apache.kafka.common.message.FindCoordinatorResponseData;
+import org.apache.kafka.common.message.FindCoordinatorResponseDataJsonConverter;
 import org.apache.kafka.common.message.JoinGroupRequestData;
+import org.apache.kafka.common.message.JoinGroupRequestDataJsonConverter;
 import org.apache.kafka.common.message.JoinGroupResponseData;
+import org.apache.kafka.common.message.JoinGroupResponseDataJsonConverter;
 import org.apache.kafka.common.message.OffsetCommitRequestData;
 import org.apache.kafka.common.message.OffsetCommitResponseData;
 import org.apache.kafka.common.message.OffsetCommitResponseDataJsonConverter;
 import org.apache.kafka.common.message.SyncGroupRequestData;
+import org.apache.kafka.common.message.SyncGroupRequestDataJsonConverter;
 import org.apache.kafka.common.message.SyncGroupResponseData;
+import org.apache.kafka.common.message.SyncGroupResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
@@ -50,6 +56,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.kroxylicious.filter.authorization.AuthorizationFilter;
 import io.kroxylicious.test.client.KafkaClient;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class OffsetCommitAuthzIT extends AuthzIT {
@@ -64,15 +72,14 @@ public class OffsetCommitAuthzIT extends AuthzIT {
             EVE_TOPIC_NAME,
             EXISTING_TOPIC_NAME);
 
+    private static final String FOO_GROUP_ID = "foo";
+
     private Path rulesFile;
 
     private List<AclBinding> aclBindings;
-    private String memberId;
 
     @BeforeAll
-    void beforeAll() throws IOException {
-        // TODO need to add Carol who has Cluster.CREATE
-        // TODO need to add Carol who has Cluster.CREATE
+    void beforeAll() throws IOException, ExecutionException, InterruptedException {
         rulesFile = Files.createTempFile(getClass().getName(), ".aclRules");
         Files.writeString(rulesFile, """
                 version 1;
@@ -89,16 +96,16 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         aclBindings = List.of(
                 // group permissions
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, groupId, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
                         new AccessControlEntry("User:" + ALICE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, groupId, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
                         new AccessControlEntry("User:" + BOB, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 // Allow Eve to access the group, so we can test the authorization of the topic
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, groupId, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
                         new AccessControlEntry("User:" + EVE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
 
@@ -111,6 +118,9 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                         new ResourcePattern(ResourceType.TOPIC, BOB_TOPIC_NAME, PatternType.LITERAL),
                         new AccessControlEntry("User:" + BOB, "*",
                                 AclOperation.CREATE, AclPermissionType.ALLOW)));
+
+        //ensureInternalTopicsExist(kafkaClusterWithAuthz, "tmpvsdvsv");
+        //ensureInternalTopicsExist(kafkaClusterNoAuthz, "tmp");
     }
 
     @BeforeEach
@@ -124,6 +134,8 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         deleteTopicsAndAcls(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
         deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
+
+    Map<String, GroupContext> groupContexts = new HashMap<>();
 
     class OffsetCommitEquivalence extends Equivalence<OffsetCommitRequestData, OffsetCommitResponseData> {
 
@@ -154,84 +166,21 @@ public class OffsetCommitAuthzIT extends AuthzIT {
             return PASSWORDS;
         }
 
-        FindCoordinatorRequestData findCoordinatorRequestData(short findCoordinatorVersion) {
-            FindCoordinatorRequestData result = new FindCoordinatorRequestData();
 
-            if (findCoordinatorVersion >= 1) {
-                result.setKeyType(FindCoordinatorRequest.CoordinatorType.GROUP.id());
-            }
-            if (findCoordinatorVersion >= 4) {
-                result.coordinatorKeys().add(groupId);
-            }
-            else {
-                result.setKey(groupId);
-            }
-            return result;
-        }
-
-        JoinGroupRequestData joinGroupRequestData(short joinGroupVersion, FindCoordinatorResponseData coordinatorResponse) {
-            JoinGroupRequestData result = new JoinGroupRequestData();
-            result.setGroupId(groupId);
-            result.setMemberId("");
-            result.setSessionTimeoutMs(10_000);
-            if (joinGroupVersion >= 1) {
-                result.setRebalanceTimeoutMs(2_000);
-            }
-            if (joinGroupVersion >= 5) {
-                result.setGroupInstanceId(groupInstanceId);
-            }
-            if (joinGroupVersion >= 8) {
-                result.setReason("Hello, world");
-            }
-            result.setProtocolType(PROTOCOL_TYPE);
-            result.protocols().add(new JoinGroupRequestData.JoinGroupRequestProtocol().setName("proto").setMetadata(new byte[]{1}));
-            return result;
-        }
-
-        SyncGroupRequestData syncGroupRequestData(short syncGroupVersion, JoinGroupResponseData joinResponse) {
-            OffsetCommitAuthzIT.this.memberId = joinResponse.memberId();
-            SyncGroupRequestData result = new SyncGroupRequestData();
-            result.setGroupId(groupId);
-            if (syncGroupVersion >= 3) {
-                result.setGroupInstanceId(groupInstanceId);
-            }
-            result.setMemberId(joinResponse.memberId());
-            if (syncGroupVersion >= 5) {
-                result.setProtocolType(PROTOCOL_TYPE);
-                result.setProtocolName("evwrv");
-            }
-            result.setGenerationId(++generation);
-            result.assignments().add(new SyncGroupRequestData.SyncGroupRequestAssignment()
-                    .setMemberId(joinResponse.memberId())
-                    .setAssignment(new byte[]{ 42 }));
-            return result;
-        }
 
         @Override
         public void prepareCluster(BaseClusterFixture cluster) {
             Map<String, KafkaClient> stringKafkaClientMap = cluster.authenticatedClients(PASSWORDS.keySet());
             stringKafkaClientMap.forEach((username, kafkaClient) -> {
-                short findCoordinatorVersion = (short) 1;
-                short joinGroupVersion = (short) 1;
-                short syncGroupVersion = (short) 1;
-                var a = (FindCoordinatorResponseData) kafkaClient.getSync(getRequest(findCoordinatorVersion, this::findCoordinatorRequestData)).payload().message();
-                assertThat(Errors.forCode(a.errorCode()))
-                        .as("FindCoordinator response: %s", a.errorMessage())
-                        .isEqualTo(Errors.NONE);
-                var b = (JoinGroupResponseData) kafkaClient.getSync(getRequest(joinGroupVersion, joinGroupRequestData(joinGroupVersion, a))).payload().message();
-                assertThat(Errors.forCode(b.errorCode()))
-                        .as("JoinGroup response")
-                        .isEqualTo(Errors.NONE);
-                var c = (SyncGroupResponseData) kafkaClient.getSync(getRequest(syncGroupVersion, syncGroupRequestData(syncGroupVersion, b))).payload().message();
-                assertThat(Errors.forCode(c.errorCode()))
-                        .as("SyncGroup response")
-                        .isEqualTo(Errors.NONE);
+                var groupContext = new GroupContext(username, FOO_GROUP_ID);
+                groupContext.doUptoSyncedGroup(cluster, kafkaClient);
+                groupContexts.put(cluster.name() + username, groupContext);
             });
         }
 
         @Override
-        public OffsetCommitRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
-            return requestTemplate.request(user, topicNameToId);
+        public OffsetCommitRequestData requestData(String user, BaseClusterFixture clusterFixture) {
+            return requestTemplate.request(user, clusterFixture);
         }
 
         @Override
@@ -252,23 +201,36 @@ public class OffsetCommitAuthzIT extends AuthzIT {
 
         @Override
         public void assertVisibleSideEffects(BaseClusterFixture cluster) {
-            assertThat(offsets(cluster, groupId))
+            assertThat(offsets(cluster, FOO_GROUP_ID))
                     .as("Observed offsets in %s", cluster)
                     .isEqualTo(Map.of(
-                            new TopicPartition("alice-topic", 0), new OffsetAndMetadata(420)));
+                            new TopicPartition("alice-topic", 0), 420L));
         }
 
         @Override
         public void assertUnproxiedResponses(Map<String, OffsetCommitResponseData> unproxiedResponsesByUser) {
-            assertThat(unproxiedResponsesByUser.get(ALICE).topics().stream().filter(t -> t.name().equals(ALICE_TOPIC_NAME)).findFirst()
-                    .orElseThrow()
-                    .partitions().stream()
-                    .allMatch(p -> p.errorCode() == Errors.NONE.code())).isTrue();
+            assertThat(unproxiedResponsesByUser.get(ALICE).topics().stream()
+                    .flatMap(t -> t.partitions().stream().map(p -> {
+                        return Map.entry(new TopicPartition(t.name(), p.partitionIndex()), Errors.forCode(p.errorCode()));
+                            }))
+                    .filter(e -> e.getValue() != Errors.NONE)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                    .as("%s offsets in %s", ALICE, unproxiedResponsesByUser)
+                    .isEmpty();
 
-            assertThat(unproxiedResponsesByUser.get(EVE).topics().stream().filter(t -> t.name().equals(EVE_TOPIC_NAME)).findFirst()
-                    .orElseThrow()
-                    .partitions().stream()
-                    .allMatch(p -> p.errorCode() == Errors.TOPIC_AUTHORIZATION_FAILED.code())).isTrue();
+            assertThat(unproxiedResponsesByUser.get(EVE).topics().stream()
+                    .flatMap(t -> t.partitions().stream().map(p -> {
+                        return Map.entry(new TopicPartition(t.name(), p.partitionIndex()), Errors.forCode(p.errorCode()));
+                    }))
+                    .filter(e -> e.getValue() != Errors.TOPIC_AUTHORIZATION_FAILED)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                    .as("%s offsets in %s", EVE, unproxiedResponsesByUser)
+                    .isEmpty();
+
+//            assertThat(unproxiedResponsesByUser.get(EVE).topics().stream().filter(t -> t.name().equals(EVE_TOPIC_NAME)).findFirst()
+//                    .orElseThrow()
+//                    .partitions().stream()
+//                    .allMatch(p -> p.errorCode() == Errors.TOPIC_AUTHORIZATION_FAILED.code())).isTrue();
 
 //            var xx = unproxiedResponsesByUser.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
 //                            entry -> prettyJsonString(convertResponse(entry.getValue()))));
@@ -296,7 +258,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                     Arguments.of(new OffsetCommitEquivalence(apiVersion, new RequestTemplate<OffsetCommitRequestData>() {
 
                         @Override
-                        public OffsetCommitRequestData request(String user, Map<String, Uuid> topicIds) {
+                        public OffsetCommitRequestData request(String user, BaseClusterFixture clusterFixture) {
                             var offsetCommitRequestTopic = new OffsetCommitRequestData.OffsetCommitRequestTopic()
                                     .setName(user + "-topic");
                             offsetCommitRequestTopic
@@ -307,12 +269,14 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                                             .setCommittedLeaderEpoch(1));
 
                             var data = new OffsetCommitRequestData();
-                            data.setGroupId(groupId);
+                            data.setGroupId(FOO_GROUP_ID);
                             if (apiVersion >= 7) {
-                                data.setGroupInstanceId(groupId + "-1");
+                                data.setGroupInstanceId(FOO_GROUP_ID + "-" + user);
                             }
-                            data.setMemberId(memberId);
-                            data.setGenerationIdOrMemberEpoch(generation);
+
+                            GroupContext groupContext = Objects.requireNonNull(groupContexts.get(clusterFixture.name() + user));
+                            data.setMemberId(Objects.requireNonNull(groupContext.memberId));
+                            data.setGenerationIdOrMemberEpoch(groupContext.generation);
                             data.setRetentionTimeMs(123);
                             data.topics().add(offsetCommitRequestTopic);
                             return data;
@@ -333,9 +297,149 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         }
     }
 
-    private final String groupId = getClass().getSimpleName();
-    private final String groupInstanceId = groupId + "-1";
-    private static final String PROTOCOL_TYPE = "consumer";
-    private int generation = 0;
+    class GroupContext {
+
+        private final String groupId;
+        private final String groupInstanceId;
+        private static final String PROTOCOL_TYPE = "consumer";
+        private final String username;
+        private int generation = 0;
+        private String memberId;
+
+        GroupContext(String username, String groupId) {
+            this.username = username;
+            this.groupId = groupId;
+            this.groupInstanceId = groupId + "-" + username;
+        }
+
+        FindCoordinatorRequestData findCoordinatorRequestData(short findCoordinatorVersion) {
+            FindCoordinatorRequestData result = new FindCoordinatorRequestData();
+
+            if (findCoordinatorVersion >= 1) {
+                result.setKeyType(FindCoordinatorRequest.CoordinatorType.GROUP.id());
+            }
+            if (findCoordinatorVersion >= 4) {
+                result.coordinatorKeys().add(groupId);
+            }
+            else {
+                result.setKey(groupId);
+            }
+            return result;
+        }
+
+        @NonNull
+        private FindCoordinatorResponseData doFindCoordinator(BaseClusterFixture cluster, KafkaClient kafkaClient) {
+            do {
+                short findCoordinatorVersion = (short) 1;
+                FindCoordinatorRequestData request = findCoordinatorRequestData(findCoordinatorVersion);
+                LOG.info("{} FIND_COORDINATOR{} >> {}",
+                        username,
+                        prettyJsonString(FindCoordinatorRequestDataJsonConverter.write(request, findCoordinatorVersion)),
+                        cluster.name());
+                var response = (FindCoordinatorResponseData) kafkaClient.getSync(getRequest(findCoordinatorVersion, request)).payload().message();
+                LOG.info("{} FIND_COORDINATOR{} >> {}",
+                        username,
+                        prettyJsonString(FindCoordinatorResponseDataJsonConverter.write(response, findCoordinatorVersion)),
+                        cluster.name());
+                Errors actual = Errors.forCode(response.errorCode());
+                if (actual == Errors.COORDINATOR_NOT_AVAILABLE) {
+                    try {
+                        Thread.sleep(100);
+                    }
+                    catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    continue;
+                }
+                assertThat(actual)
+                        .as("FindCoordinator response from %s (errorMessage=%s)", cluster, response.errorMessage())
+                        .isEqualTo(Errors.NONE);
+                return response;
+            } while (true);
+        }
+
+        @NonNull
+        private JoinGroupResponseData doJoinGroup(BaseClusterFixture cluster, KafkaClient kafkaClient, FindCoordinatorResponseData a) {
+            short joinGroupVersion = (short) 5;
+            JoinGroupRequestData request = joinGroupRequestData(joinGroupVersion, a);
+            LOG.info("{} JOIN_GROUP{} >> {}",
+                    username,
+                    prettyJsonString(JoinGroupRequestDataJsonConverter.write(request, joinGroupVersion)),
+                    cluster.name());
+            var response = (JoinGroupResponseData) kafkaClient.getSync(getRequest(joinGroupVersion, request)).payload().message();
+            LOG.info("{} JOIN_GROUP{} >> {}",
+                    username,
+                    prettyJsonString(JoinGroupResponseDataJsonConverter.write(response, joinGroupVersion)),
+                    cluster.name());
+            assertThat(Errors.forCode(response.errorCode()))
+                    .as("JoinGroup response from %s", cluster)
+                    .isEqualTo(Errors.NONE);
+
+            generation = response.generationId();
+            return response;
+        }
+
+        private JoinGroupRequestData joinGroupRequestData(short joinGroupVersion, FindCoordinatorResponseData coordinatorResponse) {
+            JoinGroupRequestData result = new JoinGroupRequestData();
+            result.setGroupId(groupId);
+            result.setMemberId("");
+            result.setSessionTimeoutMs(10_000);
+            if (joinGroupVersion >= 1) {
+                result.setRebalanceTimeoutMs(2_000);
+            }
+            if (joinGroupVersion >= 5) {
+                result.setGroupInstanceId(groupInstanceId);
+            }
+            if (joinGroupVersion >= 8) {
+                result.setReason("Hello, world");
+            }
+            result.setProtocolType(PROTOCOL_TYPE);
+            result.protocols().add(new JoinGroupRequestData.JoinGroupRequestProtocol().setName("proto").setMetadata(new byte[]{1}));
+            return result;
+        }
+
+        private void doSyncGroup(BaseClusterFixture cluster, KafkaClient kafkaClient, JoinGroupResponseData b) {
+            short syncGroupVersion = (short) 3;
+            SyncGroupRequestData request = syncGroupRequestData(syncGroupVersion, b);
+            LOG.info("{} SYNC_GROUP{} >> {}",
+                    username,
+                    prettyJsonString(SyncGroupRequestDataJsonConverter.write(request, syncGroupVersion)),
+                    cluster.name());
+            var c = (SyncGroupResponseData) kafkaClient.getSync(getRequest(syncGroupVersion, request)).payload().message();
+            LOG.info("{} SYNC_GROUP{} >> {}",
+                    username,
+                    prettyJsonString(SyncGroupResponseDataJsonConverter.write(c, syncGroupVersion)),
+                    cluster.name());
+            assertThat(Errors.forCode(c.errorCode()))
+                    .as("SyncGroup response from %s", cluster)
+                    .isEqualTo(Errors.NONE);
+        }
+
+        private SyncGroupRequestData syncGroupRequestData(short syncGroupVersion, JoinGroupResponseData joinResponse) {
+            this.memberId = Objects.requireNonNull(joinResponse.memberId());
+            SyncGroupRequestData result = new SyncGroupRequestData();
+            result.setGroupId(groupId);
+            if (syncGroupVersion >= 3) {
+                result.setGroupInstanceId(groupInstanceId);
+            }
+            result.setMemberId(joinResponse.memberId());
+            if (syncGroupVersion >= 5) {
+                result.setProtocolType(PROTOCOL_TYPE);
+                result.setProtocolName("evwrv");
+            }
+            result.setGenerationId(generation);
+            result.assignments().add(new SyncGroupRequestData.SyncGroupRequestAssignment()
+                    .setMemberId(joinResponse.memberId())
+                    .setAssignment(new byte[]{ 42 }));
+            return result;
+        }
+
+        public void doUptoSyncedGroup(BaseClusterFixture cluster, KafkaClient kafkaClient) {
+            var findCoordinatorResponse = doFindCoordinator(cluster, kafkaClient);
+            var joinGroupResponse = doJoinGroup(cluster, kafkaClient, findCoordinatorResponse);
+            doSyncGroup(cluster, kafkaClient, joinGroupResponse);
+        }
+
+    }
 
 }

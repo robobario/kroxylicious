@@ -132,8 +132,8 @@ public class CreatePartitionsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public CreatePartitionsRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
-            return requestTemplate.request(user, topicNameToId);
+        public CreatePartitionsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
+            return requestTemplate.request(user, clusterFixture);
         }
 
         @Override
