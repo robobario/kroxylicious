@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclOperation;
@@ -134,8 +133,8 @@ public class ProduceAuthzIT extends AuthzIT {
         }
 
         @Override
-        public ProduceRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
-            return requestTemplate.request(user, topicNameToId);
+        public ProduceRequestData requestData(String user, BaseClusterFixture clusterFixture) {
+            return requestTemplate.request(user, clusterFixture);
         }
 
         @Override
@@ -144,11 +143,11 @@ public class ProduceAuthzIT extends AuthzIT {
         }
 
         @Override
-        public Map<String, Request> requests(Map<String, Uuid> topicsIds) {
+        public Map<String, Request> requests(BaseClusterFixture clusterFixture) {
             return Map.of(
-                    ALICE, newRequest(requestData(ALICE, topicsIds)),
-                    BOB, newRequest(requestData(BOB, topicsIds)),
-                    EVE, newRequest(requestData(EVE, topicsIds)));
+                    ALICE, newRequest(requestData(ALICE, clusterFixture)),
+                    BOB, newRequest(requestData(BOB, clusterFixture)),
+                    EVE, newRequest(requestData(EVE, clusterFixture)));
         }
 
         @Override

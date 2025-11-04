@@ -8,6 +8,7 @@ package io.kroxylicious.proxy.filter.authorization;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -22,7 +23,12 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
@@ -32,13 +38,19 @@ import org.apache.kafka.common.message.SaslAuthenticateRequestData;
 import org.apache.kafka.common.message.SaslAuthenticateResponseData;
 import org.apache.kafka.common.message.SaslHandshakeRequestData;
 import org.apache.kafka.common.message.SaslHandshakeResponseData;
+import org.apache.kafka.common.message.SyncGroupRequestDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.protocol.Message;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.Serializer;
 import org.assertj.core.api.AbstractComparableAssert;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -59,6 +71,7 @@ import io.kroxylicious.proxy.testplugins.SaslPlainTermination;
 import io.kroxylicious.test.Request;
 import io.kroxylicious.test.RequestFactory;
 import io.kroxylicious.test.client.KafkaClient;
+import io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
@@ -97,6 +110,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(KafkaClusterExtension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class AuthzIT extends BaseIT {
+
+    static final Logger LOG = LoggerFactory.getLogger(AuthzIT.class);
 
     protected static final ObjectMapper MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     public static final String SUPER = "super";
@@ -139,7 +154,7 @@ public class AuthzIT extends BaseIT {
 
         Map<String, String> passwords();
 
-        Q requestData(String user, Map<String, Uuid> topicNameToId);
+        Q requestData(String user, BaseClusterFixture baseTestCluster);
 
         ObjectNode convertResponse(S response);
 
@@ -152,11 +167,11 @@ public class AuthzIT extends BaseIT {
             });
         }
 
-        default Map<String, Request> requests(Map<String, Uuid> topicsIds) {
+        default Map<String, Request> requests(BaseClusterFixture baseTestCluster) {
             return Map.of(
-                    ALICE, newRequest(requestData(ALICE, topicsIds)),
-                    BOB, newRequest(requestData(BOB, topicsIds)),
-                    EVE, newRequest(requestData(EVE, topicsIds)));
+                    ALICE, newRequest(requestData(ALICE, baseTestCluster)),
+                    BOB, newRequest(requestData(BOB, baseTestCluster)),
+                    EVE, newRequest(requestData(EVE, baseTestCluster)));
         }
 
         default Request newRequest(ApiMessage aliceRequest) {
@@ -174,7 +189,7 @@ public class AuthzIT extends BaseIT {
      * @param <Q> The type of the request.
      */
     interface RequestTemplate<Q> {
-        Q request(String user, Map<String, Uuid> topicNameToId);
+        Q request(String user, BaseClusterFixture clusterFixture);
     }
 
     /**
@@ -236,7 +251,7 @@ public class AuthzIT extends BaseIT {
         }
 
         @Override
-        public Q requestData(String user, Map topicNameToId) {
+        public Q requestData(String user, BaseClusterFixture clusterFixture) {
             return (Q) RequestFactory.apiMessageFor(apiKey(), apiVersion()).apiMessage();
         }
 
@@ -268,7 +283,7 @@ public class AuthzIT extends BaseIT {
         }
 
         @Override
-        public Map<String, Request> requests(Map<String, Uuid> topicsIds) {
+        public Map<String, Request> requests(BaseClusterFixture clusterFixture) {
             return Map.of(
                     ALICE,
                     new Request(apiKey(), apiVersion(), "test",
@@ -303,7 +318,7 @@ public class AuthzIT extends BaseIT {
         return null;
     }
 
-    protected static String prettyJsonString(final ObjectNode root) {
+    protected static String prettyJsonString(final JsonNode root) {
         try {
             return MAPPER.writeValueAsString(root);
         }
@@ -360,6 +375,67 @@ public class AuthzIT extends BaseIT {
             }
         }
         return result;
+    }
+
+    protected static void ensureInternalTopicsExist(
+            KafkaCluster unproxiedCluster,
+            String tmpName) throws ExecutionException, InterruptedException {
+        Map<String, Object> aSuper = unproxiedCluster.getKafkaClientConfiguration(SUPER, "Super");
+        try (var admin = AdminClient.create(aSuper)) {
+
+            admin.createTopics(List.of(new NewTopic(tmpName, 1, (short) 1)))
+                    .all().toCompletionStage().toCompletableFuture().join();
+
+            TopicPartition topicPartition = new TopicPartition(tmpName, 0);
+            Serdes.StringSerde stringSerde = new Serdes.StringSerde();
+            Serializer<String> serializer = stringSerde.serializer();
+            Deserializer<String> deserializer = stringSerde.deserializer();
+
+            var producerProps = new HashMap<>(aSuper);
+            producerProps.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, tmpName);
+            try (var producer = new KafkaProducer<>(producerProps,
+                    serializer,
+                    serializer)) {
+                producer.initTransactions();
+                producer.beginTransaction();
+                var sent = producer.send(new ProducerRecord<>(tmpName, "", "")).get();
+                System.err.println(sent.offset());
+                producer.commitTransaction();
+            }
+            var consumerProps = new HashMap<>(aSuper);
+            consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, tmpName);
+            try (var consumer = new KafkaConsumer<>(consumerProps,
+                    deserializer,
+                    deserializer)) {
+
+                consumer.subscribe(List.of(tmpName));
+                consumer.enforceRebalance();
+//                var latch = new CountDownLatch(1);
+//                consumer.subscribe(List.of(tmpName), new ConsumerRebalanceListener() {
+//                    @Override
+//                    public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+//
+//                    }
+//
+//                    @Override
+//                    public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+//                        if (partitions.contains(topicPartition)) {
+//                            latch.countDown();
+//                        }
+//                    }
+//                });
+//                //latch.await();
+//                consumer.seek(topicPartition, 0L);
+                var polled = consumer.poll(Duration.ofMillis(100));
+
+                System.err.println(polled.records(topicPartition));
+                consumer.commitSync();
+            }
+
+            admin.deleteTopics(TopicCollection.ofTopicNames(List.of(tmpName)))
+                    .all().toCompletionStage().toCompletableFuture().join();
+            //System.err.println(admin.describeClassicGroups(List.of(tmpName)).all().toCompletionStage().toCompletableFuture().join());
+        }
     }
 
     protected static void deleteTopicsAndAcls(KafkaCluster unproxiedCluster,
@@ -474,7 +550,7 @@ public class AuthzIT extends BaseIT {
     protected <Q extends ApiMessage, P extends ApiMessage> Map<String, P> responsesByUser(BaseClusterFixture baseTestCluster,
                                                                                           VersionSpecificVerification<Q, P> scenario) {
         var responsesByUser = new HashMap<String, P>();
-        Map<String, Request> requests = scenario.requests(baseTestCluster.topicIds());
+        Map<String, Request> requests = scenario.requests(baseTestCluster);
         Map<String, KafkaClient> clients = baseTestCluster.authenticatedClients(requests.keySet());
         try {
             if (!clients.keySet().containsAll(requests.keySet())) {
@@ -483,9 +559,22 @@ public class AuthzIT extends BaseIT {
             for (var entry : clients.entrySet()) {
                 String user = entry.getKey();
                 KafkaClient client = entry.getValue();
-                var resp = client.getSync(requests.get(user));
+                Request request = requests.get(user);
+
+                LOG.info("{} {}{} >> {}",
+                        user,
+                        request.apiKeys(),
+                        prettyJsonString(KafkaApiMessageConverter.requestConverterFor(request.apiKeys().messageType).writer().apply(request.message(), request.apiVersion())),
+                        baseTestCluster.name());
+                var resp = client.getSync(request);
 
                 var r = (P) resp.payload().message();
+                LOG.info("{} {}{} << {}",
+                        user,
+                        request.apiKeys(),
+                        prettyJsonString(KafkaApiMessageConverter.responseConverterFor(request.apiKeys().messageType).writer().apply(r, request.apiVersion())),
+                        baseTestCluster.name());
+
                 responsesByUser.put(user, r);
             }
             return responsesByUser;
@@ -546,9 +635,11 @@ public class AuthzIT extends BaseIT {
         }
     }
 
-    protected Map<TopicPartition, OffsetAndMetadata> offsets(BaseClusterFixture cluster, String groupId) {
+    protected Map<TopicPartition, Long> offsets(BaseClusterFixture cluster, String groupId) {
         try (var admin = Admin.create(cluster.backingCluster().getKafkaClientConfiguration(SUPER, "Super"))) {
-            return admin.listConsumerGroupOffsets(groupId).partitionsToOffsetAndMetadata().toCompletionStage().toCompletableFuture().join();
+            Map<TopicPartition, OffsetAndMetadata> join = admin.listConsumerGroupOffsets(groupId).partitionsToOffsetAndMetadata().toCompletionStage()
+                    .toCompletableFuture().join();
+            return join.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().offset()));
         }
     }
 

@@ -133,7 +133,7 @@ public class FetchAuthzIT extends AuthzIT {
         }
 
         @Override
-        public FetchRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
+        public FetchRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             FetchRequestData fetchRequestData = new FetchRequestData();
             FetchRequestData.FetchTopic topicA = createFetchTopic(ALICE_TO_READ_TOPIC_NAME, 0);
             FetchRequestData.FetchTopic topicB = createFetchTopic(BOB_TO_READ_TOPIC_NAME, 0);
