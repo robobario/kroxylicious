@@ -119,8 +119,8 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                         new AccessControlEntry("User:" + BOB, "*",
                                 AclOperation.CREATE, AclPermissionType.ALLOW)));
 
-        //ensureInternalTopicsExist(kafkaClusterWithAuthz, "tmpvsdvsv");
-        //ensureInternalTopicsExist(kafkaClusterNoAuthz, "tmp");
+        // ensureInternalTopicsExist(kafkaClusterWithAuthz, "tmpvsdvsv");
+        // ensureInternalTopicsExist(kafkaClusterNoAuthz, "tmp");
     }
 
     @BeforeEach
@@ -166,8 +166,6 @@ public class OffsetCommitAuthzIT extends AuthzIT {
             return PASSWORDS;
         }
 
-
-
         @Override
         public void prepareCluster(BaseClusterFixture cluster) {
             Map<String, KafkaClient> stringKafkaClientMap = cluster.authenticatedClients(PASSWORDS.keySet());
@@ -212,7 +210,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
             assertThat(unproxiedResponsesByUser.get(ALICE).topics().stream()
                     .flatMap(t -> t.partitions().stream().map(p -> {
                         return Map.entry(new TopicPartition(t.name(), p.partitionIndex()), Errors.forCode(p.errorCode()));
-                            }))
+                    }))
                     .filter(e -> e.getValue() != Errors.NONE)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
                     .as("%s offsets in %s", ALICE, unproxiedResponsesByUser)
@@ -227,16 +225,16 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                     .as("%s offsets in %s", EVE, unproxiedResponsesByUser)
                     .isEmpty();
 
-//            assertThat(unproxiedResponsesByUser.get(EVE).topics().stream().filter(t -> t.name().equals(EVE_TOPIC_NAME)).findFirst()
-//                    .orElseThrow()
-//                    .partitions().stream()
-//                    .allMatch(p -> p.errorCode() == Errors.TOPIC_AUTHORIZATION_FAILED.code())).isTrue();
+            // assertThat(unproxiedResponsesByUser.get(EVE).topics().stream().filter(t -> t.name().equals(EVE_TOPIC_NAME)).findFirst()
+            // .orElseThrow()
+            // .partitions().stream()
+            // .allMatch(p -> p.errorCode() == Errors.TOPIC_AUTHORIZATION_FAILED.code())).isTrue();
 
-//            var xx = unproxiedResponsesByUser.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
-//                            entry -> prettyJsonString(convertResponse(entry.getValue()))));
-//            assertThat(xx).as("UnproxiedResponses").isEqualTo(Map.of("alice", "",
-//                    "bob", "",
-//                    "eve", ""));
+            // var xx = unproxiedResponsesByUser.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
+            // entry -> prettyJsonString(convertResponse(entry.getValue()))));
+            // assertThat(xx).as("UnproxiedResponses").isEqualTo(Map.of("alice", "",
+            // "bob", "",
+            // "eve", ""));
         }
     }
 
@@ -394,7 +392,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                 result.setReason("Hello, world");
             }
             result.setProtocolType(PROTOCOL_TYPE);
-            result.protocols().add(new JoinGroupRequestData.JoinGroupRequestProtocol().setName("proto").setMetadata(new byte[]{1}));
+            result.protocols().add(new JoinGroupRequestData.JoinGroupRequestProtocol().setName("proto").setMetadata(new byte[]{ 1 }));
             return result;
         }
 

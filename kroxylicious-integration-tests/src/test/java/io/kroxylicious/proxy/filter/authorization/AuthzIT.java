@@ -390,8 +390,9 @@ public class AuthzIT extends BaseIT {
     }
 
     protected static void ensureInternalTopicsExist(
-            KafkaCluster unproxiedCluster,
-            String tmpName) throws ExecutionException, InterruptedException {
+                                                    KafkaCluster unproxiedCluster,
+                                                    String tmpName)
+            throws ExecutionException, InterruptedException {
         Map<String, Object> aSuper = unproxiedCluster.getKafkaClientConfiguration(SUPER, "Super");
         try (var admin = AdminClient.create(aSuper)) {
 
@@ -422,22 +423,22 @@ public class AuthzIT extends BaseIT {
 
                 consumer.subscribe(List.of(tmpName));
                 consumer.enforceRebalance();
-//                var latch = new CountDownLatch(1);
-//                consumer.subscribe(List.of(tmpName), new ConsumerRebalanceListener() {
-//                    @Override
-//                    public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-//
-//                    }
-//
-//                    @Override
-//                    public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-//                        if (partitions.contains(topicPartition)) {
-//                            latch.countDown();
-//                        }
-//                    }
-//                });
-//                //latch.await();
-//                consumer.seek(topicPartition, 0L);
+                // var latch = new CountDownLatch(1);
+                // consumer.subscribe(List.of(tmpName), new ConsumerRebalanceListener() {
+                // @Override
+                // public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+                //
+                // }
+                //
+                // @Override
+                // public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                // if (partitions.contains(topicPartition)) {
+                // latch.countDown();
+                // }
+                // }
+                // });
+                // //latch.await();
+                // consumer.seek(topicPartition, 0L);
                 var polled = consumer.poll(Duration.ofMillis(100));
 
                 System.err.println(polled.records(topicPartition));
@@ -446,7 +447,7 @@ public class AuthzIT extends BaseIT {
 
             admin.deleteTopics(TopicCollection.ofTopicNames(List.of(tmpName)))
                     .all().toCompletionStage().toCompletableFuture().join();
-            //System.err.println(admin.describeClassicGroups(List.of(tmpName)).all().toCompletionStage().toCompletableFuture().join());
+            // System.err.println(admin.describeClassicGroups(List.of(tmpName)).all().toCompletionStage().toCompletableFuture().join());
         }
     }
 
@@ -576,7 +577,8 @@ public class AuthzIT extends BaseIT {
                 LOG.info("{} {}{} >> {}",
                         user,
                         request.apiKeys(),
-                        prettyJsonString(KafkaApiMessageConverter.requestConverterFor(request.apiKeys().messageType).writer().apply(request.message(), request.apiVersion())),
+                        prettyJsonString(
+                                KafkaApiMessageConverter.requestConverterFor(request.apiKeys().messageType).writer().apply(request.message(), request.apiVersion())),
                         baseTestCluster.name());
                 var resp = client.getSync(request);
 
