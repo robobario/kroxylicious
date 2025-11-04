@@ -19,6 +19,8 @@
     </parent>
 
     <artifactId>kroxylicious-authorizer-providers</artifactId>
+    <name>Authorizer provider implementations</name>
+    <description>Authorizer provider implementations</description>
     <packaging>pom</packaging>
 
     <modules>

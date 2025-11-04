@@ -15,8 +15,6 @@ import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.protocol.Errors;
-import org.apache.kafka.common.record.MemoryRecords;
-import org.apache.kafka.common.requests.FetchResponse;
 
 import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
@@ -83,8 +81,7 @@ class FetchEnforcement extends ApiEnforcement<FetchRequestData, FetchResponseDat
                 .stream().map(t -> new FetchResponseData.FetchableTopicResponse()
                         .setTopic(t.topic())
                         .setTopicId(t.topicId())
-                        .setPartitions(t.partitions().stream().map(p ->
-                                partitionResponse(p.partition(), Errors.TOPIC_AUTHORIZATION_FAILED)).toList()))
+                        .setPartitions(t.partitions().stream().map(p -> partitionResponse(p.partition(), Errors.TOPIC_AUTHORIZATION_FAILED)).toList()))
                 .toList();
     }
 
