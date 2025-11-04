@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclOperation;
@@ -128,7 +127,7 @@ public class ListOffsetsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public ListOffsetsRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
+        public ListOffsetsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             ListOffsetsRequestData listOffsetsRequestData = new ListOffsetsRequestData();
             ListOffsetsRequestData.ListOffsetsTopic topicA = createListOffsetsTopic(ALICE_TO_DESCRIBE_TOPIC_NAME, 0, NON_EXISTANT_PARTITION);
             ListOffsetsRequestData.ListOffsetsTopic topicB = createListOffsetsTopic(BOB_TO_DESCRIBE_TOPIC_NAME, 0, NON_EXISTANT_PARTITION);

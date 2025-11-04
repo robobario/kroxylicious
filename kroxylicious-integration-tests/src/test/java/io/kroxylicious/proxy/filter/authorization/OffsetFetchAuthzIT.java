@@ -22,7 +22,6 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclOperation;
@@ -193,7 +192,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
         }
 
         @Override
-        public OffsetFetchRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
+        public OffsetFetchRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             OffsetFetchRequestData fetchRequestData = new OffsetFetchRequestData();
             OffsetFetchRequestTopic topicA = createOffsetFetchTopic(ALICE_TO_DESCRIBE_TOPIC_NAME, 0, 20);
             OffsetFetchRequestTopic topicB = createOffsetFetchTopic(BOB_TO_DESCRIBE_TOPIC_NAME, 0, 20);
@@ -241,7 +240,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
         }
 
         @Override
-        public OffsetFetchRequestData requestData(String user, Map<String, Uuid> topicNameToId) {
+        public OffsetFetchRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             OffsetFetchRequestData fetchRequestData = new OffsetFetchRequestData();
             OffsetFetchRequestTopics topicA = createOffsetFetchTopics(ALICE_TO_DESCRIBE_TOPIC_NAME, 0, 20);
             OffsetFetchRequestTopics topicB = createOffsetFetchTopics(BOB_TO_DESCRIBE_TOPIC_NAME, 0, 20);
