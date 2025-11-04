@@ -138,7 +138,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
         deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         Stream<Arguments> supportedVersionsBeforeGroupBatching = IntStream.range(AuthorizationFilter.minSupportedApiVersion(ApiKeys.OFFSET_FETCH),
                 FIRST_VERSION_USING_GROUP_BATCHING)
                 .mapToObj(apiVersion -> Arguments.argumentSet("api version before batching version " + apiVersion, new OffsetFetchEquivalence((short) apiVersion)));
@@ -154,7 +154,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<FetchRequestData, FetchResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<FetchRequestData, FetchResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);
