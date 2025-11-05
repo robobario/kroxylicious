@@ -135,7 +135,7 @@ public class CreateTopicsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonNodes) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonNodes) {
             var topics = sortArray(jsonNodes, "topics", "name");
             for (var topics1 : topics) {
                 if (topics1.isObject()) {
@@ -153,21 +153,19 @@ public class CreateTopicsAuthzIT extends AuthzIT {
         }
 
         @Override
+        public Object observedVisibleSideEffects(BaseClusterFixture cluster) {
+            return topicListing(cluster);
+        }
+
+        @Override
         public void assertUnproxiedResponses(Map<String, CreateTopicsResponseData> unproxiedResponsesByUser) {
             // TODO
         }
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         // The tuples
         List<Short> apiVersions = ApiKeys.CREATE_TOPICS.allVersions();
-
-        List[] requestedTopics = {
-                ALL_TOPIC_NAMES_IN_TEST.stream().map(name -> new CreateTopicsRequestData.CreatableTopic()
-                        .setName(name)
-                        .setNumPartitions(1)
-                        .setReplicationFactor((short) 1)).toList()
-        };
 
         // Compute the n-fold Cartesian product of the tuples (except for pruning)
         List<Arguments> result = new ArrayList<>();
@@ -179,9 +177,16 @@ public class CreateTopicsAuthzIT extends AuthzIT {
                 continue;
             }
 
-            for (List<CreateTopicsRequestData.CreatableTopic> topics : requestedTopics) {
+
                 result.add(
                         Arguments.of(new CreateTopicsEquivalence(apiVersion, new RequestTemplate<CreateTopicsRequestData>() {
+
+                            List<CreateTopicsRequestData.CreatableTopic> topics = ALL_TOPIC_NAMES_IN_TEST.stream().map(name -> new CreateTopicsRequestData.CreatableTopic()
+                                    .setName(name)
+                                    .setNumPartitions(1)
+                                    .setReplicationFactor((short) 1))
+                                    .toList();
+
                             @Override
                             public CreateTopicsRequestData request(String user, BaseClusterFixture clusterFixture) {
                                 var data = new CreateTopicsRequestData();
@@ -194,7 +199,6 @@ public class CreateTopicsAuthzIT extends AuthzIT {
                                 return topics.toString();
                             }
                         })));
-            }
 
         }
         return result;
@@ -202,7 +206,7 @@ public class CreateTopicsAuthzIT extends AuthzIT {
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<CreateTopicsRequestData, CreateTopicsResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<CreateTopicsRequestData, CreateTopicsResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);

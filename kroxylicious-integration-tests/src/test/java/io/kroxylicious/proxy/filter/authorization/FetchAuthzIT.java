@@ -82,7 +82,7 @@ public class FetchAuthzIT extends AuthzIT {
         deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         Stream<Arguments> supportedVersions = API_VERSIONS_WITHOUT_TOPIC_IDS.mapToObj(
                 apiVersion -> Arguments.argumentSet("fetch version " + apiVersion, new FetchEquivalence((short) apiVersion)));
         Stream<Arguments> unsupportedVersions = API_VERSIONS_WITH_TOPIC_IDS
@@ -93,7 +93,7 @@ public class FetchAuthzIT extends AuthzIT {
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<FetchRequestData, FetchResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<FetchRequestData, FetchResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);
@@ -107,7 +107,7 @@ public class FetchAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonResponse) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonResponse) {
             return prettyJsonString(jsonResponse);
         }
 

@@ -81,14 +81,14 @@ public class ListOffsetsAuthzIT extends AuthzIT {
         deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         return SUPPORTED_API_VERSIONS.<Arguments> mapToObj(
                 apiVersion -> Arguments.argumentSet("list offsets version " + apiVersion, new ListOffsetsEquivalence((short) apiVersion))).toList();
     }
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<ListOffsetsRequestData, ListOffsetsResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<ListOffsetsRequestData, ListOffsetsResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);
@@ -102,7 +102,7 @@ public class ListOffsetsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonResponse) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonResponse) {
             return prettyJsonString(jsonResponse);
         }
 

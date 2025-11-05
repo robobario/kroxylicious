@@ -151,7 +151,7 @@ public class ProduceAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonNodes) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonNodes) {
             return prettyJsonString(jsonNodes);
         }
 
@@ -213,7 +213,7 @@ public class ProduceAuthzIT extends AuthzIT {
                 .setRecords(mr));
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         // The tuples
         List<Short> apiVersions = ApiKeys.PRODUCE.allVersions();
         String[] transactionalIds = { null, "my-txnl-id" };
@@ -253,7 +253,7 @@ public class ProduceAuthzIT extends AuthzIT {
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<ProduceRequestData, ProduceResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<ProduceRequestData, ProduceResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);

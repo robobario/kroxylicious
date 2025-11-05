@@ -167,7 +167,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonResponse) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonResponse) {
             return prettyJsonString(jsonResponse);
         }
 
@@ -215,7 +215,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonResponse) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonResponse) {
             return prettyJsonString(jsonResponse);
         }
 
