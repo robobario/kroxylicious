@@ -77,9 +77,12 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         apiEnforcement.put(ApiKeys.OFFSET_DELETE, new OffsetDeleteEnforcement());
         apiEnforcement.put(ApiKeys.OFFSET_FOR_LEADER_EPOCH, new OffsetForLeaderEpochEnforcement());
 
+        apiEnforcement.put(ApiKeys.TXN_OFFSET_COMMIT, new TxnOffsetCommitEnforcement());
+
         apiEnforcement.put(ApiKeys.FIND_COORDINATOR, new Passthrough<>(0, 6));
         apiEnforcement.put(ApiKeys.JOIN_GROUP, new Passthrough<>(0, 9));
         apiEnforcement.put(ApiKeys.SYNC_GROUP, new Passthrough<>(0, 5));
+        apiEnforcement.put(ApiKeys.INIT_PRODUCER_ID, new Passthrough<>(0, 6));
     }
 
     @VisibleForTesting
