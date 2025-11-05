@@ -24,7 +24,6 @@ import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.CreatePartitionsRequestData;
 import org.apache.kafka.common.message.CreatePartitionsResponseData;
-import org.apache.kafka.common.message.CreatePartitionsResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.resource.PatternType;
 import org.apache.kafka.common.resource.ResourcePattern;
@@ -133,11 +132,6 @@ public class CreatePartitionsAuthzIT extends AuthzIT {
         @Override
         public CreatePartitionsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             return requestTemplate.request(user, clusterFixture);
-        }
-
-        @Override
-        public ObjectNode convertResponse(CreatePartitionsResponseData response) {
-            return (ObjectNode) CreatePartitionsResponseDataJsonConverter.write(response, apiVersion());
         }
 
         private Map<String, Integer> numPartitions(KafkaCluster cluster) {

@@ -22,7 +22,6 @@ import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.OffsetForLeaderEpochRequestData;
 import org.apache.kafka.common.message.OffsetForLeaderEpochRequestData.OffsetForLeaderTopic;
 import org.apache.kafka.common.message.OffsetForLeaderEpochResponseData;
-import org.apache.kafka.common.message.OffsetForLeaderEpochResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.resource.PatternType;
 import org.apache.kafka.common.resource.ResourcePattern;
@@ -146,11 +145,6 @@ public class OffsetForLeaderEpochAuthzIT extends AuthzIT {
             OffsetForLeaderTopic topicC = createOffsetForLeaderTopic(EXISTING_TOPIC_NAME, 0, 20);
             offsetForLeaderEpochRequestData.topics().addAll(List.of(topicA, topicB, topicC));
             return offsetForLeaderEpochRequestData;
-        }
-
-        @Override
-        public ObjectNode convertResponse(OffsetForLeaderEpochResponseData response) {
-            return (ObjectNode) OffsetForLeaderEpochResponseDataJsonConverter.write(response, apiVersion());
         }
     }
 

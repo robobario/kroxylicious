@@ -32,7 +32,6 @@ import org.apache.kafka.common.message.OffsetFetchRequestData;
 import org.apache.kafka.common.message.OffsetFetchRequestData.OffsetFetchRequestTopic;
 import org.apache.kafka.common.message.OffsetFetchRequestData.OffsetFetchRequestTopics;
 import org.apache.kafka.common.message.OffsetFetchResponseData;
-import org.apache.kafka.common.message.OffsetFetchResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.resource.PatternType;
 import org.apache.kafka.common.resource.ResourcePattern;
@@ -201,11 +200,6 @@ public class OffsetFetchAuthzIT extends AuthzIT {
             fetchRequestData.setTopics(List.of(topicA, topicB, topicC));
             return fetchRequestData;
         }
-
-        @Override
-        public ObjectNode convertResponse(OffsetFetchResponseData response) {
-            return (ObjectNode) OffsetFetchResponseDataJsonConverter.write(response, apiVersion());
-        }
     }
 
     class OffsetFetchEquivalenceGroupBatching extends Equivalence<OffsetFetchRequestData, OffsetFetchResponseData> {
@@ -250,11 +244,6 @@ public class OffsetFetchAuthzIT extends AuthzIT {
             group.topics().addAll(List.of(topicA, topicB, topicC));
             fetchRequestData.setGroups(List.of(group));
             return fetchRequestData;
-        }
-
-        @Override
-        public ObjectNode convertResponse(OffsetFetchResponseData response) {
-            return (ObjectNode) OffsetFetchResponseDataJsonConverter.write(response, apiVersion());
         }
     }
 

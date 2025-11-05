@@ -20,7 +20,6 @@ import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.ListOffsetsRequestData;
 import org.apache.kafka.common.message.ListOffsetsResponseData;
-import org.apache.kafka.common.message.ListOffsetsResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.resource.PatternType;
 import org.apache.kafka.common.resource.ResourcePattern;
@@ -134,11 +133,6 @@ public class ListOffsetsAuthzIT extends AuthzIT {
             ListOffsetsRequestData.ListOffsetsTopic topicC = createListOffsetsTopic(EXISTING_TOPIC_NAME, 0, NON_EXISTANT_PARTITION);
             listOffsetsRequestData.setTopics(List.of(topicA, topicB, topicC));
             return listOffsetsRequestData;
-        }
-
-        @Override
-        public ObjectNode convertResponse(ListOffsetsResponseData response) {
-            return (ObjectNode) ListOffsetsResponseDataJsonConverter.write(response, apiVersion());
         }
     }
 
