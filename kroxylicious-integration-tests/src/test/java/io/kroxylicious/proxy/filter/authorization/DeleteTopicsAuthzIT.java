@@ -106,7 +106,6 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
         @Override
         public DeleteTopicsRequestData request(String user, BaseClusterFixture clusterFixture) {
 
-
             DeleteTopicsRequestData request = new DeleteTopicsRequestData()
                     .setTimeoutMs(60_000);
             if (addUserTopic) {
@@ -223,7 +222,6 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
 
     List<Arguments> shouldEnforceAccessToTopics() {
 
-
         // Compute the n-fold Cartesian product of the tuples (except for pruning)
         List<Arguments> result = new ArrayList<>();
         for (var apiVersion : ApiKeys.DELETE_TOPICS.allVersions()) {
@@ -241,6 +239,7 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
                                         .setTimeoutMs(60_000)
                                         .setTopicNames(topicNames);
                             }
+
                             @Override
                             public String toString() {
                                 return "delete by name " + topicNames;
@@ -253,7 +252,7 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
                     }
                 }
                 else { // using states...
-                    // ... with topic names
+                       // ... with topic names
                     for (List<String> topicNames : List.of(List.of(ALICE + "-topic"), ALL_TOPIC_NAMES_IN_TEST)) {
                         RequestTemplate<DeleteTopicsRequestData> requestTemplate = new RequestTemplate<>() {
                             @Override

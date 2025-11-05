@@ -19,13 +19,11 @@ import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.DeleteTopicsRequestData;
 import org.apache.kafka.common.message.DeleteTopicsResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
-import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
-import io.kroxylicious.proxy.filter.ResponseFilterResult;
 import io.kroxylicious.proxy.filter.metadata.TopicNameMapping;
 import io.kroxylicious.proxy.filter.metadata.TopicNameMappingException;
 
@@ -54,10 +52,11 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
         TopicResource operation = TopicResource.DELETE;
         short apiVersion = header.requestApiVersion();
         var mappingStage = context.topicNames(
-                request.topics() == null ? List.of() : request.topics().stream()
-                .filter(t -> t.name() == null)
-                .map(DeleteTopicsRequestData.DeleteTopicState::topicId)
-                .toList());
+                request.topics() == null ? List.of()
+                        : request.topics().stream()
+                                .filter(t -> t.name() == null)
+                                .map(DeleteTopicsRequestData.DeleteTopicState::topicId)
+                                .toList());
 
         return mappingStage.thenCompose(mapping -> {
 
@@ -69,21 +68,22 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
             }
             else {
                 allNames = request.topics().stream()
-                                .map(state -> topicName(state, topicIdToName))
-                                .filter(Objects::nonNull)
+                        .map(state -> topicName(state, topicIdToName))
+                        .filter(Objects::nonNull)
                         .toList();
             }
             var actions = operation.actionsOf(allNames.stream());
 
             return authorizationFilter.authorization(context, actions).thenCompose(authorization -> {
                 if (useStates) {
-                    var errorPartitionedStates = request.topics().stream().collect(Collectors.partitioningBy(state -> state.name() != null || !mapping.failures().containsKey(state.topicId())));
+                    var errorPartitionedStates = request.topics().stream()
+                            .collect(Collectors.partitioningBy(state -> state.name() != null || !mapping.failures().containsKey(state.topicId())));
                     var okStates = errorPartitionedStates.get(true);
                     var errorStates = errorPartitionedStates.get(false);
                     Map<Decision, List<DeleteTopicsRequestData.DeleteTopicState>> decisions = authorization.partition(
                             okStates,
                             operation,
-                        state -> topicName(state, topicIdToName));
+                            state -> topicName(state, topicIdToName));
                     if (decisions.get(Decision.ALLOW).isEmpty()) {
                         // Shortcircuit if there's no allowed actions
                         DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
