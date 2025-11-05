@@ -422,7 +422,7 @@ public class AuthzIT extends BaseIT {
                 producer.initTransactions();
                 producer.beginTransaction();
                 var sent = producer.send(new ProducerRecord<>(tmpName, "", "")).get();
-                System.err.println(sent.offset());
+                LOG.debug("producer record offset: {}", sent.offset());
                 producer.commitTransaction();
             }
             var consumerProps = new HashMap<>(aSuper);
@@ -451,7 +451,7 @@ public class AuthzIT extends BaseIT {
                 // consumer.seek(topicPartition, 0L);
                 var polled = consumer.poll(Duration.ofMillis(100));
 
-                System.err.println(polled.records(topicPartition));
+                LOG.debug("polled records: {}", polled.records(topicPartition));
                 consumer.commitSync();
             }
 
