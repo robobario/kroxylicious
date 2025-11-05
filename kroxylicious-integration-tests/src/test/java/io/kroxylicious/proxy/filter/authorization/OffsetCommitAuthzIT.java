@@ -187,7 +187,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonNodes) {
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonNodes) {
             // var topics = sortArray(jsonNodes, "topics", "name");
             // for (var topics1 : topics) {
             // if (topics1.isObject()) {
@@ -203,6 +203,11 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                     .as("Observed offsets in %s", cluster)
                     .isEqualTo(Map.of(
                             new TopicPartition("alice-topic", 0), 420L));
+        }
+
+        @Override
+        public Object observedVisibleSideEffects(BaseClusterFixture cluster) {
+            return offsets(cluster, FOO_GROUP_ID);
         }
 
         @Override
@@ -238,7 +243,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         }
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         // The tuples
         List<Short> apiVersions = ApiKeys.OFFSET_COMMIT.allVersions();
 
@@ -288,7 +293,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<OffsetCommitRequestData, OffsetCommitResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<OffsetCommitRequestData, OffsetCommitResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);

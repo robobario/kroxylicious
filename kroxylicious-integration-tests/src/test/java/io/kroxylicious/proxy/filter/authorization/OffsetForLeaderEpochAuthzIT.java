@@ -114,7 +114,7 @@ public class OffsetForLeaderEpochAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonResponse) {
+        public String clobberResponse(BaseClusterFixture clusterFixture, ObjectNode jsonResponse) {
             return prettyJsonString(jsonResponse);
         }
 

@@ -160,8 +160,8 @@ public class CreatePartitionsAuthzIT extends AuthzIT {
         }
 
         @Override
-        public String clobberResponse(ObjectNode jsonNodes) {
-            var topics = sortArray(jsonNodes, "topics", "name");
+        public String clobberResponse(BaseClusterFixture cluster, ObjectNode jsonNodes) {
+            var topics = sortArray(jsonNodes, "results", "name");
 
             return prettyJsonString(jsonNodes);
         }
@@ -176,12 +176,17 @@ public class CreatePartitionsAuthzIT extends AuthzIT {
         }
 
         @Override
+        public Object observedVisibleSideEffects(BaseClusterFixture cluster) {
+            return numPartitions(cluster.backingCluster());
+        }
+
+        @Override
         public void assertUnproxiedResponses(Map<String, CreatePartitionsResponseData> unproxiedResponsesByUser) {
             // TODO
         }
     }
 
-    List<Arguments> test() {
+    List<Arguments> shouldEnforceAccessToTopics() {
         // The tuples
         List<Short> apiVersions = ApiKeys.CREATE_PARTITIONS.allVersions();
 
@@ -190,15 +195,17 @@ public class CreatePartitionsAuthzIT extends AuthzIT {
         for (var apiVersion : apiVersions) {
             result.add(
                     Arguments.of(new CreatePartitionsEquivalence(apiVersion, (user, topicNameToId) -> {
-                        var topic = new CreatePartitionsRequestData.CreatePartitionsTopic()
-                                .setName(user + "-topic")
-                                .setCount(2)
-                                .setAssignments(List.of(
-                                        new CreatePartitionsRequestData.CreatePartitionsAssignment().setBrokerIds(List.of(0))));
-                        var b = new CreatePartitionsRequestData.CreatePartitionsTopicCollection();
-                        b.mustAdd(topic);
+                        var createPartitionsTopics = new CreatePartitionsRequestData.CreatePartitionsTopicCollection();
+                        for (var topicName : ALL_TOPIC_NAMES_IN_TEST) {
+                            var topic = new CreatePartitionsRequestData.CreatePartitionsTopic()
+                                    .setName(topicName)
+                                    .setCount(2)
+                                    .setAssignments(List.of(
+                                            new CreatePartitionsRequestData.CreatePartitionsAssignment().setBrokerIds(List.of(0))));
+                            createPartitionsTopics.mustAdd(topic);
+                        }
                         return new CreatePartitionsRequestData()
-                                .setTopics(b)
+                                .setTopics(createPartitionsTopics)
                                 .setTimeoutMs(60_000);
                     })));
         }
@@ -207,7 +214,7 @@ public class CreatePartitionsAuthzIT extends AuthzIT {
 
     @ParameterizedTest
     @MethodSource
-    void test(VersionSpecificVerification<CreatePartitionsRequestData, CreatePartitionsResponseData> test) {
+    void shouldEnforceAccessToTopics(VersionSpecificVerification<CreatePartitionsRequestData, CreatePartitionsResponseData> test) {
         try (var referenceCluster = new ReferenceCluster(kafkaClusterWithAuthz, this.topicIdsInUnproxiedCluster);
                 var proxiedCluster = new ProxiedCluster(kafkaClusterNoAuthz, this.topicIdsInProxiedCluster, rulesFile)) {
             test.verifyBehaviour(referenceCluster, proxiedCluster);

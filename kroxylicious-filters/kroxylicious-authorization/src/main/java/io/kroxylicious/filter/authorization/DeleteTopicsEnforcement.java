@@ -7,18 +7,27 @@
 package io.kroxylicious.filter.authorization;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.DeleteTopicsRequestData;
 import org.apache.kafka.common.message.DeleteTopicsResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
+import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 
-import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
+import io.kroxylicious.proxy.filter.ResponseFilterResult;
+import io.kroxylicious.proxy.filter.metadata.TopicNameMapping;
+import io.kroxylicious.proxy.filter.metadata.TopicNameMappingException;
 
 public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestData, DeleteTopicsResponseData> {
 
@@ -31,7 +40,7 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
     short maxSupportedVersion() {
         // DELETE_TOPICS: v6 allows topic ids: It's better to force the client to use v5 than fail a v6 later on
         // when the client goes ahead and uses topic ids
-        return 5;
+        return 6;
     }
 
     /**
@@ -42,119 +51,165 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
                                                    DeleteTopicsRequestData request,
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
-        short apiVersion = header.requestApiVersion();
-        boolean useStates = apiVersion >= 6;
-        List<Action> actions;
         TopicResource operation = TopicResource.DELETE;
-        if (useStates) {
-            actions = operation.actionsOf(request.topics().stream()
-                    .map(t -> {
-                        if (t.name() != null) {
-                            return t.name();
-                        }
-                        else {
-                            throw authorizationFilter.topicIdsNotSupported();
-                        }
-                    }));
-        }
-        else {
-            actions = operation.actionsOf(request.topicNames().stream());
-        }
-        return authorizationFilter.authorization(context, actions)
-                .thenCompose(authorization -> {
-                    if (useStates) {
-                        var decisions = authorization.partition(request.topics(), operation, DeleteTopicsRequestData.DeleteTopicState::name);
-                        if (decisions.get(Decision.ALLOW).isEmpty()) {
-                            // Shortcircuit if there's no allowed actions
-                            DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
-                            request.topics().stream()
-                                    .map(topicState -> topicAuthzFailed(apiVersion, topicState))
-                                    .forEach(v::mustAdd);
-                            return context.requestFilterResultBuilder()
-                                    .shortCircuitResponse(
-                                            new DeleteTopicsResponseData()
-                                                    .setResponses(v))
-                                    .completed();
-                        }
-                        else if (decisions.get(Decision.DENY).isEmpty()) {
-                            // Just forward if there's no denied actions
-                            return context.forwardRequest(header, request);
-                        }
-                        else {
-                            request.setTopics(request.topics().stream()
-                                    .filter(topicState -> authorization.decision(operation, topicState.name()) == Decision.ALLOW)
-                                    .toList());
+        short apiVersion = header.requestApiVersion();
+        var mappingStage = context.topicNames(
+                request.topics() == null ? List.of() : request.topics().stream()
+                .filter(t -> t.name() == null)
+                .map(DeleteTopicsRequestData.DeleteTopicState::topicId)
+                .toList());
 
-                            var list = decisions.get(Decision.DENY)
-                                    .stream().map(t -> topicAuthzFailed(apiVersion, t))
-                                    .toList();
-                            authorizationFilter.pushInflightState(header, (DeleteTopicsResponseData response) -> {
-                                response.responses().addAll(list);
-                                return response;
-                            });
-                            return context.forwardRequest(header, request);
-                        }
-                    }
-                    else { // using topic names
-                        var decisions = authorization.partition(request.topicNames(), operation, Function.identity());
-                        if (decisions.get(Decision.ALLOW).isEmpty()) {
-                            // Shortcircuit if there's no allowed actions
-                            DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
-                            request.topicNames().stream()
-                                    .map(topicName -> topicAuthzFailed(apiVersion, topicName))
-                                    .forEach(v::mustAdd);
-                            return context.requestFilterResultBuilder()
-                                    .shortCircuitResponse(
-                                            new DeleteTopicsResponseData()
-                                                    .setResponses(v))
-                                    .completed();
-                        }
-                        else if (decisions.get(Decision.DENY).isEmpty()) {
-                            // Just forward if there's no denied actions
-                            return context.forwardRequest(header, request);
-                        }
-                        else {
-                            request.setTopicNames(request.topicNames().stream()
-                                    .filter(tn -> authorization.decision(operation, tn) == Decision.ALLOW)
-                                    .toList());
+        return mappingStage.thenCompose(mapping -> {
 
-                            var list = decisions.get(Decision.DENY)
-                                    .stream().map(t -> topicAuthzFailed(apiVersion, t))
-                                    .toList();
-                            authorizationFilter.pushInflightState(header, (DeleteTopicsResponseData response) -> {
-                                response.responses().addAll(list);
-                                return response;
-                            });
-                            return context.forwardRequest(header, request);
-                        }
+            Map<Uuid, String> topicIdToName = mapping.topicNames();
+            boolean useStates = apiVersion >= 6;
+            List<String> allNames;
+            if (!useStates) {
+                allNames = request.topicNames();
+            }
+            else {
+                allNames = request.topics().stream()
+                                .map(state -> topicName(state, topicIdToName))
+                                .filter(Objects::nonNull)
+                        .toList();
+            }
+            var actions = operation.actionsOf(allNames.stream());
+
+            return authorizationFilter.authorization(context, actions).thenCompose(authorization -> {
+                if (useStates) {
+                    var errorPartitionedStates = request.topics().stream().collect(Collectors.partitioningBy(state -> state.name() != null || !mapping.failures().containsKey(state.topicId())));
+                    var okStates = errorPartitionedStates.get(true);
+                    var errorStates = errorPartitionedStates.get(false);
+                    Map<Decision, List<DeleteTopicsRequestData.DeleteTopicState>> decisions = authorization.partition(
+                            okStates,
+                            operation,
+                        state -> topicName(state, topicIdToName));
+                    if (decisions.get(Decision.ALLOW).isEmpty()) {
+                        // Shortcircuit if there's no allowed actions
+                        DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
+                        okStates.stream()
+                                .map(topicState -> errorResult(apiVersion, topicState, Errors.TOPIC_AUTHORIZATION_FAILED))
+                                .forEach(v::mustAdd);
+                        errorStates.stream()
+                                .map(topicState -> {
+                                    return getDeletableTopicResult(mapping, topicState, apiVersion);
+                                })
+                                .forEach(v::mustAdd);
+                        return context.requestFilterResultBuilder()
+                                .shortCircuitResponse(
+                                        new DeleteTopicsResponseData()
+                                                .setResponses(v))
+                                .completed();
                     }
-                });
+                    else if (decisions.get(Decision.DENY).isEmpty()) {
+                        // Forward if there's no denied actions, but we might need to reinsert lookup errors
+                        request.setTopics(okStates);
+                        authorizationFilter.pushInflightState(header, (DeleteTopicsResponseData response) -> {
+                            response.responses().addAll(errorStates.stream()
+                                    .map(topicState -> getDeletableTopicResult(mapping, topicState, apiVersion)).toList());
+                            return response;
+                        });
+                        return context.forwardRequest(header, request);
+                    }
+                    else {
+                        request.setTopics(okStates.stream()
+                                .filter(topicState -> authorization.decision(operation, topicState.name()) == Decision.ALLOW)
+                                .toList());
+
+                        var denied = decisions.get(Decision.DENY)
+                                .stream().map(t -> errorResult(apiVersion, t, Errors.TOPIC_AUTHORIZATION_FAILED))
+                                .toList();
+                        var errored = errorStates.stream()
+                                .map(topicState -> getDeletableTopicResult(mapping, topicState, apiVersion)).toList();
+                        authorizationFilter.pushInflightState(header, (DeleteTopicsResponseData response) -> {
+                            response.responses().addAll(denied);
+                            response.responses().addAll(errored);
+                            return response;
+                        });
+                        return context.forwardRequest(header, request);
+                    }
+                }
+                else { // using topic names
+                    var decisions = authorization.partition(request.topicNames(), operation, Function.identity());
+                    if (decisions.get(Decision.ALLOW).isEmpty()) {
+                        // Shortcircuit if there's no allowed actions
+                        DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
+                        request.topicNames().stream()
+                                .map(topicName -> errorResult(apiVersion, topicName, Errors.TOPIC_AUTHORIZATION_FAILED))
+                                .forEach(v::mustAdd);
+                        return context.requestFilterResultBuilder()
+                                .shortCircuitResponse(
+                                        new DeleteTopicsResponseData()
+                                                .setResponses(v))
+                                .completed();
+                    }
+                    else if (decisions.get(Decision.DENY).isEmpty()) {
+                        // Just forward if there's no denied actions
+                        return context.forwardRequest(header, request);
+                    }
+                    else {
+                        request.setTopicNames(request.topicNames().stream()
+                                .filter(tn -> authorization.decision(operation, tn) == Decision.ALLOW)
+                                .toList());
+
+                        var list = decisions.get(Decision.DENY)
+                                .stream().map(t -> errorResult(apiVersion, t, Errors.TOPIC_AUTHORIZATION_FAILED))
+                                .toList();
+                        authorizationFilter.pushInflightState(header, (DeleteTopicsResponseData response) -> {
+                            response.responses().addAll(list);
+                            return response;
+                        });
+                        return context.forwardRequest(header, request);
+                    }
+                }
+            });
+        });
     }
 
-    static DeleteTopicsResponseData.DeletableTopicResult topicAuthzFailed(short apiVersion,
-                                                                          DeleteTopicsRequestData.DeleteTopicState state) {
+    private static DeleteTopicsResponseData.DeletableTopicResult getDeletableTopicResult(TopicNameMapping mapping, DeleteTopicsRequestData.DeleteTopicState topicState,
+                                                                                         short apiVersion) {
+        var exception = mapping.failures().getOrDefault(topicState.topicId(), new TopicNameMappingException(Errors.UNKNOWN_SERVER_ERROR));
+        return errorResult(apiVersion, topicState, exception.getError());
+    }
+
+    private static @Nullable String topicName(DeleteTopicsRequestData.DeleteTopicState state, Map<Uuid, String> topicIdToName) {
+        String topicName;
+        if (state.name() != null) {
+            topicName = state.name();
+        }
+        else {
+            topicName = topicIdToName.get(state.topicId());
+        }
+        return topicName;
+    }
+
+    static DeleteTopicsResponseData.DeletableTopicResult errorResult(short apiVersion,
+                                                                     DeleteTopicsRequestData.DeleteTopicState state,
+                                                                     Errors error) {
 
         if (apiVersion < 6) {
             throw new IllegalStateException();
         }
-        return topicAuthzFailed(apiVersion, new DeleteTopicsResponseData.DeletableTopicResult())
+        return errorResult(apiVersion, new DeleteTopicsResponseData.DeletableTopicResult(), error)
                 .setTopicId(state.topicId())
                 .setName(state.name());
     }
 
-    static DeleteTopicsResponseData.DeletableTopicResult topicAuthzFailed(short apiVersion,
-                                                                          DeleteTopicsResponseData.DeletableTopicResult topicResult) {
+    static DeleteTopicsResponseData.DeletableTopicResult errorResult(short apiVersion,
+                                                                     DeleteTopicsResponseData.DeletableTopicResult topicResult,
+                                                                     Errors error) {
         return topicResult
-                .setErrorCode(Errors.TOPIC_AUTHORIZATION_FAILED.code())
-                .setErrorMessage(apiVersion >= 5 ? Errors.TOPIC_AUTHORIZATION_FAILED.message() : null);
+                .setErrorCode(error.code())
+                .setErrorMessage(apiVersion >= 5 ? error.message() : null);
     }
 
-    static DeleteTopicsResponseData.DeletableTopicResult topicAuthzFailed(short apiVersion,
-                                                                          String topicName) {
+    static DeleteTopicsResponseData.DeletableTopicResult errorResult(short apiVersion,
+                                                                     String topicName,
+                                                                     Errors error) {
         if (apiVersion >= 6) {
             throw new IllegalStateException();
         }
-        return topicAuthzFailed(apiVersion, new DeleteTopicsResponseData.DeletableTopicResult())
+        return errorResult(apiVersion, new DeleteTopicsResponseData.DeletableTopicResult(), error)
                 .setName(topicName);
     }
 }
