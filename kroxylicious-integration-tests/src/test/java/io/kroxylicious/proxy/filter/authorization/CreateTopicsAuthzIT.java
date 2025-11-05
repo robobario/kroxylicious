@@ -177,28 +177,27 @@ public class CreateTopicsAuthzIT extends AuthzIT {
                 continue;
             }
 
+            result.add(
+                    Arguments.of(new CreateTopicsEquivalence(apiVersion, new RequestTemplate<CreateTopicsRequestData>() {
 
-                result.add(
-                        Arguments.of(new CreateTopicsEquivalence(apiVersion, new RequestTemplate<CreateTopicsRequestData>() {
+                        List<CreateTopicsRequestData.CreatableTopic> topics = ALL_TOPIC_NAMES_IN_TEST.stream().map(name -> new CreateTopicsRequestData.CreatableTopic()
+                                .setName(name)
+                                .setNumPartitions(1)
+                                .setReplicationFactor((short) 1))
+                                .toList();
 
-                            List<CreateTopicsRequestData.CreatableTopic> topics = ALL_TOPIC_NAMES_IN_TEST.stream().map(name -> new CreateTopicsRequestData.CreatableTopic()
-                                    .setName(name)
-                                    .setNumPartitions(1)
-                                    .setReplicationFactor((short) 1))
-                                    .toList();
+                        @Override
+                        public CreateTopicsRequestData request(String user, BaseClusterFixture clusterFixture) {
+                            var data = new CreateTopicsRequestData();
+                            data.topics().addAll(duplicateList(topics));
+                            return data;
+                        }
 
-                            @Override
-                            public CreateTopicsRequestData request(String user, BaseClusterFixture clusterFixture) {
-                                var data = new CreateTopicsRequestData();
-                                data.topics().addAll(duplicateList(topics));
-                                return data;
-                            }
-
-                            @Override
-                            public String toString() {
-                                return topics.toString();
-                            }
-                        })));
+                        @Override
+                        public String toString() {
+                            return topics.toString();
+                        }
+                    })));
 
         }
         return result;

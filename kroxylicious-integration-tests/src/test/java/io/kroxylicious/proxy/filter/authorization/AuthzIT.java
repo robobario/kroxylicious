@@ -327,13 +327,13 @@ public class AuthzIT extends BaseIT {
         if (topics.isArray()) {
             Comparator<JsonNode> comparing = Comparator.comparing(itemNode -> itemNode.get(sortProperty).textValue(),
                     Comparator.nullsFirst(String::compareTo));
-            for (var thenSortProperty: thenSortProperties) {
+            for (var thenSortProperty : thenSortProperties) {
                 Comparator<JsonNode> thenComparator = Comparator.comparing(itemNode -> itemNode.get(thenSortProperty).textValue(),
                         Comparator.nullsFirst(String::compareTo));
                 comparing = comparing.thenComparing(thenComparator);
             }
             var sortedTopics = topics.valueStream().sorted(
-                            comparing)
+                    comparing)
                     .toList();
             root.putArray(arrayProperty).addAll(sortedTopics);
             return (ArrayNode) root.get(arrayProperty);
