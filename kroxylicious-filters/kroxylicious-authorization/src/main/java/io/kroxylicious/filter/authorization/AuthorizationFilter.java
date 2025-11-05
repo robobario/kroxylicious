@@ -83,6 +83,8 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         apiEnforcement.put(ApiKeys.JOIN_GROUP, new Passthrough<>(0, 9));
         apiEnforcement.put(ApiKeys.SYNC_GROUP, new Passthrough<>(0, 5));
         apiEnforcement.put(ApiKeys.INIT_PRODUCER_ID, new Passthrough<>(0, 6));
+        apiEnforcement.put(ApiKeys.ADD_PARTITIONS_TO_TXN, new Passthrough<>(0, 5));
+        apiEnforcement.put(ApiKeys.ADD_OFFSETS_TO_TXN, new Passthrough<>(0, 4));
     }
 
     @VisibleForTesting

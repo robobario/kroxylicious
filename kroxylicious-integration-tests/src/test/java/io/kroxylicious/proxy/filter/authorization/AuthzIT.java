@@ -83,7 +83,6 @@ import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 import static io.kroxylicious.test.tester.KroxyliciousConfigUtils.proxy;
@@ -511,7 +510,6 @@ public class AuthzIT extends BaseIT {
         assertThat(Errors.forCode(authenticateResponse.errorCode())).isEqualTo(Errors.NONE);
     }
 
-    @NonNull
     static Request getRequest(short apiVersion, ApiMessage request) {
         return new Request(
                 ApiKeys.forId(request.apiKey()),
@@ -520,7 +518,6 @@ public class AuthzIT extends BaseIT {
                 request);
     }
 
-    @NonNull
     static Request getRequest(short apiVersion, Function<Short, ApiMessage> requestFn) {
         ApiMessage request = requestFn.apply(apiVersion);
         return getRequest(apiVersion, request);
