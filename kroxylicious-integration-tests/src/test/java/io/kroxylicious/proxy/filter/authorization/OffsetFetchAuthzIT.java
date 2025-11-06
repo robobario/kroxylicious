@@ -116,6 +116,8 @@ public class OffsetFetchAuthzIT extends AuthzIT {
         consumerConfig.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         consumerConfig.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         consumerConfig.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        consumerConfig.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 0);
+        consumerConfig.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 50);
         consumerConfig.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         try (CloseableProducer<Object, Object> producer = new CloseableProducer<>(
@@ -145,7 +147,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
 
     List<Arguments> shouldEnforceAccessToTopics() {
         Stream<Arguments> supportedVersionsBeforeGroupBatching = IntStream.range(AuthorizationFilter.minSupportedApiVersion(ApiKeys.OFFSET_FETCH),
-                FIRST_VERSION_USING_GROUP_BATCHING)
+                        FIRST_VERSION_USING_GROUP_BATCHING)
                 .mapToObj(apiVersion -> Arguments.argumentSet("api version before batching version " + apiVersion, new OffsetFetchEquivalence((short) apiVersion)));
         Stream<Arguments> supportedVersionsWithGroupBatching = IntStream.rangeClosed(8, AuthorizationFilter.maxSupportedApiVersion(ApiKeys.OFFSET_FETCH)).mapToObj(
                 apiVersion -> Arguments.argumentSet("api version with batching version " + apiVersion, new OffsetFetchEquivalenceGroupBatching((short) apiVersion)));
