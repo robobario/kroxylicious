@@ -48,6 +48,7 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
     private static final Logger LOG = LoggerFactory.getLogger(AuthorizationFilter.class);
 
     static Map<ApiKeys, ApiEnforcement> apiEnforcement = new EnumMap<>(ApiKeys.class);
+
     static {
         // This filter "fails closed", rejecting all (apikey, apiversions)-combinations which is doesn't understand
         // because a new api or version could introduce a reference to some authorizable entity, like a topic,
@@ -83,7 +84,7 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         apiEnforcement.put(ApiKeys.JOIN_GROUP, new Passthrough<>(0, 9));
         apiEnforcement.put(ApiKeys.SYNC_GROUP, new Passthrough<>(0, 5));
         apiEnforcement.put(ApiKeys.INIT_PRODUCER_ID, new Passthrough<>(0, 6));
-        apiEnforcement.put(ApiKeys.ADD_PARTITIONS_TO_TXN, new Passthrough<>(0, 5));
+        apiEnforcement.put(ApiKeys.ADD_PARTITIONS_TO_TXN, new AddPartitionsToTxnSingleTransactionEnforcement());
         apiEnforcement.put(ApiKeys.ADD_OFFSETS_TO_TXN, new Passthrough<>(0, 4));
         apiEnforcement.put(ApiKeys.END_TXN, new Passthrough<>(0, 5));
     }
