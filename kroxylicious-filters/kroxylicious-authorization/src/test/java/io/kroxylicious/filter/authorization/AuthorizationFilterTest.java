@@ -119,6 +119,9 @@ public class AuthorizationFilterTest {
                 assertThat(actualHeader).isEqualTo(toYaml(definition.then().expectedResponseHeader()));
             }
         }
+        if (!mockUpstream.isFinished()) {
+            throw new IllegalStateException("test has finished, but mock responses are still queued");
+        }
     }
 
     private static String toYaml(Object actualBody) {
