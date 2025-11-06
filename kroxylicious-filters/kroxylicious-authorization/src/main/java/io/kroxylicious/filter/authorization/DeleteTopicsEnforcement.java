@@ -89,12 +89,14 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
                         DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
                         okStates.stream()
                                 .map(topicState -> errorResult(apiVersion, topicState, Errors.TOPIC_AUTHORIZATION_FAILED))
-                                .forEach(v::mustAdd);
+                                // using method reference is failing to compile on JDK17, see JDK-8268312
+                                .forEach(newElement -> v.mustAdd(newElement));
                         errorStates.stream()
                                 .map(topicState -> {
                                     return getDeletableTopicResult(mapping, topicState, apiVersion);
                                 })
-                                .forEach(v::mustAdd);
+                                // using method reference is failing to compile on JDK17, see JDK-8268312
+                                .forEach(newElement -> v.mustAdd(newElement));
                         return context.requestFilterResultBuilder()
                                 .shortCircuitResponse(
                                         new DeleteTopicsResponseData()
@@ -136,7 +138,8 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
                         DeleteTopicsResponseData.DeletableTopicResultCollection v = new DeleteTopicsResponseData.DeletableTopicResultCollection();
                         request.topicNames().stream()
                                 .map(topicName -> errorResult(apiVersion, topicName, Errors.TOPIC_AUTHORIZATION_FAILED))
-                                .forEach(v::mustAdd);
+                                // using method reference is failing to compile on JDK17, see JDK-8268312
+                                .forEach(newElement -> v.mustAdd(newElement));
                         return context.requestFilterResultBuilder()
                                 .shortCircuitResponse(
                                         new DeleteTopicsResponseData()
