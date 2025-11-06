@@ -20,7 +20,6 @@ import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.CreateTopicsRequestData;
 import org.apache.kafka.common.message.CreateTopicsResponseData;
-import org.apache.kafka.common.message.CreateTopicsResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.resource.PatternType;
@@ -127,11 +126,6 @@ public class CreateTopicsAuthzIT extends AuthzIT {
         @Override
         public CreateTopicsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             return requestTemplate.request(user, clusterFixture);
-        }
-
-        @Override
-        public ObjectNode convertResponse(CreateTopicsResponseData response) {
-            return (ObjectNode) CreateTopicsResponseDataJsonConverter.write(response, apiVersion());
         }
 
         @Override

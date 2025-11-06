@@ -9,32 +9,19 @@ package io.kroxylicious.proxy.filter.authorization;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 
 import org.apache.kafka.common.message.AddOffsetsToTxnRequestData;
-import org.apache.kafka.common.message.AddOffsetsToTxnRequestDataJsonConverter;
 import org.apache.kafka.common.message.AddOffsetsToTxnResponseData;
-import org.apache.kafka.common.message.AddOffsetsToTxnResponseDataJsonConverter;
 import org.apache.kafka.common.message.AddPartitionsToTxnRequestData;
-import org.apache.kafka.common.message.AddPartitionsToTxnRequestDataJsonConverter;
 import org.apache.kafka.common.message.AddPartitionsToTxnResponseData;
-import org.apache.kafka.common.message.AddPartitionsToTxnResponseDataJsonConverter;
 import org.apache.kafka.common.message.FindCoordinatorRequestData;
-import org.apache.kafka.common.message.FindCoordinatorRequestDataJsonConverter;
 import org.apache.kafka.common.message.FindCoordinatorResponseData;
-import org.apache.kafka.common.message.FindCoordinatorResponseDataJsonConverter;
 import org.apache.kafka.common.message.InitProducerIdRequestData;
-import org.apache.kafka.common.message.InitProducerIdRequestDataJsonConverter;
 import org.apache.kafka.common.message.InitProducerIdResponseData;
-import org.apache.kafka.common.message.InitProducerIdResponseDataJsonConverter;
 import org.apache.kafka.common.message.JoinGroupRequestData;
-import org.apache.kafka.common.message.JoinGroupRequestDataJsonConverter;
 import org.apache.kafka.common.message.JoinGroupResponseData;
-import org.apache.kafka.common.message.JoinGroupResponseDataJsonConverter;
 import org.apache.kafka.common.message.SyncGroupRequestData;
-import org.apache.kafka.common.message.SyncGroupRequestDataJsonConverter;
 import org.apache.kafka.common.message.SyncGroupResponseData;
-import org.apache.kafka.common.message.SyncGroupResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
@@ -44,13 +31,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.shaded.org.awaitility.Awaitility;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import io.kroxylicious.test.Response;
 import io.kroxylicious.test.client.KafkaClient;
+import io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.Converter;
 
 import static io.kroxylicious.proxy.filter.authorization.AuthzIT.getRequest;
 import static io.kroxylicious.proxy.filter.authorization.AuthzIT.prettyJsonString;
+import static io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.requestConverterFor;
+import static io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.responseConverterFor;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -131,9 +119,8 @@ class KafkaDriver {
         do {
             short findCoordinatorVersion = (short) 1;
             FindCoordinatorRequestData request = findCoordinatorRequestData(findCoordinatorVersion, coordinatorType, key);
-            FindCoordinatorResponseData response = sendRequest(request, findCoordinatorVersion, FindCoordinatorRequestDataJsonConverter::write,
-                    FindCoordinatorResponseData.class,
-                    FindCoordinatorResponseDataJsonConverter::write);
+            FindCoordinatorResponseData response = sendRequest(request, findCoordinatorVersion,
+                    FindCoordinatorResponseData.class);
             Errors actual = Errors.forCode(response.errorCode());
             if (actual == Errors.COORDINATOR_NOT_AVAILABLE) {
                 try {
@@ -154,8 +141,7 @@ class KafkaDriver {
     JoinGroupResponseData joinGroup(String protocolType, String groupId, String groupInstanceId) {
         short joinGroupVersion = (short) 5;
         JoinGroupRequestData request = joinGroupRequestData(joinGroupVersion, protocolType, groupId, groupInstanceId);
-        JoinGroupResponseData response = sendRequest(request, joinGroupVersion, JoinGroupRequestDataJsonConverter::write, JoinGroupResponseData.class,
-                JoinGroupResponseDataJsonConverter::write);
+        JoinGroupResponseData response = sendRequest(request, joinGroupVersion, JoinGroupResponseData.class);
         assertThat(Errors.forCode(response.errorCode()))
                 .as("JoinGroup response from %s", cluster)
                 .isEqualTo(Errors.NONE);
@@ -164,23 +150,23 @@ class KafkaDriver {
 
     public <S extends ApiMessage, T extends ApiMessage> T sendRequest(S request,
                                                                       short apiVersion,
-                                                                      BiFunction<S, Short, JsonNode> requestToJson,
-                                                                      Class<T> responseClass,
-                                                                      BiFunction<T, Short, JsonNode> responseToJsonFunction) {
+                                                                      Class<T> responseClass) {
         ApiKeys apiKeys = ApiKeys.forId(request.apiKey());
+        Converter requestConverter = requestConverterFor(apiKeys.messageType);
         LOG.info("{} {} request: {} >> {}",
                 username,
                 apiKeys,
-                prettyJsonString(requestToJson.apply(request, apiVersion)),
+                prettyJsonString(requestConverter.writer().apply(request, apiVersion)),
                 cluster.name());
         Response res = kafkaClient.getSync(getRequest(apiVersion, request));
         ApiMessage responseMessage = res.payload().message();
         assertThat(responseMessage).isInstanceOf(responseClass);
         var response = responseClass.cast(responseMessage);
+        Converter responseConverter = responseConverterFor(apiKeys.messageType);
         LOG.info("{} {} response: {} << {}",
                 username,
                 apiKeys,
-                prettyJsonString(responseToJsonFunction.apply(response, apiVersion)),
+                prettyJsonString(responseConverter.writer().apply(response, apiVersion)),
                 cluster.name());
         return response;
     }
@@ -189,8 +175,7 @@ class KafkaDriver {
                                     String protocolType, int generation, String memberId) {
         short syncGroupVersion = (short) 3;
         SyncGroupRequestData request = syncGroupRequestData(syncGroupVersion, groupId, groupInstanceId, protocolType, generation, memberId);
-        SyncGroupResponseData response = sendRequest(request, syncGroupVersion, SyncGroupRequestDataJsonConverter::write, SyncGroupResponseData.class,
-                SyncGroupResponseDataJsonConverter::write);
+        SyncGroupResponseData response = sendRequest(request, syncGroupVersion, SyncGroupResponseData.class);
         assertThat(Errors.forCode(response.errorCode()))
                 .as("SyncGroup response from %s", cluster)
                 .isEqualTo(Errors.NONE);
@@ -206,8 +191,7 @@ class KafkaDriver {
             request.setProducerId(pep.producerId);
             request.setProducerEpoch(pep.epoch);
             request.setTransactionTimeoutMs(10000);
-            InitProducerIdResponseData response = sendRequest(request, (short) 5, InitProducerIdRequestDataJsonConverter::write, InitProducerIdResponseData.class,
-                    InitProducerIdResponseDataJsonConverter::write);
+            InitProducerIdResponseData response = sendRequest(request, (short) 5, InitProducerIdResponseData.class);
             assertThat(Errors.forCode(response.errorCode())).isEqualTo(Errors.NONE);
             producerIdAndEpoch.set(new ProducerIdAndEpoch(response.producerId(), response.producerEpoch()));
         });
@@ -228,8 +212,7 @@ class KafkaDriver {
             }
             request.v3AndBelowTopics().add(topic);
         });
-        AddPartitionsToTxnResponseData response = sendRequest(request, (short) 3, AddPartitionsToTxnRequestDataJsonConverter::write, AddPartitionsToTxnResponseData.class,
-                AddPartitionsToTxnResponseDataJsonConverter::write);
+        AddPartitionsToTxnResponseData response = sendRequest(request, (short) 3, AddPartitionsToTxnResponseData.class);
         assertThat(Errors.forCode(response.errorCode())).isEqualTo(Errors.NONE);
         response.resultsByTransaction().forEach(transactionResult -> {
             for (AddPartitionsToTxnResponseData.AddPartitionsToTxnTopicResult topicResult : transactionResult.topicResults()) {
@@ -247,8 +230,7 @@ class KafkaDriver {
         request.setProducerId(producerIdAndEpoch.producerId);
         request.setProducerEpoch(producerIdAndEpoch.epoch);
         request.setGroupId(groupId);
-        AddOffsetsToTxnResponseData response = sendRequest(request, (short) 4, AddOffsetsToTxnRequestDataJsonConverter::write, AddOffsetsToTxnResponseData.class,
-                AddOffsetsToTxnResponseDataJsonConverter::write);
+        AddOffsetsToTxnResponseData response = sendRequest(request, (short) 4, AddOffsetsToTxnResponseData.class);
         assertThat(Errors.forCode(response.errorCode())).isEqualTo(Errors.NONE);
         return response;
     }

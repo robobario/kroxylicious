@@ -24,7 +24,6 @@ import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.OffsetCommitRequestData;
 import org.apache.kafka.common.message.OffsetCommitResponseData;
-import org.apache.kafka.common.message.OffsetCommitResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.common.protocol.Errors;
@@ -165,11 +164,6 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         @Override
         public OffsetCommitRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             return requestTemplate.request(user, clusterFixture);
-        }
-
-        @Override
-        public ObjectNode convertResponse(OffsetCommitResponseData response) {
-            return (ObjectNode) OffsetCommitResponseDataJsonConverter.write(response, apiVersion());
         }
 
         @Override

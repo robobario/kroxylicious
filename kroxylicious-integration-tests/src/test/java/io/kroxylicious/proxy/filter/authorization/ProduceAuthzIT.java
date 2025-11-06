@@ -27,7 +27,6 @@ import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.compress.Compression;
 import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.message.ProduceResponseData;
-import org.apache.kafka.common.message.ProduceResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.resource.PatternType;
@@ -135,11 +134,6 @@ public class ProduceAuthzIT extends AuthzIT {
         @Override
         public ProduceRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             return requestTemplate.request(user, clusterFixture);
-        }
-
-        @Override
-        public ObjectNode convertResponse(ProduceResponseData response) {
-            return (ObjectNode) ProduceResponseDataJsonConverter.write(response, apiVersion());
         }
 
         @Override

@@ -27,7 +27,6 @@ import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.JoinGroupResponseData;
 import org.apache.kafka.common.message.TxnOffsetCommitRequestData;
 import org.apache.kafka.common.message.TxnOffsetCommitResponseData;
-import org.apache.kafka.common.message.TxnOffsetCommitResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.kafka.common.requests.FindCoordinatorRequest.CoordinatorType;
@@ -203,7 +202,7 @@ public class TxnOffsetCommitAuthzIT extends AuthzIT {
 
         @Override
         public ApiKeys apiKey() {
-            return ApiKeys.OFFSET_FOR_LEADER_EPOCH;
+            return ApiKeys.TXN_OFFSET_COMMIT;
         }
 
         @Override
@@ -254,11 +253,6 @@ public class TxnOffsetCommitAuthzIT extends AuthzIT {
                         memberIdAndGeneration.memberId());
                 testStatesPerClusterUser.put(cluster.name() + ":" + username, state);
             });
-        }
-
-        @Override
-        public ObjectNode convertResponse(TxnOffsetCommitResponseData response) {
-            return (ObjectNode) TxnOffsetCommitResponseDataJsonConverter.write(response, apiVersion());
         }
     }
 

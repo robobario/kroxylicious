@@ -168,7 +168,9 @@ public class AuthzIT extends BaseIT {
 
         Q requestData(String user, BaseClusterFixture baseTestCluster);
 
-        ObjectNode convertResponse(S response);
+        default ObjectNode convertResponse(S response) {
+            return (ObjectNode) KafkaApiMessageConverter.responseConverterFor(apiKey().messageType).writer().apply(response, apiVersion());
+        }
 
         default Stream<Errors> errors(S response) {
             return convertResponse(response).findValues("errorCode").stream().map(node -> {
@@ -284,18 +286,6 @@ public class AuthzIT extends BaseIT {
         @Override
         public Map<String, String> passwords() {
             return Map.of(ALICE, "Alice");
-        }
-
-        @Override
-        public ObjectNode convertResponse(ApiMessage response) {
-            try {
-                var converter = Class.forName(response.getClass().getName() + "JsonConverter");
-                var method = converter.getDeclaredMethod("write", response.getClass(), Short.TYPE);
-                return (ObjectNode) method.invoke(null, response, apiVersion());
-            }
-            catch (ReflectiveOperationException e) {
-                throw new RuntimeException(e);
-            }
         }
 
         @Override
@@ -422,7 +412,7 @@ public class AuthzIT extends BaseIT {
                 producer.initTransactions();
                 producer.beginTransaction();
                 var sent = producer.send(new ProducerRecord<>(tmpName, "", "")).get();
-                System.err.println(sent.offset());
+                LOG.debug("producer record offset: {}", sent.offset());
                 producer.commitTransaction();
             }
             var consumerProps = new HashMap<>(aSuper);
@@ -451,7 +441,7 @@ public class AuthzIT extends BaseIT {
                 // consumer.seek(topicPartition, 0L);
                 var polled = consumer.poll(Duration.ofMillis(100));
 
-                System.err.println(polled.records(topicPartition));
+                LOG.debug("polled records: {}", polled.records(topicPartition));
                 consumer.commitSync();
             }
 

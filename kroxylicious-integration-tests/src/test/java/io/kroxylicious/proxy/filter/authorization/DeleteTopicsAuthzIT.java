@@ -24,7 +24,6 @@ import org.apache.kafka.common.acl.AclOperation;
 import org.apache.kafka.common.acl.AclPermissionType;
 import org.apache.kafka.common.message.DeleteTopicsRequestData;
 import org.apache.kafka.common.message.DeleteTopicsResponseData;
-import org.apache.kafka.common.message.DeleteTopicsResponseDataJsonConverter;
 import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.resource.PatternType;
 import org.apache.kafka.common.resource.ResourcePattern;
@@ -159,11 +158,6 @@ public class DeleteTopicsAuthzIT extends AuthzIT {
         @Override
         public DeleteTopicsRequestData requestData(String user, BaseClusterFixture clusterFixture) {
             return requestTemplate.request(user, clusterFixture);
-        }
-
-        @Override
-        public ObjectNode convertResponse(DeleteTopicsResponseData response) {
-            return (ObjectNode) DeleteTopicsResponseDataJsonConverter.write(response, apiVersion());
         }
 
         @Override
