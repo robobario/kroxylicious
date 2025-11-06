@@ -34,6 +34,9 @@ public class Passthrough<Q extends ApiMessage, S extends ApiMessage> extends Api
     Passthrough(int minSupportedVersion, int maxSupportedVersion) {
         this.minSupportedVersion = asShort(minSupportedVersion);
         this.maxSupportedVersion = asShort(maxSupportedVersion);
+        if (maxSupportedVersion < minSupportedVersion) {
+            throw new IllegalArgumentException("maxSupportedVersion cannot be less than minSupportedVersion");
+        }
     }
 
     @Override
