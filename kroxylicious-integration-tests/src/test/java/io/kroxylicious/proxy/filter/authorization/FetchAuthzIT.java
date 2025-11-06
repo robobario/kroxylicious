@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclOperation;
@@ -34,6 +35,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import io.kroxylicious.testing.kafka.junit5ext.Name;
+
 public class FetchAuthzIT extends AuthzIT {
 
     public static final String EXISTING_TOPIC_NAME = "other-topic";
@@ -45,6 +48,11 @@ public class FetchAuthzIT extends AuthzIT {
     private static final String BOB_TO_READ_TOPIC_NAME = "bob-new-topic";
     public static final List<String> ALL_TOPIC_NAMES_IN_TEST = List.of(EXISTING_TOPIC_NAME, ALICE_TO_READ_TOPIC_NAME, BOB_TO_READ_TOPIC_NAME);
     private static List<AclBinding> aclBindings;
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException {
@@ -71,14 +79,14 @@ public class FetchAuthzIT extends AuthzIT {
 
     @BeforeEach
     void prepClusters() {
-        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     List<Arguments> shouldEnforceAccessToTopics() {

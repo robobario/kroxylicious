@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -51,6 +52,7 @@ import io.kroxylicious.filter.authorization.AuthorizationFilter;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import static io.kroxylicious.filter.authorization.OffsetFetchGroupBatchingEnforcement.FIRST_VERSION_USING_GROUP_BATCHING;
 import static java.util.stream.Stream.concat;
@@ -65,6 +67,11 @@ public class OffsetFetchAuthzIT extends AuthzIT {
     private static final String BOB_TO_DESCRIBE_TOPIC_NAME = "bob-new-topic";
     public static final List<String> ALL_TOPIC_NAMES_IN_TEST = List.of(EXISTING_TOPIC_NAME, ALICE_TO_DESCRIBE_TOPIC_NAME, BOB_TO_DESCRIBE_TOPIC_NAME);
     private static List<AclBinding> aclBindings;
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException {
@@ -94,9 +101,9 @@ public class OffsetFetchAuthzIT extends AuthzIT {
 
     @BeforeEach
     void prepClusters() {
-        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
         produceAndConsumeToEstablishGroup(GROUP_ID, kafkaClusterWithAuthz);
-        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
         produceAndConsumeToEstablishGroup(GROUP_ID, kafkaClusterNoAuthz);
     }
 
@@ -132,8 +139,8 @@ public class OffsetFetchAuthzIT extends AuthzIT {
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     List<Arguments> shouldEnforceAccessToTopics() {

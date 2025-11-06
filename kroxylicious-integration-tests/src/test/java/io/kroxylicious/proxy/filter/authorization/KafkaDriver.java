@@ -39,6 +39,7 @@ import static io.kroxylicious.proxy.filter.authorization.AuthzIT.getRequest;
 import static io.kroxylicious.proxy.filter.authorization.AuthzIT.prettyJsonString;
 import static io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.requestConverterFor;
 import static io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.responseConverterFor;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -124,7 +125,7 @@ class KafkaDriver {
             Errors actual = Errors.forCode(response.errorCode());
             if (actual == Errors.COORDINATOR_NOT_AVAILABLE) {
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(10);
                 }
                 catch (InterruptedException e) {
                     throw new RuntimeException(e);
@@ -184,7 +185,7 @@ class KafkaDriver {
 
     ProducerIdAndEpoch initProducerId(String transactionalId) {
         AtomicReference<ProducerIdAndEpoch> producerIdAndEpoch = new AtomicReference<>(ProducerIdAndEpoch.NONE);
-        Awaitility.await().untilAsserted(() -> {
+        Awaitility.await().pollInterval(10, MILLISECONDS).untilAsserted(() -> {
             InitProducerIdRequestData request = new InitProducerIdRequestData();
             request.setTransactionalId(transactionalId);
             ProducerIdAndEpoch pep = producerIdAndEpoch.get();

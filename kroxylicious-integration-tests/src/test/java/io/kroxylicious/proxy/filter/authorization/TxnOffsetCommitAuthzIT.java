@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
@@ -45,6 +46,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.kroxylicious.filter.authorization.AuthorizationFilter;
 import io.kroxylicious.test.client.KafkaClient;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.concat;
@@ -60,6 +62,11 @@ public class TxnOffsetCommitAuthzIT extends AuthzIT {
     public static final List<String> ALL_TOPIC_NAMES_IN_TEST = List.of(EXISTING_TOPIC_NAME, ALICE_TO_READ_TOPIC_NAME, BOB_TO_READ_TOPIC_NAME);
     private static List<AclBinding> aclBindings;
     private final Map<String, TestState> testStatesPerClusterUser = new HashMap<>();
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException {
@@ -116,8 +123,8 @@ public class TxnOffsetCommitAuthzIT extends AuthzIT {
     @BeforeEach
     void prepClusters() {
         try {
-            this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-            this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+            this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+            this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
         }
         catch (Exception e) {
             throw new RuntimeException(e);
@@ -126,8 +133,8 @@ public class TxnOffsetCommitAuthzIT extends AuthzIT {
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     record TestState(KafkaClient superClient, String transactionalId, String groupId, ProducerIdAndEpoch producerIdAndEpoch, int generationId, String memberId) {}

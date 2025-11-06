@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
@@ -46,6 +47,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.kroxylicious.test.Request;
 import io.kroxylicious.test.record.RecordTestUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -57,6 +59,11 @@ public class ProduceAuthzIT extends AuthzIT {
     private Path rulesFile;
 
     private List<AclBinding> aclBindings;
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException {
@@ -92,14 +99,14 @@ public class ProduceAuthzIT extends AuthzIT {
 
     @BeforeEach
     void prepClusters() {
-        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, topicName, aclBindings);
-        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, topicName, List.of());
+        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, List.of(topicName), aclBindings);
+        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, List.of(topicName), List.of());
     }
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, List.of(topicName), aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, List.of(topicName), List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, List.of(topicName), aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, List.of(topicName), List.of());
     }
 
     class ProduceEquivalence extends Equivalence<ProduceRequestData, ProduceResponseData> {

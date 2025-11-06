@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
@@ -42,6 +43,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.kroxylicious.filter.authorization.AuthorizationFilter;
 import io.kroxylicious.test.client.KafkaClient;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -62,6 +64,11 @@ public class OffsetCommitAuthzIT extends AuthzIT {
     private Path rulesFile;
 
     private List<AclBinding> aclBindings;
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException, ExecutionException, InterruptedException {
@@ -110,14 +117,14 @@ public class OffsetCommitAuthzIT extends AuthzIT {
 
     @BeforeEach
     void prepClusters() {
-        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     Map<String, GroupContext> groupContexts = new HashMap<>();
