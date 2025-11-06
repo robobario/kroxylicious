@@ -34,7 +34,7 @@ public class ProduceEnforcement extends ApiEnforcement<ProduceRequestData, Produ
                                                    ProduceRequestData request,
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
-
+        boolean requiresResponse = request.acks() != 0;
         var topicWriteActions = request.topicData().stream()
                 .map(t -> new Action(TopicResource.WRITE, t.name()))
                 .toList();
@@ -44,18 +44,24 @@ public class ProduceEnforcement extends ApiEnforcement<ProduceRequestData, Produ
             var topicWriteDecisions = authorization.partition(request.topicData(),
                     TopicResource.WRITE, ProduceRequestData.TopicProduceData::name);
 
-            // var topicWriteDecisions = request.topicData().stream()
-            // .collect(Collectors.groupingBy(tc -> authorization.decision(TopicResource.WRITE, tc.name())));
-
             var allowedTopicWrites = topicWriteDecisions.get(Decision.ALLOW);
             if (allowedTopicWrites.isEmpty()) {
-                // All denied => short circuit
-                return context.requestFilterResultBuilder()
-                        .errorResponse(header, request, Errors.TOPIC_AUTHORIZATION_FAILED.exception())
-                        .completed();
+                if (requiresResponse) {
+                    return context.requestFilterResultBuilder()
+                            .errorResponse(header, request, Errors.TOPIC_AUTHORIZATION_FAILED.exception())
+                            .completed();
+                }
+                else {
+                    return context.requestFilterResultBuilder().drop().completed();
+                }
             }
 
             var deniedTopicWrites = topicWriteDecisions.get(Decision.DENY);
+
+            if (deniedTopicWrites.isEmpty()) {
+                // nothing denied, forward whole request on
+                return context.forwardRequest(header, request);
+            }
 
             for (var topic : deniedTopicWrites) {
                 request.topicData().remove(topic);
@@ -70,10 +76,12 @@ public class ProduceEnforcement extends ApiEnforcement<ProduceRequestData, Produ
                                 .toList());
             }).toList();
 
-            authorizationFilter.pushInflightState(header, (ProduceResponseData response) -> {
-                response.responses().addAll(topicProduceResponses);
-                return response;
-            });
+            if (requiresResponse) {
+                authorizationFilter.pushInflightState(header, (ProduceResponseData response) -> {
+                    response.responses().addAll(topicProduceResponses);
+                    return response;
+                });
+            }
             return context.forwardRequest(header, request);
         });
     }
