@@ -23,7 +23,7 @@ given:
         v3AndBelowProducerId: 662
         v3AndBelowProducerEpoch: 714
         v3AndBelowTopics:
-          - name: "random-string-513"
+          - name: "my-topic"
             partitions:
               - 814
       upstreamResponseHeader:
@@ -31,7 +31,7 @@ given:
       upstreamResponse:
         throttleTimeMs: 624
         resultsByTopicV3AndBelow:
-          - name: "random-string-242"
+          - name: "my-topic"
             resultsByPartition:
               - partitionIndex: 527
                 partitionErrorCode: 241
@@ -40,7 +40,7 @@ given:
       - subject: "alice"
         resourceName: "my-topic"
         resourceClass: "TOPIC"
-        resourceType: "DESCRIBE"
+        resourceType: "WRITE"
   topicNames: null
 when:
   subject: "alice"
@@ -54,7 +54,7 @@ when:
     v3AndBelowProducerId: 662
     v3AndBelowProducerEpoch: 714
     v3AndBelowTopics:
-      - name: "random-string-513"
+      - name: "my-topic"
         partitions:
           - 814
 then:
@@ -63,7 +63,7 @@ then:
   expectedResponse:
     throttleTimeMs: 624
     resultsByTopicV3AndBelow:
-      - name: "random-string-242"
+      - name: "my-topic"
         resultsByPartition:
           - partitionIndex: 527
             partitionErrorCode: 241
