@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.acl.AccessControlEntry;
 import org.apache.kafka.common.acl.AclBinding;
@@ -42,6 +43,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.kroxylicious.filter.authorization.AuthorizationFilter;
 import io.kroxylicious.test.client.KafkaClient;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,11 +59,18 @@ public class OffsetCommitAuthzIT extends AuthzIT {
             EVE_TOPIC_NAME,
             EXISTING_TOPIC_NAME);
 
-    private static final String FOO_GROUP_ID = "foo";
+    private static final Map<String, String> GROUP_PER_USER = Map.of(ALICE, "foo-" + ALICE,
+            BOB, "foo-" + BOB,
+            EVE, "foo-" + EVE);
 
     private Path rulesFile;
 
     private List<AclBinding> aclBindings;
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException, ExecutionException, InterruptedException {
@@ -81,16 +90,16 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         aclBindings = List.of(
                 // group permissions
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, "foo-", PatternType.PREFIXED),
                         new AccessControlEntry("User:" + ALICE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, "foo-", PatternType.PREFIXED),
                         new AccessControlEntry("User:" + BOB, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 // Allow Eve to access the group, so we can test the authorization of the topic
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, "foo-", PatternType.PREFIXED),
                         new AccessControlEntry("User:" + EVE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
 
@@ -110,14 +119,14 @@ public class OffsetCommitAuthzIT extends AuthzIT {
 
     @BeforeEach
     void prepClusters() {
-        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, ALL_TOPIC_NAMES_IN_TEST, List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, ALL_TOPIC_NAMES_IN_TEST, List.of());
     }
 
     Map<String, GroupContext> groupContexts = new HashMap<>();
@@ -155,7 +164,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         public void prepareCluster(BaseClusterFixture cluster) {
             Map<String, KafkaClient> stringKafkaClientMap = cluster.authenticatedClients(PASSWORDS.keySet());
             stringKafkaClientMap.forEach((username, kafkaClient) -> {
-                var groupContext = new GroupContext(username, FOO_GROUP_ID);
+                var groupContext = new GroupContext(username, GROUP_PER_USER.get(username));
                 groupContext.doUptoSyncedGroup(cluster, kafkaClient);
                 groupContexts.put(cluster.name() + username, groupContext);
             });
@@ -179,15 +188,16 @@ public class OffsetCommitAuthzIT extends AuthzIT {
 
         @Override
         public void assertVisibleSideEffects(BaseClusterFixture cluster) {
-            assertThat(offsets(cluster, FOO_GROUP_ID))
-                    .as("Observed offsets in %s", cluster)
-                    .isEqualTo(Map.of(
-                            new TopicPartition("alice-topic", 0), 420L));
+            Object observed = observedVisibleSideEffects(cluster);
+            assertThat(observed).isEqualTo(Map.of(
+                    ALICE, Map.of(new TopicPartition("alice-topic", 0), 420L),
+                    BOB, Map.of(),
+                    EVE, Map.of()));
         }
 
         @Override
         public Object observedVisibleSideEffects(BaseClusterFixture cluster) {
-            return offsets(cluster, FOO_GROUP_ID);
+            return GROUP_PER_USER.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> offsets(cluster, e.getValue())));
         }
 
         @Override
@@ -252,9 +262,10 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                                             .setCommittedLeaderEpoch(1));
 
                             var data = new OffsetCommitRequestData();
-                            data.setGroupId(FOO_GROUP_ID);
+                            String groupId = GROUP_PER_USER.get(user);
+                            data.setGroupId(groupId);
                             if (apiVersion >= 7) {
-                                data.setGroupInstanceId(FOO_GROUP_ID + "-" + user);
+                                data.setGroupInstanceId(groupId + "-" + user);
                             }
 
                             GroupContext groupContext = Objects.requireNonNull(groupContexts.get(clusterFixture.name() + user));

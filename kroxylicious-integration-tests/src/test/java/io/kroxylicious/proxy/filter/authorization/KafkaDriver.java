@@ -39,6 +39,7 @@ import static io.kroxylicious.proxy.filter.authorization.AuthzIT.getRequest;
 import static io.kroxylicious.proxy.filter.authorization.AuthzIT.prettyJsonString;
 import static io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.requestConverterFor;
 import static io.kroxylicious.test.requestresponsetestdef.KafkaApiMessageConverter.responseConverterFor;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -124,7 +125,7 @@ class KafkaDriver {
             Errors actual = Errors.forCode(response.errorCode());
             if (actual == Errors.COORDINATOR_NOT_AVAILABLE) {
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(10);
                 }
                 catch (InterruptedException e) {
                     throw new RuntimeException(e);
@@ -140,12 +141,16 @@ class KafkaDriver {
 
     JoinGroupResponseData joinGroup(String protocolType, String groupId, String groupInstanceId) {
         short joinGroupVersion = (short) 5;
-        JoinGroupRequestData request = joinGroupRequestData(joinGroupVersion, protocolType, groupId, groupInstanceId);
-        JoinGroupResponseData response = sendRequest(request, joinGroupVersion, JoinGroupResponseData.class);
-        assertThat(Errors.forCode(response.errorCode()))
-                .as("JoinGroup response from %s", cluster)
-                .isEqualTo(Errors.NONE);
-        return response;
+        AtomicReference<JoinGroupResponseData> finalResponse = new AtomicReference<>();
+        Awaitility.await().pollInterval(20, MILLISECONDS).untilAsserted(() -> {
+            JoinGroupRequestData request = joinGroupRequestData(joinGroupVersion, protocolType, groupId, groupInstanceId);
+            JoinGroupResponseData response = sendRequest(request, joinGroupVersion, JoinGroupResponseData.class);
+            assertThat(Errors.forCode(response.errorCode()))
+                    .as("JoinGroup response from %s", cluster)
+                    .isEqualTo(Errors.NONE);
+            finalResponse.set(response);
+        });
+        return finalResponse.get();
     }
 
     public <S extends ApiMessage, T extends ApiMessage> T sendRequest(S request,
@@ -184,7 +189,7 @@ class KafkaDriver {
 
     ProducerIdAndEpoch initProducerId(String transactionalId) {
         AtomicReference<ProducerIdAndEpoch> producerIdAndEpoch = new AtomicReference<>(ProducerIdAndEpoch.NONE);
-        Awaitility.await().untilAsserted(() -> {
+        Awaitility.await().pollInterval(10, MILLISECONDS).untilAsserted(() -> {
             InitProducerIdRequestData request = new InitProducerIdRequestData();
             request.setTransactionalId(transactionalId);
             ProducerIdAndEpoch pep = producerIdAndEpoch.get();

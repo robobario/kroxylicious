@@ -15,9 +15,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.acl.AccessControlEntry;
@@ -46,6 +46,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.kroxylicious.test.Request;
 import io.kroxylicious.test.record.RecordTestUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -57,6 +58,11 @@ public class ProduceAuthzIT extends AuthzIT {
     private Path rulesFile;
 
     private List<AclBinding> aclBindings;
+
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
 
     @BeforeAll
     void beforeAll() throws IOException {
@@ -92,14 +98,14 @@ public class ProduceAuthzIT extends AuthzIT {
 
     @BeforeEach
     void prepClusters() {
-        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthz, topicName, aclBindings);
-        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthz, topicName, List.of());
+        this.topicIdsInUnproxiedCluster = prepCluster(kafkaClusterWithAuthzAdmin, List.of(topicName), aclBindings);
+        this.topicIdsInProxiedCluster = prepCluster(kafkaClusterNoAuthzAdmin, List.of(topicName), List.of());
     }
 
     @AfterEach
     void tidyClusters() {
-        deleteTopicsAndAcls(kafkaClusterWithAuthz, List.of(topicName), aclBindings);
-        deleteTopicsAndAcls(kafkaClusterNoAuthz, List.of(topicName), List.of());
+        deleteTopicsAndAcls(kafkaClusterWithAuthzAdmin, List.of(topicName), aclBindings);
+        deleteTopicsAndAcls(kafkaClusterNoAuthzAdmin, List.of(topicName), List.of());
     }
 
     class ProduceEquivalence extends Equivalence<ProduceRequestData, ProduceResponseData> {
@@ -150,27 +156,33 @@ public class ProduceAuthzIT extends AuthzIT {
         }
 
         public void assertVisibleSideEffects(BaseClusterFixture cluster) {
-            assertThat(topicContents(cluster.backingCluster()))
+            assertThat(topicContents(cluster.backingCluster(), 2))
                     .isEqualTo(Map.of(
                             "alice", List.of("Alice"),
                             "bob", List.of("Bob")));
         }
 
-        private Map<String, List<String>> topicContents(KafkaCluster unproxiedCluster) {
+        private Map<String, List<String>> topicContents(KafkaCluster unproxiedCluster, int expectedRecords) {
             var recordValuesGroupedByKey = new HashMap<String, List<String>>();
-            try (var consumer = new KafkaConsumer<>(unproxiedCluster.getKafkaClientConfiguration(SUPER, "Super"),
+            Map<String, Object> consumerConfig = unproxiedCluster.getKafkaClientConfiguration(SUPER, "Super");
+            consumerConfig.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 0);
+            consumerConfig.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 100);
+            try (var consumer = new KafkaConsumer<>(consumerConfig,
                     new StringDeserializer(), new StringDeserializer())) {
                 var tp = new TopicPartition(topicName, 0);
+                Long endOffset = consumer.endOffsets(List.of(tp)).values().stream().findFirst().orElseThrow();
+                assertThat(endOffset).isEqualTo(expectedRecords);
                 consumer.assign(List.of(tp));
                 consumer.seek(tp, 0);
-                var records = consumer.poll(Duration.ofSeconds(5));
-                var grouped = records.records(tp).stream()
-                        .collect(Collectors.groupingBy(ConsumerRecord::key))
-                        .entrySet().stream().collect(
-                                Collectors.toMap(Map.Entry::getKey, e -> e.getValue().stream().map(ConsumerRecord::value).toList()));
-                recordValuesGroupedByKey.putAll(grouped);
-                var end = consumer.endOffsets(List.of(tp)).get(tp);
-                assertThat(end).isEqualTo(2);
+                long consumed = 0;
+                long start = System.currentTimeMillis();
+                while (consumed < expectedRecords && System.currentTimeMillis() - start < 5000) {
+                    var records = consumer.poll(Duration.ofSeconds(0));
+                    records.records(tp)
+                            .forEach(record -> recordValuesGroupedByKey.computeIfAbsent(record.key(), k -> new ArrayList<>())
+                                    .add(record.value()));
+                    consumed += records.count();
+                }
             }
             return recordValuesGroupedByKey;
         }

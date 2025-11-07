@@ -30,6 +30,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
@@ -82,6 +83,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.junit5ext.Name;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -138,7 +140,9 @@ public class AuthzIT extends BaseIT {
     @BrokerConfig(name = "authorizer.class.name", value = "org.apache.kafka.metadata.authorizer.StandardAuthorizer")
     // ANONYMOUS is the broker
     @BrokerConfig(name = "super.users", value = "User:ANONYMOUS;User:super")
+    @Name("kafkaClusterWithAuthz")
     static KafkaCluster kafkaClusterWithAuthz;
+    @Name("kafkaClusterNoAuthz")
     static KafkaCluster kafkaClusterNoAuthz;
 
     Map<String, Uuid> topicIdsInUnproxiedCluster;
@@ -356,36 +360,26 @@ public class AuthzIT extends BaseIT {
         root.replace(propertyName, maybeClobberedUuid(root.get(propertyName)));
     }
 
-    protected static Map<String, Uuid> prepCluster(KafkaCluster unproxiedCluster,
-                                                   String topicName,
-                                                   List<AclBinding> bindings) {
-        return prepCluster(unproxiedCluster, List.of(topicName), bindings);
-    }
-
-    protected static Map<String, Uuid> prepCluster(KafkaCluster unproxiedCluster,
+    protected static Map<String, Uuid> prepCluster(Admin admin,
                                                    List<String> topicNames,
                                                    List<AclBinding> bindings) {
-        Map<String, Uuid> result;
-        try (var admin = AdminClient.create(unproxiedCluster.getKafkaClientConfiguration(SUPER, "Super"))) {
-            var res = admin.createTopics(topicNames.stream().map(topicName -> new NewTopic(topicName, 1, (short) 1)).toList());
-            res.all().toCompletionStage().toCompletableFuture().join();
-            result = topicNames.stream().collect(Collectors.toMap(Function.identity(), topicName -> {
-                try {
-                    return res.topicId(topicName).get();
-                }
-                catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                catch (ExecutionException e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-
-            if (!bindings.isEmpty()) {
-                admin.createAcls(bindings).all()
-                        .toCompletionStage().toCompletableFuture().join();
-            }
+        var res = admin.createTopics(topicNames.stream().map(topicName -> new NewTopic(topicName, 1, (short) 1)).toList());
+        if (!bindings.isEmpty()) {
+            admin.createAcls(bindings).all()
+                    .toCompletionStage().toCompletableFuture().join();
         }
+        res.all().toCompletionStage().toCompletableFuture().join();
+        Map<String, Uuid> result = topicNames.stream().collect(Collectors.toMap(Function.identity(), topicName -> {
+            try {
+                return res.topicId(topicName).get();
+            }
+            catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }));
         return result;
     }
 
@@ -451,25 +445,23 @@ public class AuthzIT extends BaseIT {
         }
     }
 
-    protected static void deleteTopicsAndAcls(KafkaCluster unproxiedCluster,
+    protected static void deleteTopicsAndAcls(Admin admin,
                                               List<String> topicNames,
                                               List<AclBinding> bindings) {
 
-        try (var admin = AdminClient.create(unproxiedCluster.getKafkaClientConfiguration(SUPER, "Super"))) {
-            try {
-                admin.deleteTopics(TopicCollection.ofTopicNames(topicNames))
-                        .all().toCompletionStage().toCompletableFuture().join();
-            }
-            catch (CompletionException e) {
-                if (!(e.getCause() instanceof UnknownTopicOrPartitionException)) {
-                    throw e;
-                }
-            }
-
+        try {
+            KafkaFuture<Void> result = admin.deleteTopics(TopicCollection.ofTopicNames(topicNames))
+                    .all();
             if (!bindings.isEmpty()) {
                 var filters = bindings.stream().map(AclBinding::toFilter).toList();
                 admin.deleteAcls(filters).all()
                         .toCompletionStage().toCompletableFuture().join();
+            }
+            result.toCompletionStage().toCompletableFuture().join();
+        }
+        catch (CompletionException e) {
+            if (!(e.getCause() instanceof UnknownTopicOrPartitionException)) {
+                throw e;
             }
         }
     }
