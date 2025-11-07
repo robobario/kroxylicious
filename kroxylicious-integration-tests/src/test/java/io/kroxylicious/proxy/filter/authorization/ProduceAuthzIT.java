@@ -113,8 +113,8 @@ public class ProduceAuthzIT extends AuthzIT {
         private final RequestTemplate<ProduceRequestData> requestTemplate;
 
         ProduceEquivalence(
-                short apiVersion,
-                RequestTemplate<ProduceRequestData> requestTemplate) {
+                           short apiVersion,
+                           RequestTemplate<ProduceRequestData> requestTemplate) {
             super(apiVersion);
             this.requestTemplate = requestTemplate;
         }

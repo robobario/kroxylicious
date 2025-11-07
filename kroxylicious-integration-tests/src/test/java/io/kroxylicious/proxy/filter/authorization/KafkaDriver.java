@@ -141,12 +141,16 @@ class KafkaDriver {
 
     JoinGroupResponseData joinGroup(String protocolType, String groupId, String groupInstanceId) {
         short joinGroupVersion = (short) 5;
-        JoinGroupRequestData request = joinGroupRequestData(joinGroupVersion, protocolType, groupId, groupInstanceId);
-        JoinGroupResponseData response = sendRequest(request, joinGroupVersion, JoinGroupResponseData.class);
-        assertThat(Errors.forCode(response.errorCode()))
-                .as("JoinGroup response from %s", cluster)
-                .isEqualTo(Errors.NONE);
-        return response;
+        AtomicReference<JoinGroupResponseData> finalResponse = new AtomicReference<>();
+        Awaitility.await().pollInterval(20, MILLISECONDS).untilAsserted(() -> {
+            JoinGroupRequestData request = joinGroupRequestData(joinGroupVersion, protocolType, groupId, groupInstanceId);
+            JoinGroupResponseData response = sendRequest(request, joinGroupVersion, JoinGroupResponseData.class);
+            assertThat(Errors.forCode(response.errorCode()))
+                    .as("JoinGroup response from %s", cluster)
+                    .isEqualTo(Errors.NONE);
+            finalResponse.set(response);
+        });
+        return finalResponse.get();
     }
 
     public <S extends ApiMessage, T extends ApiMessage> T sendRequest(S request,

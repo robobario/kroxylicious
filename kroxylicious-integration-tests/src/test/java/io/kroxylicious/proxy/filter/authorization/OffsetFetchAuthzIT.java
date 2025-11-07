@@ -147,7 +147,7 @@ public class OffsetFetchAuthzIT extends AuthzIT {
 
     List<Arguments> shouldEnforceAccessToTopics() {
         Stream<Arguments> supportedVersionsBeforeGroupBatching = IntStream.range(AuthorizationFilter.minSupportedApiVersion(ApiKeys.OFFSET_FETCH),
-                        FIRST_VERSION_USING_GROUP_BATCHING)
+                FIRST_VERSION_USING_GROUP_BATCHING)
                 .mapToObj(apiVersion -> Arguments.argumentSet("api version before batching version " + apiVersion, new OffsetFetchEquivalence((short) apiVersion)));
         Stream<Arguments> supportedVersionsWithGroupBatching = IntStream.rangeClosed(8, AuthorizationFilter.maxSupportedApiVersion(ApiKeys.OFFSET_FETCH)).mapToObj(
                 apiVersion -> Arguments.argumentSet("api version with batching version " + apiVersion, new OffsetFetchEquivalenceGroupBatching((short) apiVersion)));
