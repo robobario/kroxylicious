@@ -59,7 +59,9 @@ public class OffsetCommitAuthzIT extends AuthzIT {
             EVE_TOPIC_NAME,
             EXISTING_TOPIC_NAME);
 
-    private static final String FOO_GROUP_ID = "foo";
+    private static final Map<String, String> GROUP_PER_USER = Map.of(ALICE, "foo-" + ALICE,
+            BOB, "foo-" + BOB,
+            EVE, "foo-" + EVE);
 
     private Path rulesFile;
 
@@ -88,16 +90,16 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         aclBindings = List.of(
                 // group permissions
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, "foo-", PatternType.PREFIXED),
                         new AccessControlEntry("User:" + ALICE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, "foo-", PatternType.PREFIXED),
                         new AccessControlEntry("User:" + BOB, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 // Allow Eve to access the group, so we can test the authorization of the topic
                 new AclBinding(
-                        new ResourcePattern(ResourceType.GROUP, FOO_GROUP_ID, PatternType.LITERAL),
+                        new ResourcePattern(ResourceType.GROUP, "foo-", PatternType.PREFIXED),
                         new AccessControlEntry("User:" + EVE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
 
@@ -162,7 +164,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
         public void prepareCluster(BaseClusterFixture cluster) {
             Map<String, KafkaClient> stringKafkaClientMap = cluster.authenticatedClients(PASSWORDS.keySet());
             stringKafkaClientMap.forEach((username, kafkaClient) -> {
-                var groupContext = new GroupContext(username, FOO_GROUP_ID);
+                var groupContext = new GroupContext(username, GROUP_PER_USER.get(username));
                 groupContext.doUptoSyncedGroup(cluster, kafkaClient);
                 groupContexts.put(cluster.name() + username, groupContext);
             });
@@ -186,15 +188,16 @@ public class OffsetCommitAuthzIT extends AuthzIT {
 
         @Override
         public void assertVisibleSideEffects(BaseClusterFixture cluster) {
-            assertThat(offsets(cluster, FOO_GROUP_ID))
-                    .as("Observed offsets in %s", cluster)
-                    .isEqualTo(Map.of(
-                            new TopicPartition("alice-topic", 0), 420L));
+            Object observed = observedVisibleSideEffects(cluster);
+            assertThat(observed).isEqualTo(Map.of(
+                    ALICE, Map.of(new TopicPartition("alice-topic", 0), 420L),
+                    BOB, Map.of(),
+                    EVE, Map.of()));
         }
 
         @Override
         public Object observedVisibleSideEffects(BaseClusterFixture cluster) {
-            return offsets(cluster, FOO_GROUP_ID);
+            return GROUP_PER_USER.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> offsets(cluster, e.getValue())));
         }
 
         @Override
@@ -259,9 +262,10 @@ public class OffsetCommitAuthzIT extends AuthzIT {
                                             .setCommittedLeaderEpoch(1));
 
                             var data = new OffsetCommitRequestData();
-                            data.setGroupId(FOO_GROUP_ID);
+                            String groupId = GROUP_PER_USER.get(user);
+                            data.setGroupId(groupId);
                             if (apiVersion >= 7) {
-                                data.setGroupInstanceId(FOO_GROUP_ID + "-" + user);
+                                data.setGroupInstanceId(groupId + "-" + user);
                             }
 
                             GroupContext groupContext = Objects.requireNonNull(groupContexts.get(clusterFixture.name() + user));
