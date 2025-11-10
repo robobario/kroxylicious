@@ -54,7 +54,7 @@ class ListOffsetsEnforcement extends ApiEnforcement<ListOffsetsRequestData, List
                                 .shortCircuitResponse(response)
                                 .completed();
                     }
-                    else if (topicDescribeDecisions.get(Decision.DENY).isEmpty()) {
+                    else if (topicDescribeDecisions.getOrDefault(Decision.DENY, List.of()).isEmpty()) {
                         // Just forward if there's no denied topics
                         return context.forwardRequest(header, request);
                     }

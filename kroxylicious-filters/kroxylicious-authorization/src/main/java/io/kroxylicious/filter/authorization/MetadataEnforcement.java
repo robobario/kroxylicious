@@ -220,31 +220,35 @@ public class MetadataEnforcement extends ApiEnforcement<MetadataRequestData, Met
                     }
 
                     if (completer.includeClusterAuthorizedOperations()) {
-                        response.setClusterAuthorizedOperations(clusterAuthzOptions(authorize));
+                        response.setClusterAuthorizedOperations(clusterAuthzOptions(authorize, response));
                     }
                     response.topics().removeAll(toRemove);
                     return context.forwardResponse(header, completer.merge(response));
                 });
     }
 
-    private static int clusterAuthzOptions(AuthorizeResult authorize) {
-        int flag = 0;
+    private static int clusterAuthzOptions(AuthorizeResult authorize, MetadataResponseData response) {
+        int upstreamAuthorizedOps = response.clusterAuthorizedOperations();
+        int enforcedAuthorizedOps = 0;
         for (var clusterOp : ClusterResource.values()) {
             if (authorize.decision(clusterOp, "") == Decision.ALLOW) {
-                flag |= (0x1 << clusterOp.kafkaOrdinal);
+                enforcedAuthorizedOps |= (0x1 << clusterOp.kafkaOrdinal);
             }
         }
-        return flag;
+        // each operation must be allowed both upstream and by this Enforcement
+        return enforcedAuthorizedOps & upstreamAuthorizedOps;
     }
 
     private static int topicAuthzOptions(AuthorizeResult authorize, MetadataResponseData.MetadataResponseTopic t) {
-        int flag = 0;
+        int upstreamAuthorizedOps = t.topicAuthorizedOperations();
+        int enforcedAuthorizedOps = 0;
         for (var clusterOp : TopicResource.values()) {
             if (authorize.decision(clusterOp, t.name()) == Decision.ALLOW) {
-                flag |= (0x1 << clusterOp.kafkaOrdinal);
+                enforcedAuthorizedOps |= (0x1 << clusterOp.kafkaOrdinal);
             }
         }
-        return flag;
+        // each operation must be allowed both upstream and by this Enforcement
+        return enforcedAuthorizedOps & upstreamAuthorizedOps;
     }
 
     static record MetadataCompleter(boolean includeClusterAuthorizedOperations,

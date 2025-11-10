@@ -59,7 +59,7 @@ class FetchEnforcement extends ApiEnforcement<FetchRequestData, FetchResponseDat
                                 .shortCircuitResponse(response)
                                 .completed();
                     }
-                    else if (topicReadDecisions.get(Decision.DENY).isEmpty()) {
+                    else if (topicReadDecisions.getOrDefault(Decision.DENY, List.of()).isEmpty()) {
                         // Just forward if there's no denied topics
                         return context.forwardRequest(header, request);
                     }
