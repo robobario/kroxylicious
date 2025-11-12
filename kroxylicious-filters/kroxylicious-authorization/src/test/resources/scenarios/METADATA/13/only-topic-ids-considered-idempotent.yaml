@@ -8,7 +8,7 @@
 metadata:
   apiKeys: "METADATA"
   apiVersion: 13
-  scenario: "topic authorized ops - upstream more permissive"
+  scenario: "baseline"
 given:
   mockedUpstreamResponses:
     - expectedRequestKey: "METADATA"
@@ -20,10 +20,10 @@ given:
         clientId: "clientId"
       expectedRequest:
         topics:
-          - topicId: "cwd1urkUQkmOMDQ5k5jKug"
-            name: "my-topic"
-        allowAutoTopicCreation: false
-        includeTopicAuthorizedOperations: true
+          - topicId: "e8MvPJPGSteB1fKbMEji0w"
+            name: ""
+        allowAutoTopicCreation: true
+        includeTopicAuthorizedOperations: false
       upstreamResponseHeader:
         correlationId: 1
       upstreamResponse:
@@ -36,12 +36,11 @@ given:
         clusterId: "random-string-682"
         controllerId: 892
         topics:
-          - errorCode: 820
-            name: "my-topic"
-            topicId: "u0gwV8JNSUqcw-cK7k6TJA"
+          - errorCode: 100
+            name: null
+            topicId: "e8MvPJPGSteB1fKbMEji0w"
             isInternal: false
-            # DESCRIBE+READ+WRITE+CREATE bitset
-            topicAuthorizedOperations: 312
+            topicAuthorizedOperations: 760
             partitions:
               - errorCode: 922
                 partitionIndex: 1006
@@ -74,26 +73,26 @@ when:
     clientId: "clientId"
   request:
     topics:
-      - topicId: "cwd1urkUQkmOMDQ5k5jKug"
-        name: "my-topic"
-    allowAutoTopicCreation: false
-    includeTopicAuthorizedOperations: true
+      - topicId: "e8MvPJPGSteB1fKbMEji0w"
+        name: ""
+    allowAutoTopicCreation: true
+    includeTopicAuthorizedOperations: false
 then:
   expectedResponseHeader:
     correlationId: 1
   expectedResponse:
     throttleTimeMs: 746
     brokers:
-      - nodeId: 179
-        host: "random-string-71"
-        port: 176
-        rack: "random-string-836"
+        - nodeId: 179
+          host: "random-string-71"
+          port: 176
+          rack: "random-string-836"
     clusterId: "random-string-682"
     controllerId: 892
     topics:
-      - errorCode: 820
-        name: "my-topic"
-        topicId: "u0gwV8JNSUqcw-cK7k6TJA"
+      - errorCode: 100
+        name: null
+        topicId: "e8MvPJPGSteB1fKbMEji0w"
         isInternal: false
         partitions:
           - errorCode: 922
@@ -106,6 +105,5 @@ then:
               - 647
             offlineReplicas:
               - 421
-        # DESCRIBE+CREATE bitset
-        topicAuthorizedOperations: 288
+        topicAuthorizedOperations: 760
     errorCode: 1003
