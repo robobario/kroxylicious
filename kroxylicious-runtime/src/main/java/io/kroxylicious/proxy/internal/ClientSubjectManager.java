@@ -14,9 +14,6 @@ import java.util.Optional;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 
-import io.netty.channel.Channel;
-import io.netty.handler.ssl.SslHandler;
-
 import io.kroxylicious.proxy.authentication.ClientSaslContext;
 import io.kroxylicious.proxy.authentication.Subject;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
@@ -32,9 +29,8 @@ public class ClientSubjectManager implements
         TransportSubjectBuilder.Context {
 
     @VisibleForTesting
-    static @Nullable X509Certificate peerTlsCertificate(@Nullable SslHandler sslHandler) {
-        if (sslHandler != null) {
-            SSLSession session = sslHandler.engine().getSession();
+    static @Nullable X509Certificate peerTlsCertificate(@Nullable SSLSession session) {
+        if (session != null) {
 
             Certificate[] peerCertificates;
             try {
@@ -56,9 +52,8 @@ public class ClientSubjectManager implements
     }
 
     @VisibleForTesting
-    static @Nullable X509Certificate localTlsCertificate(@Nullable SslHandler sslHandler) {
-        if (sslHandler != null) {
-            SSLSession session = sslHandler.engine().getSession();
+    static @Nullable X509Certificate localTlsCertificate(@Nullable SSLSession session) {
+        if (session != null) {
             Certificate[] localCertificates = session.getLocalCertificates();
             if (localCertificates != null && localCertificates.length > 0) {
                 return Objects.requireNonNull((X509Certificate) localCertificates[0]);
@@ -74,33 +69,28 @@ public class ClientSubjectManager implements
 
     private @Nullable String mechanismName;
     private Subject subject;
-    private final @Nullable X509Certificate proxyCertificate;
-    private final @Nullable X509Certificate clientCertificate;
+    private @Nullable X509Certificate proxyCertificate;
+    private @Nullable X509Certificate clientCertificate;
 
-    @VisibleForTesting
-    ClientSubjectManager(
-                         @Nullable X509Certificate proxyCertificate,
-                         @Nullable X509Certificate clientCertificate,
-                         Subject initialSubject) {
-        this.proxyCertificate = proxyCertificate;
-        this.clientCertificate = clientCertificate;
+    ClientSubjectManager() {
+        this.proxyCertificate = null;
+        this.clientCertificate = null;
         this.mechanismName = null;
-        this.subject = initialSubject;
+        this.subject = Subject.anonymous();
     }
 
-    public static ClientSubjectManager create(Channel inboundChannel) {
-        return Optional.ofNullable(KafkaProxyFrontendHandler.sslHandler(inboundChannel.pipeline()))
-                .map(clientFacingSslHandler -> new ClientSubjectManager(localTlsCertificate(clientFacingSslHandler),
-                        peerTlsCertificate(clientFacingSslHandler),
-                        Subject.anonymous()))
-                .orElse(new ClientSubjectManager(null,
-                        null,
-                        Subject.anonymous()));
-    }
-
-    public ClientSubjectManager replaceSubject(Subject newSubject) {
-        this.subject = newSubject;
-        return this;
+    public void subjectFromTransport(@Nullable SSLSession session, TransportSubjectBuilder transportSubjectBuilder) {
+        this.clientCertificate = peerTlsCertificate(session);
+        this.proxyCertificate = localTlsCertificate(session);
+        transportSubjectBuilder.buildTransportSubject(this).whenComplete((newSubject, error) -> {
+            if (error == null) {
+                this.subject = newSubject;
+            }
+            else {
+                this.subject = Subject.anonymous();
+            }
+            this.mechanismName = null;
+        });
     }
 
     void clientSaslAuthenticationSuccess(

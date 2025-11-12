@@ -12,6 +12,10 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
 
 import org.apache.kafka.common.message.ApiVersionsRequestData;
 import org.apache.kafka.common.message.ApiVersionsResponseData;
@@ -36,6 +40,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SniCompletionEvent;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.SslHandshakeCompletionEvent;
 
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
 import io.kroxylicious.proxy.filter.FilterAndInvoker;
@@ -74,7 +79,6 @@ public class KafkaProxyFrontendHandler
 
     /** Cache ApiVersions response which we use when returning ApiVersions ourselves */
     private static final ApiVersionsResponseData API_VERSIONS_RESPONSE;
-    private static final String HANDLER_NAME_SSL = "ssl";
 
     private final boolean logNetwork;
     private final boolean logFrames;
@@ -113,12 +117,17 @@ public class KafkaProxyFrontendHandler
     private @Nullable ClientSubjectManager clientSubjectManager;
 
     /**
-     * Returns the SslHandler on the pipeline, or null if the pipeline doesn't have that handler
-     * @param pipeline The pipeline.
-     * @return The SslHandler
+     * @return the SSL session, or null if a session does not (currently) exist.
      */
-    static @Nullable SslHandler sslHandler(ChannelPipeline pipeline) {
-        return (SslHandler) pipeline.get(HANDLER_NAME_SSL);
+    @Nullable
+    SSLSession sslSession() {
+        // The SslHandler is added to the pipeline by the SniHandler (replacing it) after the ClientHello.
+        // It is added using the fully-qualified class name.
+        SslHandler sslHandler = (SslHandler) this.clientCtx().pipeline().get(SslHandler.class.getName());
+        return Optional.ofNullable(sslHandler)
+                .map(SslHandler::engine)
+                .map(SSLEngine::getSession)
+                .orElse(null);
     }
 
     KafkaProxyFrontendHandler(
@@ -176,6 +185,10 @@ public class KafkaProxyFrontendHandler
             else {
                 throw new IllegalStateException("SNI failed", sniCompletionEvent.cause());
             }
+        }
+        else if (event instanceof SslHandshakeCompletionEvent handshakeCompletionEvent
+                && handshakeCompletionEvent.isSuccess()) {
+            this.clientSubjectManager.subjectFromTransport(sslSession(), subjectBuilder);
         }
         else if (event instanceof AuthenticationEvent authenticationEvent) {
             this.authentication = authenticationEvent;
@@ -262,20 +275,11 @@ public class KafkaProxyFrontendHandler
         LOGGER.trace("{}: channelActive", clientChannel.id());
         // Initially the channel is not auto reading
         clientChannel.config().setAutoRead(false);
-        this.clientSubjectManager = ClientSubjectManager.create(clientChannel);
-        subjectBuilder.buildTransportSubject(clientSubjectManager)
-                .thenAccept(newSubject -> {
-                    clientSubjectManager.replaceSubject(newSubject);
-                    // TODO authz on whether the subject should be allowed to proceed
-                    // read the first batch of requests only once we have a subject
-                    clientChannel.read();
-                    try {
-                        super.channelActive(this.clientCtx);
-                    }
-                    catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+        clientChannel.read();
+        this.clientSubjectManager = new ClientSubjectManager();
+        if (!this.endpointBinding.endpointGateway().isUseTls()) {
+            this.clientSubjectManager.subjectFromTransport(null, this.subjectBuilder);
+        }
     }
 
     /**
@@ -504,7 +508,7 @@ public class KafkaProxyFrontendHandler
         }
         virtualClusterModel.getUpstreamSslContext().ifPresent(sslContext -> {
             final SslHandler handler = sslContext.newHandler(outboundChannel.alloc(), remote.host(), remote.port());
-            pipeline.addFirst(HANDLER_NAME_SSL, handler);
+            pipeline.addFirst("ssl", handler);
         });
 
         LOGGER.debug("Configured broker channel pipeline: {}", pipeline);
@@ -650,6 +654,7 @@ public class KafkaProxyFrontendHandler
                                       List<FilterAndInvoker> filters,
                                       ChannelPipeline pipeline,
                                       Channel inboundChannel) {
+
         int num = 0;
 
         for (var protocolFilter : filters) {

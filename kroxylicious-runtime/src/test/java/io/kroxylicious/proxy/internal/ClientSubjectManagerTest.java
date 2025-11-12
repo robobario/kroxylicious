@@ -9,8 +9,8 @@ package io.kroxylicious.proxy.internal;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
-import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 
@@ -18,9 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mockito;
-
-import io.netty.handler.ssl.SslHandler;
 
 import io.kroxylicious.proxy.authentication.Subject;
 import io.kroxylicious.proxy.authentication.User;
@@ -66,7 +63,7 @@ class ClientSubjectManagerTest {
 
     }
 
-    private static SslHandler getSslHandler(@Nullable List<X509Certificate> proxyCertificates,
+    private static SSLSession getSslHandler(@Nullable List<X509Certificate> proxyCertificates,
                                             boolean peerUnverified,
                                             @Nullable List<X509Certificate> clientCertificates)
             throws SSLPeerUnverifiedException {
@@ -81,22 +78,18 @@ class ClientSubjectManagerTest {
         else {
             when(session.getPeerCertificates()).thenReturn(clientCertificates != null ? clientCertificates.toArray(new Certificate[0]) : null);
         }
-        var engine = mock(SSLEngine.class);
-        Mockito.when(engine.getSession()).thenReturn(session);
-        var handler = mock(SslHandler.class);
-        Mockito.when(handler.engine()).thenReturn(engine);
-        return handler;
+        return session;
     }
 
     @ParameterizedTest
     @MethodSource
-    void clientTlsContext(@Nullable SslHandler handler,
+    void clientTlsContext(@Nullable SSLSession session,
                           @Nullable X509Certificate clientCertificate,
                           @Nullable X509Certificate proxyCertificate) {
 
         // when
-        var localCert = ClientSubjectManager.localTlsCertificate(handler);
-        var peerCert = ClientSubjectManager.peerTlsCertificate(handler);
+        var localCert = ClientSubjectManager.localTlsCertificate(session);
+        var peerCert = ClientSubjectManager.peerTlsCertificate(session);
 
         // then
         assertThat(localCert).isSameAs(proxyCertificate);
@@ -106,7 +99,7 @@ class ClientSubjectManagerTest {
     @Test
     void initialState() {
         // Given
-        ClientSubjectManager impl = new ClientSubjectManager(null, null, Subject.anonymous());
+        ClientSubjectManager impl = new ClientSubjectManager();
         // Then
         assertThat(impl.clientSaslContext()).isEmpty();
     }
@@ -114,7 +107,8 @@ class ClientSubjectManagerTest {
     @Test
     void transitionInitialToAuthorized() {
         // Given
-        ClientSubjectManager impl = new ClientSubjectManager(null, null, Subject.anonymous());
+        ClientSubjectManager impl = new ClientSubjectManager();
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()));
         // When
         impl.clientSaslAuthenticationSuccess("FOO", new Subject(new User("bob")));
         // Then
@@ -127,7 +121,8 @@ class ClientSubjectManagerTest {
     @Test
     void transitionInitialToFailed() {
         // Given
-        ClientSubjectManager impl = new ClientSubjectManager(null, null, Subject.anonymous());
+        ClientSubjectManager impl = new ClientSubjectManager();
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()));
         // When
         impl.clientSaslAuthenticationFailure();
         // Then
@@ -137,7 +132,8 @@ class ClientSubjectManagerTest {
     @Test
     void transitionAuthorizedToAuthorized() {
         // Given
-        ClientSubjectManager impl = new ClientSubjectManager(null, null, Subject.anonymous());
+        ClientSubjectManager impl = new ClientSubjectManager();
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()));
         impl.clientSaslAuthenticationSuccess("FOO", new Subject(new User("bob")));
         // When
         impl.clientSaslAuthenticationSuccess("BAR", new Subject(new User("sue")));
@@ -151,7 +147,8 @@ class ClientSubjectManagerTest {
     @Test
     void transitionAuthorizedToFailed() {
         // Given
-        ClientSubjectManager impl = new ClientSubjectManager(null, null, Subject.anonymous());
+        ClientSubjectManager impl = new ClientSubjectManager();
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()));
         impl.clientSaslAuthenticationSuccess("FOO", new Subject(new User("bob")));
         // When
         impl.clientSaslAuthenticationFailure();
@@ -162,7 +159,8 @@ class ClientSubjectManagerTest {
     @Test
     void transitionFailedToAuthorized() {
         // Given
-        ClientSubjectManager impl = new ClientSubjectManager(null, null, Subject.anonymous());
+        ClientSubjectManager impl = new ClientSubjectManager();
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()));
         impl.clientSaslAuthenticationFailure();
 
         // When
