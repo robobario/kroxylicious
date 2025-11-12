@@ -27,7 +27,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.reflect.ClassPath;
@@ -122,7 +121,7 @@ public class AuthorizationFilterTest {
         }
     }
 
-    private static String toYaml(JsonNode actualBody) {
+    private static String toYaml(Object actualBody) {
         try {
             return MAPPER.writer().writeValueAsString(actualBody);
         }
@@ -130,5 +129,4 @@ public class AuthorizationFilterTest {
             throw new RuntimeException(e);
         }
     }
-
 }
