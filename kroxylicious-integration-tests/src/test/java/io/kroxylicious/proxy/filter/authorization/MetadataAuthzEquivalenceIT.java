@@ -60,6 +60,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class MetadataAuthzEquivalenceIT extends AbstractAuthzEquivalenceIT {
 
     private static final Uuid SENTINEL_TOPIC_ID = Uuid.randomUuid();
+    private static final Uuid NON_EXISTENT_TOPIC_ID = Uuid.randomUuid();
 
     private Path rulesFile;
     private static final String TOPIC_NAME = "topic";
@@ -207,7 +208,12 @@ public class MetadataAuthzEquivalenceIT extends AbstractAuthzEquivalenceIT {
                         new MetadataRequestData.MetadataRequestTopic().setName(NON_EXISTING_TOPIC_CREATE_ALLOWED)),
                 List.of(
                         // this is just a placeholder, replaced by the real id of topicName
-                        new MetadataRequestData.MetadataRequestTopic().setName(TOPIC_NAME).setTopicId(SENTINEL_TOPIC_ID))
+                        new MetadataRequestData.MetadataRequestTopic().setName(TOPIC_NAME).setTopicId(SENTINEL_TOPIC_ID)),
+                List.of(
+                        // this is just a placeholder, replaced by the real id of topicName
+                        new MetadataRequestData.MetadataRequestTopic().setTopicId(SENTINEL_TOPIC_ID)),
+                List.of(
+                        new MetadataRequestData.MetadataRequestTopic().setTopicId(NON_EXISTENT_TOPIC_ID))
         };
 
         // Compute the n-fold Cartesian product of the tuples (except for pruning)
