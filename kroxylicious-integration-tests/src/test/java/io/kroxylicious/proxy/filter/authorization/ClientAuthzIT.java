@@ -103,11 +103,6 @@ public class ClientAuthzIT extends AuthzIT {
 
     private List<AclBinding> aclBindings;
 
-    @Name("kafkaClusterWithAuthz")
-    static Admin kafkaClusterWithAuthzAdmin;
-    @Name("kafkaClusterNoAuthz")
-    static Admin kafkaClusterNoAuthzAdmin;
-
     @BeforeAll
     void beforeAll() throws IOException {
         // TODO need to add Carol who has Cluster.CREATE
