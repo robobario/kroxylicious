@@ -34,7 +34,6 @@ import io.kroxylicious.proxy.filter.ResponseFilter;
 import io.kroxylicious.proxy.filter.ResponseFilterResult;
 import io.kroxylicious.proxy.tag.VisibleForTesting;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
@@ -65,6 +64,7 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
 
         apiEnforcement.put(ApiKeys.PRODUCE, new ProduceEnforcement());
         apiEnforcement.put(ApiKeys.METADATA, new MetadataEnforcement());
+        apiEnforcement.put(ApiKeys.DESCRIBE_TOPIC_PARTITIONS, new DescribeTopicPartitionsEnforcement());
         apiEnforcement.put(ApiKeys.CREATE_TOPICS, new CreateTopicsEnforcement());
         apiEnforcement.put(ApiKeys.CREATE_PARTITIONS, new CreatePartitionsEnforcement());
         apiEnforcement.put(ApiKeys.DELETE_TOPICS, new DeleteTopicsEnforcement());
@@ -136,7 +136,6 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         this.inflightState = new HashMap<>(10);
     }
 
-    @NonNull
     CompletionStage<AuthorizeResult> authorization(FilterContext context, List<Action> actions) {
         return authorizer.authorize(context.authenticatedSubject(), actions)
                 .thenApply(authz -> {
@@ -160,6 +159,7 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         return cClass.cast(inflightState);
     }
 
+    @Nullable
     <C extends InflightState<?>> C popInflightState(ResponseHeaderData header, Class<C> cClass) {
         InflightState<?> removed = this.inflightState.remove(header.correlationId());
         return cClass.cast(removed);
@@ -175,7 +175,6 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         }
     }
 
-    @NonNull
     static IllegalStateException topicIdsNotSupported() {
         return new IllegalStateException("Topic ids not supported yet");
     }

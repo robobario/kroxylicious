@@ -23,11 +23,13 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.apache.kafka.common.protocol.Errors;
 
 import io.kroxylicious.authorizer.service.Action;
-import io.kroxylicious.authorizer.service.AuthorizeResult;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
 import io.kroxylicious.proxy.filter.ResponseFilterResult;
+
+import static io.kroxylicious.filter.authorization.AuthorizedOps.clusterAuthorizedOps;
+import static io.kroxylicious.filter.authorization.AuthorizedOps.topicAuthorizedOps;
 
 public class MetadataEnforcement extends ApiEnforcement<MetadataRequestData, MetadataResponseData> {
     @Override
@@ -224,41 +226,18 @@ public class MetadataEnforcement extends ApiEnforcement<MetadataRequestData, Met
                         }
                         else { // ALLOW
                             if (completer.includeTopicAuthorizedOperations()) {
-                                responseTopic.setTopicAuthorizedOperations(topicAuthzOptions(authorize, responseTopic));
+                                responseTopic.setTopicAuthorizedOperations(
+                                        topicAuthorizedOps(authorize, responseTopic.topicAuthorizedOperations(), responseTopic.name()));
                             }
                         }
                     }
 
                     if (completer.includeClusterAuthorizedOperations()) {
-                        response.setClusterAuthorizedOperations(clusterAuthzOptions(authorize, response));
+                        response.setClusterAuthorizedOperations(clusterAuthorizedOps(authorize, response.clusterAuthorizedOperations()));
                     }
                     response.topics().removeAll(toRemove);
                     return context.forwardResponse(header, completer.merge(response));
                 });
-    }
-
-    private static int clusterAuthzOptions(AuthorizeResult authorize, MetadataResponseData response) {
-        int upstreamAuthorizedOps = response.clusterAuthorizedOperations();
-        int enforcedAuthorizedOps = 0;
-        for (var clusterOp : ClusterResource.values()) {
-            if (authorize.decision(clusterOp, "") == Decision.ALLOW) {
-                enforcedAuthorizedOps |= (0x1 << clusterOp.kafkaOrdinal);
-            }
-        }
-        // each operation must be allowed both upstream and by this Enforcement
-        return enforcedAuthorizedOps & upstreamAuthorizedOps;
-    }
-
-    private static int topicAuthzOptions(AuthorizeResult authorize, MetadataResponseData.MetadataResponseTopic t) {
-        int upstreamAuthorizedOps = t.topicAuthorizedOperations();
-        int enforcedAuthorizedOps = 0;
-        for (var clusterOp : TopicResource.values()) {
-            if (authorize.decision(clusterOp, t.name()) == Decision.ALLOW) {
-                enforcedAuthorizedOps |= (0x1 << clusterOp.kafkaOrdinal);
-            }
-        }
-        // each operation must be allowed both upstream and by this Enforcement
-        return enforcedAuthorizedOps & upstreamAuthorizedOps;
     }
 
     static record MetadataCompleter(boolean includeClusterAuthorizedOperations,
