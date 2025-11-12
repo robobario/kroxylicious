@@ -55,25 +55,30 @@ public class MetadataEnforcement extends ApiEnforcement<MetadataRequestData, Met
                 && request.includeClusterAuthorizedOperations();
         var includeTopicAuthorizedOperations = request.includeTopicAuthorizedOperations();
         var isAllTopics = isAllTopics(header, request);
-        var requestUsesTopicIds = request.topics() != null
+        var requestContainsAnyTopicIds = request.topics() != null
                 && !request.topics().isEmpty()
-                && request.topics().get(0).topicId() != null
-                && !request.topics().get(0).topicId().equals(Uuid.ZERO_UUID);
+                && request.topics().stream().anyMatch(topic -> topic.topicId() != null && !topic.topicId().equals(Uuid.ZERO_UUID));
+        var requestContainsAnyTopicNames = request.topics() != null
+                && !request.topics().isEmpty()
+                && request.topics().stream().anyMatch(topic -> topic.name() != null && !topic.name().isEmpty());
 
         authorizationFilter.pushInflightState(header,
                 new MetadataCompleter(includeClusterAuthorizedOperations,
                         includeTopicAuthorizedOperations,
                         isAllTopics,
-                        requestUsesTopicIds,
+                        requestContainsAnyTopicIds,
                         new ArrayList<>()));
 
+        // if the Metadata request contains exclusively topicids in the topics array then no topics
+        // can be auto created. The broker should respond with Errors.UNKNOWN_TOPIC_ID if they are
+        // unknown ids.
+        boolean onlyContainsTopicIds = requestContainsAnyTopicIds && !requestContainsAnyTopicNames;
         // A metadata request is idempotent EXCEPT when topic creation is allowed.
         // Therefore, it's safe to forward the requests with allowAutoTopicCreation=false as-is
         // (and leave the response handler to filter out topics disallowed by the authorizer),
         // EXCEPT when the request allows topic creation.
-        if (!requestUsesTopicIds &&
-                (isAllTopics // An all-topics query won't create topics even if the flag is set
-                        || !request.allowAutoTopicCreation())) {
+        if (isAllTopics // An all-topics query won't create topics even if the flag is set
+                || !request.allowAutoTopicCreation() || onlyContainsTopicIds) {
             return context.forwardRequest(header, request);
         }
 
@@ -194,6 +199,11 @@ public class MetadataEnforcement extends ApiEnforcement<MetadataRequestData, Met
                     var toRemove = new ArrayList<MetadataResponseData.MetadataResponseTopic>();
 
                     for (var responseTopic : response.topics()) {
+                        if (responseTopic.name() == null) {
+                            // in the schema it is documented that name is "Null for non-existing topics queried by ID."
+                            // in this case there is no name for us to operate on.
+                            continue;
+                        }
                         if (authorize.decision(TopicResource.DESCRIBE, responseTopic.name()) == Decision.DENY) {
                             if (completer.isAllTopics()) {
                                 toRemove.add(responseTopic);
