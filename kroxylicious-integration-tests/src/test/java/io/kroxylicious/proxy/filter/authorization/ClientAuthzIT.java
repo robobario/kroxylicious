@@ -94,6 +94,11 @@ public class ClientAuthzIT extends AuthzIT {
     public static final StringDeserializer STRING_DESERIALIZER = new StringDeserializer();
     public static final IntegerDeserializer INTEGER_DESERIALIZER = new IntegerDeserializer();
 
+    @Name("kafkaClusterWithAuthz")
+    static Admin kafkaClusterWithAuthzAdmin;
+    @Name("kafkaClusterNoAuthz")
+    static Admin kafkaClusterNoAuthzAdmin;
+
     private Path rulesFile;
 
     private List<AclBinding> aclBindings;
