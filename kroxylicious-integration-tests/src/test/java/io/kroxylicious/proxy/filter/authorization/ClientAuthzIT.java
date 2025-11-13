@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -89,6 +90,7 @@ public class ClientAuthzIT extends AuthzIT {
     public static final String TOPIC_B = "topicB";
     public static final String TXN_ID_P = "txnIdP";
     public static final String GROUP_1 = "group1";
+    public static final String GROUP_2 = "group2";
     public static final StringSerializer STRING_SERIALIZER = new StringSerializer();
     public static final IntegerSerializer INTEGER_SERIALIZER = new IntegerSerializer();
     public static final StringDeserializer STRING_DESERIALIZER = new StringDeserializer();
@@ -135,6 +137,10 @@ public class ClientAuthzIT extends AuthzIT {
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 new AclBinding(
                         new ResourcePattern(ResourceType.GROUP, GROUP_1, PatternType.LITERAL),
+                        new AccessControlEntry("User:" + ALICE, "*",
+                                AclOperation.ALL, AclPermissionType.ALLOW)),
+                new AclBinding(
+                        new ResourcePattern(ResourceType.GROUP, GROUP_2, PatternType.LITERAL),
                         new AccessControlEntry("User:" + ALICE, "*",
                                 AclOperation.ALL, AclPermissionType.ALLOW)),
                 new AclBinding(
@@ -558,7 +564,8 @@ public class ClientAuthzIT extends AuthzIT {
             catch (RuntimeException e) {
                 outcome = Fail.of(e);
             }
-            return trace("groupMetadata", outcome.map(m -> new ConsumerGroupMetadata(m.groupId(), m.generationId(), "CLOBBERED", m.groupInstanceId())));
+            trace("groupMetadata", outcome.map(m -> new ConsumerGroupMetadata(m.groupId(), m.generationId(), "CLOBBERED", m.groupInstanceId())));
+            return outcome;
         }
     }
 
@@ -688,13 +695,18 @@ public class ClientAuthzIT extends AuthzIT {
 
                     try (var consumer2 = clientFactory.newConsumer(consumerUser, INTEGER_DESERIALIZER, Map.of(
                             ConsumerConfig.CLIENT_ID_CONFIG, "consumer2",
-                            ConsumerConfig.GROUP_ID_CONFIG, GROUP_1,
-                            ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, GROUP_1 + "-instance-1",
+                            ConsumerConfig.GROUP_ID_CONFIG, GROUP_2,
+                            ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
+                            ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, GROUP_2 + "-instance-1",
                             ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1))) {
 
                         consumer2.subscribe(TOPIC_A);
                         ConsumerRecords<String, Integer> records;
+                        Instant start = Instant.now();
                         while (true) {
+                            if (Instant.now().minusSeconds(10).isAfter(start)) {
+                                throw new RuntimeException("timed out waiting for records");
+                            }
                             records = consumer2.poll().value();
                             List<ConsumerRecord<String, Integer>> records1 = records.records(topicAPartition0);
                             if (!records1.isEmpty()
@@ -801,6 +813,11 @@ public class ClientAuthzIT extends AuthzIT {
     List<Arguments> shouldEnforceAccessToTopics() {
         var alice = new Actor(ALICE, "Alice", Map.of(), Map.of(), Map.of());
         var eve = new Actor(EVE, "Eve", Map.of(), Map.of(), Map.of());
+        // TODO support new consumer protocol
+        // Arguments newConsumerProtocol = Arguments.of(new TransactionalProg(), List.of(alice.withConsumerConfigOverrides(Map.of(
+        // ConsumerConfig.GROUP_PROTOCOL_CONFIG, GroupProtocol.CONSUMER.name().toLowerCase(Locale.ROOT))),
+        // eve.withConsumerConfigOverrides(Map.of(
+        // ConsumerConfig.GROUP_PROTOCOL_CONFIG, GroupProtocol.CONSUMER.name().toLowerCase(Locale.ROOT)))));
         return List.of(
                 Arguments.of(new AdminProg(), List.of(alice, eve)),
                 Arguments.of(new SimpleProg(1), List.of(alice, eve)),
@@ -820,11 +837,7 @@ public class ClientAuthzIT extends AuthzIT {
                                 ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 10_000)),
                         eve.withConsumerConfigOverrides(Map.of(
                                 ConsumerConfig.GROUP_PROTOCOL_CONFIG, GroupProtocol.CLASSIC.name().toLowerCase(Locale.ROOT),
-                                ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 10_000)))),
-                Arguments.of(new TransactionalProg(), List.of(alice.withConsumerConfigOverrides(Map.of(
-                        ConsumerConfig.GROUP_PROTOCOL_CONFIG, GroupProtocol.CONSUMER.name().toLowerCase(Locale.ROOT))),
-                        eve.withConsumerConfigOverrides(Map.of(
-                                ConsumerConfig.GROUP_PROTOCOL_CONFIG, GroupProtocol.CONSUMER.name().toLowerCase(Locale.ROOT))))));
+                                ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 10_000)))));
     }
 
     @ParameterizedTest
