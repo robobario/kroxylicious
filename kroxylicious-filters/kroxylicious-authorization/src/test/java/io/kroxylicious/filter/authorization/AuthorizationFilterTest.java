@@ -132,4 +132,5 @@ public class AuthorizationFilterTest {
             throw new RuntimeException(e);
         }
     }
+
 }
