@@ -65,6 +65,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
@@ -356,8 +357,32 @@ public class AuthzIT extends BaseIT {
         return uuid;
     }
 
+    protected static JsonNode maybeClobberedString(JsonNode uuid) {
+        if (uuid != null && uuid.isTextual()) {
+            return TextNode.valueOf("CLOBBERED");
+        }
+        return uuid;
+    }
+
     protected static void clobberUuid(ObjectNode root, String propertyName) {
         root.replace(propertyName, maybeClobberedUuid(root.get(propertyName)));
+    }
+
+    protected static void clobberString(ObjectNode root, String propertyName) {
+        root.replace(propertyName, maybeClobberedString(root.get(propertyName)));
+    }
+
+    protected static void clobberInt(ObjectNode root, String propertyName, int replacement) {
+        root.replace(propertyName, maybeClobberedInt(root.get(propertyName), replacement));
+    }
+
+    private static JsonNode maybeClobberedInt(JsonNode jsonNode, int replacement) {
+        if (jsonNode != null && jsonNode.isNumber()) {
+            return new IntNode(replacement);
+        }
+        else {
+            return jsonNode;
+        }
     }
 
     protected static Map<String, Uuid> prepCluster(Admin admin,
