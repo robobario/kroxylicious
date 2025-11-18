@@ -14,6 +14,7 @@ import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 
+import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
@@ -34,9 +35,9 @@ public class CreatePartitionsEnforcement extends ApiEnforcement<CreatePartitions
                                                    CreatePartitionsRequestData request,
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
-        var actions = TopicResource.ALTER.actionsOf(
-                request.topics().stream()
-                        .map(CreatePartitionsRequestData.CreatePartitionsTopic::name));
+        var actions = request.topics().stream()
+                .map(cpd -> new Action(TopicResource.ALTER, cpd.name()))
+                .toList();
         return authorizationFilter.authorization(context, actions)
                 .thenCompose(authorization -> {
                     var decisions = authorization.partition(request.topics(),

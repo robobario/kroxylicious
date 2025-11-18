@@ -21,6 +21,7 @@ import org.apache.kafka.common.message.DeleteTopicsResponseData;
 import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 
+import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
@@ -62,17 +63,19 @@ public class DeleteTopicsEnforcement extends ApiEnforcement<DeleteTopicsRequestD
 
             Map<Uuid, String> topicIdToName = mapping.topicNames();
             boolean useStates = apiVersion >= 6;
-            List<String> allNames;
+            List<Action> actions;
             if (!useStates) {
-                allNames = request.topicNames();
-            }
-            else {
-                allNames = request.topics().stream()
-                        .map(state -> topicName(state, topicIdToName))
-                        .filter(Objects::nonNull)
+                actions = request.topicNames().stream()
+                        .map(topicName -> new Action(operation, topicName))
                         .toList();
             }
-            var actions = operation.actionsOf(allNames.stream());
+            else {
+                actions = request.topics().stream()
+                        .map(state -> topicName(state, topicIdToName))
+                        .filter(Objects::nonNull)
+                        .map(topicName -> new Action(operation, topicName))
+                        .toList();
+            }
 
             return authorizationFilter.authorization(context, actions).thenCompose(authorization -> {
                 if (useStates) {

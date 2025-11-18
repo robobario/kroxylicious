@@ -15,6 +15,7 @@ import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 
+import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
@@ -35,9 +36,9 @@ public class OffsetCommitEnforcement extends ApiEnforcement<OffsetCommitRequestD
                                                    OffsetCommitRequestData request,
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
-        var actions = TopicResource.READ.actionsOf(
-                request.topics().stream()
-                        .map(OffsetCommitRequestData.OffsetCommitRequestTopic::name));
+        var actions = request.topics().stream()
+                .map(ocrd -> new Action(TopicResource.READ, ocrd.name()))
+                .toList();
         return authorizationFilter.authorization(context, actions)
                 .thenCompose(authorization -> {
                     var decisions = authorization.partition(request.topics(),
