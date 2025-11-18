@@ -49,10 +49,10 @@ public class OffsetFetchGroupBatchingEnforcement extends ApiEnforcement<OffsetFe
                                                    OffsetFetchRequestData request,
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
-        List<Action> actions = TopicResource.DESCRIBE.actionsOf(
-                request.groups().stream()
-                        .flatMap(g -> g.topics().stream())
-                        .map(OffsetFetchRequestData.OffsetFetchRequestTopics::name));
+        List<Action> actions = request.groups().stream()
+                .flatMap(ofrq -> ofrq.topics().stream())
+                .map(ofrt -> new Action(TopicResource.DESCRIBE, ofrt.name()))
+                .toList();
         return authorizationFilter.authorization(context, actions)
                 .thenCompose(authorization -> {
                     var flattenedDecisions = authorization.partition(request.groups().stream()
