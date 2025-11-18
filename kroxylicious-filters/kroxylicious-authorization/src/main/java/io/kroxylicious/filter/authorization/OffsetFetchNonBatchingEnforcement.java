@@ -40,9 +40,9 @@ public class OffsetFetchNonBatchingEnforcement extends ApiEnforcement<OffsetFetc
                                                    OffsetFetchRequestData request,
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
-        List<Action> actions = TopicResource.DESCRIBE.actionsOf(
-                request.topics().stream()
-                        .map(OffsetFetchRequestData.OffsetFetchRequestTopic::name));
+        List<Action> actions = request.topics().stream()
+                .map(ofrd -> new Action(TopicResource.DESCRIBE, ofrd.name()))
+                .toList();
         return authorizationFilter.authorization(context, actions)
                 .thenCompose(authorization -> {
                     var decisions = authorization.partition(request.topics(), TopicResource.DESCRIBE, OffsetFetchRequestData.OffsetFetchRequestTopic::name);

@@ -38,9 +38,9 @@ public class CreateTopicsEnforcement extends ApiEnforcement<CreateTopicsRequestD
                                                           CreateTopicsRequestData request,
                                                           FilterContext context,
                                                           AuthorizationFilter filter) {
-        var topicReadActions = TopicResource.CREATE.actionsOf(
-                request.topics().stream()
-                        .map(CreateTopicsRequestData.CreatableTopic::name));
+        var topicReadActions = request.topics().stream()
+                .map(ctrd -> new Action(TopicResource.CREATE, ctrd.name()))
+                .toList();
         return filter.authorization(context, topicReadActions)
                 .thenCompose(authorization -> {
                     var decisions = authorization.partition(request.topics(),
@@ -96,7 +96,9 @@ public class CreateTopicsEnforcement extends ApiEnforcement<CreateTopicsRequestD
                                                             FilterContext context,
                                                             AuthorizationFilter filter) {
 
-        List<Action> actions = TopicResource.DESCRIBE_CONFIGS.actionsOf(response.topics().stream().map(t -> t.name()));
+        List<Action> actions = response.topics().stream()
+                .map(ctr -> new Action(TopicResource.DESCRIBE_CONFIGS, ctr.name()))
+                .toList();
         return filter.authorization(context, actions)
                 .thenCompose(authorization -> {
 

@@ -15,6 +15,7 @@ import org.apache.kafka.common.message.RequestHeaderData;
 import org.apache.kafka.common.message.ResponseHeaderData;
 import org.apache.kafka.common.protocol.Errors;
 
+import io.kroxylicious.authorizer.service.Action;
 import io.kroxylicious.authorizer.service.Decision;
 import io.kroxylicious.proxy.filter.FilterContext;
 import io.kroxylicious.proxy.filter.RequestFilterResult;
@@ -36,9 +37,9 @@ public class OffsetDeleteEnforcement extends ApiEnforcement<OffsetDeleteRequestD
                                                    FilterContext context,
                                                    AuthorizationFilter authorizationFilter) {
 
-        var actions = TopicResource.READ.actionsOf(
-                request.topics().stream()
-                        .map(OffsetDeleteRequestData.OffsetDeleteRequestTopic::name));
+        var actions = request.topics().stream()
+                .map(odrd -> new Action(TopicResource.READ, odrd.name()))
+                .toList();
         return authorizationFilter.authorization(context, actions)
                 .thenCompose(authorization -> {
                     var decisions = authorization.partition(request.topics(),
