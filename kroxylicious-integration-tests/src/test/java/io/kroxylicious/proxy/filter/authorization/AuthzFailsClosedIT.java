@@ -50,7 +50,7 @@ public class AuthzFailsClosedIT extends AuthzIT {
         // TODO we should check that the ApiVersions response does not include these keys
         var rulesFile = Files.createTempFile(getClass().getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import TopicResource as Topic from io.kroxylicious.filter.authorization;
+                from io.kroxylicious.filter.authorization import TopicResource as Topic;
                 allow User with name * to * Topic with name *;
                 otherwise deny;
                 """);

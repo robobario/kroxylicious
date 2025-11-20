@@ -76,7 +76,7 @@ public class OffsetCommitAuthzIT extends AuthzIT {
     void beforeAll() throws IOException, ExecutionException, InterruptedException {
         rulesFile = Files.createTempFile(getClass().getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import TopicResource as Topic from io.kroxylicious.filter.authorization;
+                from io.kroxylicious.filter.authorization import TopicResource as Topic;
                 allow User with name = "alice" to * Topic with name = "%s";
                 allow User with name = "bob" to CREATE Topic with name = "%s";
                 otherwise deny;

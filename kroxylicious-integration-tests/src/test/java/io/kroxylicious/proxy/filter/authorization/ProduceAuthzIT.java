@@ -69,7 +69,7 @@ public class ProduceAuthzIT extends AuthzIT {
         // TODO need to add Carol who has Cluster.CREATE
         rulesFile = Files.createTempFile(getClass().getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import TopicResource as Topic from io.kroxylicious.filter.authorization;
+                from io.kroxylicious.filter.authorization import TopicResource as Topic;
                 allow User with name = "alice" to * Topic with name = "%s";
                 allow User with name = "bob" to WRITE Topic with name = "%s";
                 otherwise deny;
