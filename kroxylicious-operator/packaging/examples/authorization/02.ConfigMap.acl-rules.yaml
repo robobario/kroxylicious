@@ -12,7 +12,7 @@ metadata:
   namespace: my-proxy
 data:
   acl-rules: |
-    import TopicResource as Topic from io.kroxylicious.filter.authorization;
+    from io.kroxylicious.filter.authorization import TopicResource as Topic;
     deny User with name = "alice" to * Topic with name = "foobar";
     allow User with name = "alice" to * Topic with name like "foo*";
     allow User with name = "bob" to * Topic with name = "foobar";
