@@ -31,7 +31,6 @@ public class AuthzFailsClosedIT extends AuthzIT {
     void shouldFailClosedWhenUserExpectsAuthzOverUnsupportedResourceTypes() throws IOException {
         var rulesFile = Files.createTempFile(AuthzIT.class.getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import User from io.kroxylicious.proxy.authentication;
                 import UnsupportedResourceType from io.kroxylicious.proxy.filter.authorization;
                 allow User with name * to * UnsupportedResourceType with name *;
                 otherwise deny;
@@ -51,7 +50,6 @@ public class AuthzFailsClosedIT extends AuthzIT {
         // TODO we should check that the ApiVersions response does not include these keys
         var rulesFile = Files.createTempFile(getClass().getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import User from io.kroxylicious.proxy.authentication;
                 import TopicResource as Topic from io.kroxylicious.filter.authorization;
                 allow User with name * to * Topic with name *;
                 otherwise deny;

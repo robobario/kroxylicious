@@ -92,7 +92,6 @@ public class MetadataAuthzEquivalenceIT extends AbstractAuthzEquivalenceIT {
         // TODO need to add Carol who has Cluster.CREATE
         rulesFile = Files.createTempFile(MetadataAuthzEquivalenceIT.class.getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import User from io.kroxylicious.proxy.authentication;
                 import TopicResource as Topic from io.kroxylicious.filter.authorization;
                 allow User with name = "alice" to * Topic with name = "%s";
                 allow User with name = "alice" to * Topic with name = "%s";

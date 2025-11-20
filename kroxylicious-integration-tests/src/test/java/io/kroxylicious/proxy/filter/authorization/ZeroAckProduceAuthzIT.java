@@ -75,7 +75,6 @@ public class ZeroAckProduceAuthzIT {
     static void beforeAll() throws IOException {
         rulesFile = Files.createTempFile(ZeroAckProduceAuthzIT.class.getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                import User from io.kroxylicious.proxy.authentication;
                 import TopicResource as Topic from io.kroxylicious.filter.authorization;
                 allow User with name = "alice" to * Topic with name = "%s";
                 allow User with name = "bob" to WRITE Topic with name = "%s";
