@@ -1,0 +1,21 @@
+#
+# Copyright Kroxylicious Authors.
+#
+# Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+#
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: acl-rules
+  namespace: my-proxy
+data:
+  acl-rules: |
+    version 1;
+    import User as User from io.kroxylicious.proxy.authentication;
+    import TopicResource as Topic from io.kroxylicious.filter.authorization;
+    deny User with name = "alice" to * Topic with name = "foobar";
+    allow User with name = "alice" to * Topic with name like "foo*";
+    allow User with name = "bob" to * Topic with name = "foobar";
+    otherwise deny;
