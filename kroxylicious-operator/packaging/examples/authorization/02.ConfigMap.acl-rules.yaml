@@ -12,7 +12,6 @@ metadata:
   namespace: my-proxy
 data:
   acl-rules: |
-    version 1;
     import User as User from io.kroxylicious.proxy.authentication;
     import TopicResource as Topic from io.kroxylicious.filter.authorization;
     deny User with name = "alice" to * Topic with name = "foobar";
