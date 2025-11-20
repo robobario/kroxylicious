@@ -77,7 +77,6 @@ public class OffsetFetchAuthzIT extends AuthzIT {
     void beforeAll() throws IOException {
         rulesFile = Files.createTempFile(getClass().getName(), ".aclRules");
         Files.writeString(rulesFile, """
-                version 1;
                 import User from io.kroxylicious.proxy.authentication;
                 import TopicResource as Topic from io.kroxylicious.filter.authorization;
                 allow User with name = "alice" to * Topic with name = "%s";
