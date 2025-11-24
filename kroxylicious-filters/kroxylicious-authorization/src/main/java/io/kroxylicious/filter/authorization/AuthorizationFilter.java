@@ -282,7 +282,11 @@ public class AuthorizationFilter implements RequestFilter, ResponseFilter {
         for (var version : apiVersions) {
             var enforcement = apiEnforcement.get(ApiKeys.forId(version.apiKey()));
             if (enforcement != null) {
-                version.setMinVersion(Passthrough.asShort(Math.max(enforcement.minSupportedVersion(), version.minVersion())));
+                // to support older versions of librdkafka we need to advertise PRODUCE v0 as the minimum, even
+                // though we expect v0-v2 to be incompatible with the proxy. See also https://github.com/kroxylicious/kroxylicious/issues/2844
+                if (ApiKeys.forId(version.apiKey()) != ApiKeys.PRODUCE) {
+                    version.setMinVersion(Passthrough.asShort(Math.max(enforcement.minSupportedVersion(), version.minVersion())));
+                }
                 version.setMaxVersion(Passthrough.asShort(Math.min(enforcement.maxSupportedVersion(), version.maxVersion())));
             }
             else {
