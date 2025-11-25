@@ -6,12 +6,14 @@
 
 package io.kroxylicious.filter.authorization;
 
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
-import java.util.stream.Collectors;
 
 import org.apache.kafka.common.message.DescribeProducersRequestData;
+import org.apache.kafka.common.message.DescribeProducersRequestData.TopicRequest;
 import org.apache.kafka.common.message.DescribeProducersResponseData;
 import org.apache.kafka.common.message.DescribeProducersResponseData.PartitionResponse;
 import org.apache.kafka.common.message.DescribeProducersResponseData.TopicResponse;
@@ -45,15 +47,17 @@ class DescribeProducersEnforcement extends ApiEnforcement<DescribeProducersReque
                     .map(topic -> new Action(TopicResource.READ, topic.name())).toList();
             return authorizationFilter.authorization(context, actions).thenCompose(result -> {
                 var partitioned = result.partition(request.topics(), TopicResource.READ,
-                        DescribeProducersRequestData.TopicRequest::name);
-                List<DescribeProducersRequestData.TopicRequest> denied = partitioned.get(Decision.DENY);
+                        TopicRequest::name);
+                List<TopicRequest> denied = partitioned.get(Decision.DENY);
                 if (!denied.isEmpty()) {
-                    Map<String, Integer> originalIndex = denied.stream()
-                            .collect(Collectors.toMap(DescribeProducersRequestData.TopicRequest::name, t -> request.topics().indexOf(t)));
+                    Map<String, Integer> firstIndexOfTopicNameInRequest = new HashMap<>();
+                    for (int i = 0; i < request.topics().size(); i++) {
+                        TopicRequest topicRequest = request.topics().get(i);
+                        firstIndexOfTopicNameInRequest.putIfAbsent(topicRequest.name(), i);
+                    }
                     request.topics().removeAll(denied);
                     authorizationFilter.pushInflightState(header, (DescribeProducersResponseData d) -> {
-                        for (int i = denied.size() - 1; i >= 0; i--) {
-                            DescribeProducersRequestData.TopicRequest topicRequest = denied.get(i);
+                        for (TopicRequest topicRequest : denied) {
                             TopicResponse topicResponse = new TopicResponse();
                             topicResponse.setName(topicRequest.name());
                             topicRequest.partitionIndexes().forEach(partitionIndex -> {
@@ -63,11 +67,10 @@ class DescribeProducersEnforcement extends ApiEnforcement<DescribeProducersReque
                                 response.setPartitionIndex(partitionIndex);
                                 topicResponse.partitions().add(response);
                             });
-                            // re-insert items in the original order
-                            Integer finalIndex = originalIndex.get(topicRequest.name());
-                            int adjusted = finalIndex - i;
-                            d.topics().add(adjusted, topicResponse);
+                            d.topics().add(topicResponse);
                         }
+                        // preserve original order as much as possible
+                        d.topics().sort(Comparator.comparingInt(o -> firstIndexOfTopicNameInRequest.getOrDefault(o.name(), -1)));
                         return d;
                     });
                 }
