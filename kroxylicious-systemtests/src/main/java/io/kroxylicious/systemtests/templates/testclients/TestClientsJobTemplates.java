@@ -11,6 +11,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import io.fabric8.kubernetes.api.model.Volume;
+import io.fabric8.kubernetes.api.model.VolumeMount;
+
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.record.CompressionType;
 
@@ -87,16 +90,19 @@ public class TestClientsJobTemplates {
      *
      * @param jobName the job name
      * @param args the args
+     * @param volumeMounts volumeMounts
      * @return the deployment builder
      */
-    public static JobBuilder defaultAdminClientJob(String jobName, List<String> args) {
+    public static JobBuilder defaultAdminClientJob(String jobName, List<String> args, List<Volume> volumes, List<VolumeMount> volumeMounts) {
         return baseClientJob(jobName)
                 .editSpec()
                 .editTemplate()
                 .editSpec()
+                .withVolumes(volumes)
                 .withContainers(ContainerTemplates.baseImageBuilder("admin", Environment.TEST_CLIENTS_IMAGE)
                         .withCommand("admin-client")
                         .withArgs(args)
+                        .withVolumeMounts(volumeMounts)
                         .build())
                 .endSpec()
                 .endTemplate()

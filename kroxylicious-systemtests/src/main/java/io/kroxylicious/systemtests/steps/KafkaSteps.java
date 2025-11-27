@@ -6,10 +6,27 @@
 
 package io.kroxylicious.systemtests.steps;
 
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.stream.Collectors;
+
+import io.fabric8.kubernetes.api.model.ConfigMap;
+
+import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
+
+import io.fabric8.kubernetes.api.model.ConfigMapVolumeSourceBuilder;
+import io.fabric8.kubernetes.api.model.Volume;
+import io.fabric8.kubernetes.api.model.VolumeBuilder;
+import io.fabric8.kubernetes.api.model.VolumeMount;
+import io.fabric8.kubernetes.api.model.VolumeMountBuilder;
+import io.fabric8.kubernetes.client.dsl.NonDeletingOperation;
 
 import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.common.config.ConfigException;
@@ -110,24 +127,60 @@ public class KafkaSteps {
             topicConfig.add(TopicConfig.COMPRESSION_TYPE_CONFIG + "=" + compressionType);
         }
 
+        Properties adminConfig = new Properties();
         if (usernamePasswords != null && !usernamePasswords.isEmpty()) {
             if (!usernamePasswords.containsKey(Constants.KROXYLICIOUS_ADMIN_USER)) {
                 throw new ConfigException("'admin' user not found! It is necessary to manage the topics");
             }
-            topicConfig.add("security.protocol=" + SecurityProtocol.SASL_PLAINTEXT.name);
-            topicConfig.add(SaslConfigs.SASL_MECHANISM + "=" + ScramMechanism.SCRAM_SHA_512.mechanismName());
-            topicConfig.add(SaslConfigs.SASL_JAAS_CONFIG + "='org.apache.kafka.common.security.scram.ScramLoginModule required username=\"" + Constants.KROXYLICIOUS_ADMIN_USER
-                    + "\" password=\"" + usernamePasswords.get(Constants.KROXYLICIOUS_ADMIN_USER) + "\";'");
+            adminConfig.put("ADDITIONAL_CONFIG", "security.protocol=" + SecurityProtocol.SASL_PLAINTEXT.name
+                    + "\n" + "sasl.mechanism=" + ScramMechanism.SCRAM_SHA_512.mechanismName()
+                    + "\n" + "sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=\"" + Constants.KROXYLICIOUS_ADMIN_USER
+                    + "\" password=\"" + usernamePasswords.get(Constants.KROXYLICIOUS_ADMIN_USER) + "\";");
         }
 
         if (!topicConfig.isEmpty()) {
             args.add("--topic-config=" + String.join(",", topicConfig));
         }
 
-        Job adminClientJob = TestClientsJobTemplates.defaultAdminClientJob(name, args).build();
+
+        List<VolumeMount> volumeMounts = new ArrayList<>();
+        List<Volume> volumes = new ArrayList<>();
+        if (!adminConfig.isEmpty()){
+            String properties;
+            try (StringWriter writer = new StringWriter()) {
+                adminConfig.store(writer, "admin config");
+                properties = writer.toString();
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            ConfigMap map = new ConfigMapBuilder().withNewMetadata().withName("admin-client-config").endMetadata()
+                    .withData(Map.of("config.properties", properties)).build();
+            map = kubeClient().getClient().configMaps().inNamespace(deployNamespace).resource(map).createOr(NonDeletingOperation::update);
+
+            Volume configVolume = new VolumeBuilder()
+                    .withName("admin-client-config")
+                    .withConfigMap(new ConfigMapVolumeSourceBuilder()
+                            .withName("admin-client-config")
+                            .addNewItem()
+                            .withKey("config.properties")
+                            .withPath("config.properties")
+                            .endItem()
+                            .build())
+                    .build();
+
+            VolumeMount configMount = new VolumeMountBuilder()
+                    .withName("admin-client-config")
+                    .withMountPath("/home/strimzi/.admin_client/")
+                    .build();
+            volumeMounts.add(configMount);
+            volumes.add(configVolume);
+        }
+
+        Job adminClientJob = TestClientsJobTemplates.defaultAdminClientJob(name, args, volumes, volumeMounts).build();
         kubeClient().getClient().batch().v1().jobs().inNamespace(deployNamespace).resource(adminClientJob).create();
         String podName = KafkaUtils.getPodNameByLabel(deployNamespace, "app", name, Duration.ofSeconds(30));
-        DeploymentUtils.waitForPodRunSucceeded(deployNamespace, podName, Duration.ofMinutes(1));
+        DeploymentUtils.waitForPodRunSucceeded(deployNamespace, podName, Duration.ofMinutes(5));
         LOGGER.atDebug().setMessage("Admin client create pod log: {}").addArgument(kubeClient().logsInSpecificNamespace(deployNamespace, podName)).log();
     }
 
@@ -143,7 +196,7 @@ public class KafkaSteps {
         String name = Constants.KAFKA_ADMIN_CLIENT_LABEL + "-delete";
         List<String> args = List.of(TOPIC_COMMAND, "delete", BOOTSTRAP_ARG + bootstrap, "--if-exists", "--topic=" + topicName);
 
-        Job adminClientJob = TestClientsJobTemplates.defaultAdminClientJob(name, args).build();
+        Job adminClientJob = TestClientsJobTemplates.defaultAdminClientJob(name, args,List.of(), List.of()).build();
         kubeClient().getClient().batch().v1().jobs().inNamespace(deployNamespace).resource(adminClientJob).create();
 
         String podName = KafkaUtils.getPodNameByLabel(deployNamespace, "app", name, Duration.ofSeconds(30));

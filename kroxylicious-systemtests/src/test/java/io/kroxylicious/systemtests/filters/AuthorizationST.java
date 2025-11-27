@@ -126,7 +126,8 @@ class AuthorizationST extends AbstractST {
         if (topicName.contains("*")) {
             comparison = "like";
         }
-        return decision.name().toLowerCase(Locale.ROOT) + " User with name = \"" + userName.toLowerCase(Locale.ROOT) + "\" to * Topic with name " + comparison + " \"" + topicName + "\";";
+        return decision.name().toLowerCase(Locale.ROOT) + " User with name = \"" + userName.toLowerCase(Locale.ROOT) + "\" to * Topic with name " + comparison + " \""
+                + topicName + "\";";
     }
 
     private void generatePasswordForNewUser(String user) {
