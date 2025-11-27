@@ -119,14 +119,15 @@ public class TestClientsJobTemplates {
      * @param message the message
      * @param messageKey the message key
      * @param compressionType the compression type
+     * @param additionalKafkaProps
      * @return  the job builder
      */
     public static JobBuilder defaultTestClientProducerJob(String jobName, String bootstrap, String topicName, int numOfMessages, String message,
-                                                          @Nullable String messageKey, @NonNull CompressionType compressionType) {
+                                                          @Nullable String messageKey, @NonNull CompressionType compressionType, Map<String, String> additionalKafkaProps) {
         return newJobForContainer(jobName,
                 "test-client-producer",
                 Environment.TEST_CLIENTS_IMAGE,
-                testClientsProducerEnvVars(bootstrap, topicName, numOfMessages, message, messageKey, compressionType));
+                testClientsProducerEnvVars(bootstrap, topicName, numOfMessages, message, messageKey, compressionType, additionalKafkaProps));
     }
 
     private static JobBuilder newJobForContainer(String jobName, String containerName, String image, List<EnvVar> envVars) {
@@ -149,13 +150,14 @@ public class TestClientsJobTemplates {
      * @param bootstrap the bootstrap
      * @param topicName the topic name
      * @param numOfMessages the num of messages
+     * @param additionalKafkaProps
      * @return the job builder
      */
-    public static JobBuilder defaultTestClientConsumerJob(String jobName, String bootstrap, String topicName, int numOfMessages) {
+    public static JobBuilder defaultTestClientConsumerJob(String jobName, String bootstrap, String topicName, int numOfMessages, Map<String, String> additionalKafkaProps) {
         return newJobForContainer(jobName,
                 "test-client-consumer",
                 Environment.TEST_CLIENTS_IMAGE,
-                testClientsConsumerEnvVars(bootstrap, topicName, numOfMessages));
+                testClientsConsumerEnvVars(bootstrap, topicName, numOfMessages, additionalKafkaProps));
     }
 
     /**
@@ -232,7 +234,8 @@ public class TestClientsJobTemplates {
     }
 
     private static List<EnvVar> testClientsProducerEnvVars(String bootstrap, String topicName, int numOfMessages, String message,
-                                                           @Nullable String messageKey, @NonNull CompressionType compressionType) {
+                                                           @Nullable String messageKey, @NonNull CompressionType compressionType,
+                                                           Map<String, String> additionalKafkaProps) {
         List<EnvVar> envVars = new ArrayList<>(List.of(
                 envVar(BOOTSTRAP_VAR, bootstrap),
                 envVar(DELAY_MS_VAR, "200"),
@@ -249,11 +252,15 @@ public class TestClientsJobTemplates {
         if (!CompressionType.NONE.equals(compressionType)) {
             additionalConfig.add(ProducerConfig.COMPRESSION_TYPE_CONFIG + "=" + compressionType.name);
         }
+        additionalKafkaProps.forEach((key, value) -> additionalConfig.add(key + "=" + value));
         envVars.add(envVar(ADDITIONAL_CONFIG_VAR, String.join("\n", additionalConfig)));
         return envVars;
     }
 
-    private static List<EnvVar> testClientsConsumerEnvVars(String bootstrap, String topicName, int numOfMessages) {
+    private static List<EnvVar> testClientsConsumerEnvVars(String bootstrap, String topicName, int numOfMessages, Map<String, String> additionalKafkaProps) {
+
+        List<String> additionalConfig = new ArrayList<>();
+        additionalKafkaProps.forEach((key, value) -> additionalConfig.add(key + "=" + value));
         return List.of(
                 envVar(BOOTSTRAP_VAR, bootstrap),
                 envVar(TOPIC_VAR, topicName),
@@ -261,6 +268,7 @@ public class TestClientsJobTemplates {
                 envVar(GROUP_ID_VAR, "my-group"),
                 envVar(LOG_LEVEL_VAR, "INFO"),
                 envVar(CLIENT_TYPE_VAR, "KafkaConsumer"),
-                envVar(OUTPUT_FORMAT_VAR, "json"));
+                envVar(OUTPUT_FORMAT_VAR, "json"),
+                envVar(ADDITIONAL_CONFIG_VAR, String.join("\n", additionalConfig)));
     }
 }

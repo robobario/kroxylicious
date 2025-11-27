@@ -8,6 +8,7 @@ package io.kroxylicious.systemtests.clients;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -61,10 +62,11 @@ public class StrimziTestClient implements KafkaClient {
 
     @Override
     public void produceMessages(String topicName, String bootstrap, String message, @Nullable String messageKey, @NonNull CompressionType compressionType,
-                                int numOfMessages) {
+                                int numOfMessages, Map<String, String> additionalKafkaProps) {
         LOGGER.atInfo().log("Producing messages using Strimzi Test Client");
         String name = Constants.KAFKA_PRODUCER_CLIENT_LABEL + "-" + TestUtils.getRandomPodNameSuffix();
-        Job testClientJob = TestClientsJobTemplates.defaultTestClientProducerJob(name, bootstrap, topicName, numOfMessages, message, messageKey, compressionType).build();
+        Job testClientJob = TestClientsJobTemplates.defaultTestClientProducerJob(name, bootstrap, topicName, numOfMessages, message, messageKey, compressionType,
+                additionalKafkaProps).build();
         KafkaUtils.produceMessages(deployNamespace, topicName, name, testClientJob);
         String podName = KafkaUtils.getPodNameByLabel(deployNamespace, "app", name, Duration.ofSeconds(30));
         String log = waitForProducer(deployNamespace, podName, Duration.ofSeconds(60));
@@ -93,10 +95,10 @@ public class StrimziTestClient implements KafkaClient {
     }
 
     @Override
-    public List<ConsumerRecord> consumeMessages(String topicName, String bootstrap, int numOfMessages, Duration timeout) {
+    public List<ConsumerRecord> consumeMessages(String topicName, String bootstrap, int numOfMessages, Duration timeout, Map<String, String> additionalKafkaProps) {
         LOGGER.atInfo().log("Consuming messages using Strimzi Test Client");
         String name = Constants.KAFKA_CONSUMER_CLIENT_LABEL + "-" + TestUtils.getRandomPodNameSuffix();
-        Job testClientJob = TestClientsJobTemplates.defaultTestClientConsumerJob(name, bootstrap, topicName, numOfMessages).build();
+        Job testClientJob = TestClientsJobTemplates.defaultTestClientConsumerJob(name, bootstrap, topicName, numOfMessages, additionalKafkaProps).build();
         String podName = KafkaUtils.createJob(deployNamespace, name, testClientJob);
         String log = waitForConsumer(deployNamespace, podName, timeout);
         KafkaUtils.deleteJob(testClientJob);

@@ -8,6 +8,7 @@ package io.kroxylicious.systemtests.clients;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.kafka.common.record.CompressionType;
 
@@ -36,10 +37,11 @@ public interface KafkaClient {
      * @param bootstrap the bootstrap
      * @param message the message
      * @param numOfMessages the num of messages
+     * @param additionalKafkaProps
      * @throws KubeClusterException the kube cluster exception
      */
-    default void produceMessages(String topicName, String bootstrap, String message, int numOfMessages) throws KubeClusterException {
-        produceMessages(topicName, bootstrap, message, null, CompressionType.NONE, numOfMessages);
+    default void produceMessages(String topicName, String bootstrap, String message, int numOfMessages, Map<String, String> additionalKafkaProps) throws KubeClusterException {
+        produceMessages(topicName, bootstrap, message, CompressionType.NONE, numOfMessages, additionalKafkaProps);
     }
 
     /**
@@ -50,11 +52,13 @@ public interface KafkaClient {
      * @param message the message
      * @param messageKey optional record key for the message. <code>null</code> means don't specify a key
      * @param numOfMessages the num of messages
+     * @param additionalKafkaProps
      * @throws KubeClusterException the kube cluster exception
      */
-    default void produceMessages(String topicName, String bootstrap, String message, @Nullable String messageKey, int numOfMessages)
+    default void produceMessages(String topicName, String bootstrap, String message, @Nullable String messageKey, int numOfMessages,
+                                 Map<String, String> additionalKafkaProps)
             throws KubeClusterException {
-        produceMessages(topicName, bootstrap, message, messageKey, CompressionType.NONE, numOfMessages);
+        produceMessages(topicName, bootstrap, message, messageKey, CompressionType.NONE, numOfMessages, additionalKafkaProps);
     }
 
     /**
@@ -65,11 +69,13 @@ public interface KafkaClient {
      * @param message the message
      * @param compressionType the compression type
      * @param numOfMessages the num of messages
+     * @param additionalKafkaProps
      * @throws KubeClusterException the kube cluster exception
      */
-    default void produceMessages(String topicName, String bootstrap, String message, @NonNull CompressionType compressionType, int numOfMessages)
+    default void produceMessages(String topicName, String bootstrap, String message, @NonNull CompressionType compressionType, int numOfMessages,
+                                 Map<String, String> additionalKafkaProps)
             throws KubeClusterException {
-        produceMessages(topicName, bootstrap, message, null, compressionType, numOfMessages);
+        produceMessages(topicName, bootstrap, message, null, compressionType, numOfMessages, additionalKafkaProps);
     }
 
     /**
@@ -81,9 +87,11 @@ public interface KafkaClient {
      * @param messageKey optional record key for the message. <code>null</code> means don't specify a key
      * @param compressionType the compression type
      * @param numOfMessages the num of messages
+     * @param additionalKafkaProps
      * @throws KubeClusterException the kube cluster exception
      */
-    void produceMessages(String topicName, String bootstrap, String message, @Nullable String messageKey, @NonNull CompressionType compressionType, int numOfMessages)
+    void produceMessages(String topicName, String bootstrap, String message, @Nullable String messageKey, @NonNull CompressionType compressionType, int numOfMessages,
+                         Map<String, String> additionalKafkaProps)
             throws KubeClusterException;
 
     /**
@@ -93,7 +101,8 @@ public interface KafkaClient {
      * @param bootstrap the bootstrap
      * @param numOfMessages the num of messages
      * @param timeout the timeout
+     * @param additionalKafkaProps
      * @return the list of ConsumerRecords
      */
-    List<ConsumerRecord> consumeMessages(String topicName, String bootstrap, int numOfMessages, Duration timeout);
+    List<ConsumerRecord> consumeMessages(String topicName, String bootstrap, int numOfMessages, Duration timeout, Map<String, String> additionalKafkaProps);
 }

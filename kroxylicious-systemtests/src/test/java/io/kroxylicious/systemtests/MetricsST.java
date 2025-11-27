@@ -61,9 +61,9 @@ class MetricsST extends AbstractST {
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfRecords).addArgument(RECORD_VALUE).addArgument(topicName)
                 .log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, RECORD_VALUE, numberOfRecords);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, RECORD_VALUE, numberOfRecords, Map.of());
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfRecords, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfRecords, Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
         kroxyliciousCollector.collectMetricsFromPods();
         LOGGER.atInfo().setMessage("Metrics: {}").addArgument(kroxyliciousCollector.getCollectedData().values()).log();
@@ -124,9 +124,9 @@ class MetricsST extends AbstractST {
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfMessages).addArgument(RECORD_VALUE).addArgument(topicName)
                 .log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, RECORD_VALUE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, RECORD_VALUE, numberOfMessages, Map.of());
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
         kroxyliciousCollector.collectMetricsFromPods();
         LOGGER.atInfo().setMessage("Metrics: {}").addArgument(kroxyliciousCollector.getCollectedData().values()).log();

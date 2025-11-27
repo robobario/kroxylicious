@@ -9,6 +9,7 @@ package io.kroxylicious.systemtests.clients;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -61,7 +62,7 @@ public class KcatClient implements KafkaClient {
 
     @Override
     public void produceMessages(String topicName, String bootstrap, String message, @Nullable String messageKey, @NonNull CompressionType compressionType,
-                                int numOfMessages) {
+                                int numOfMessages, Map<String, String> additionalKafkaProps) {
         final Optional<String> recordKey = Optional.ofNullable(messageKey);
 
         StringBuilder msg = new StringBuilder();
@@ -89,7 +90,7 @@ public class KcatClient implements KafkaClient {
     }
 
     @Override
-    public List<ConsumerRecord> consumeMessages(String topicName, String bootstrap, int numOfMessages, Duration timeout) {
+    public List<ConsumerRecord> consumeMessages(String topicName, String bootstrap, int numOfMessages, Duration timeout, Map<String, String> additionalKafkaProps) {
         LOGGER.atInfo().log("Consuming messages using kcat");
         String name = Constants.KAFKA_CONSUMER_CLIENT_LABEL + "-kcat-" + TestUtils.getRandomPodNameSuffix();
         // Running consumer with parameters to get the latest N number of messages received to avoid consuming twice the same messages

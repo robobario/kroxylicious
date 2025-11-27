@@ -8,6 +8,7 @@ package io.kroxylicious.systemtests.steps;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.kafka.common.record.CompressionType;
 
@@ -32,9 +33,11 @@ public class KroxyliciousSteps {
      * @param bootstrap the bootstrap
      * @param message the message
      * @param numberOfMessages the number of messages
+     * @param additionalKafkaProps
      */
-    public static void produceMessages(String namespace, String topicName, String bootstrap, String message, int numberOfMessages) {
-        KafkaClients.getKafkaClient().inNamespace(namespace).produceMessages(topicName, bootstrap, message, numberOfMessages);
+    public static void produceMessages(String namespace, String topicName, String bootstrap, String message, int numberOfMessages,
+                                       Map<String, String> additionalKafkaProps) {
+        KafkaClients.getKafkaClient().inNamespace(namespace).produceMessages(topicName, bootstrap, message, numberOfMessages, additionalKafkaProps);
     }
 
     /**
@@ -46,10 +49,11 @@ public class KroxyliciousSteps {
      * @param message the message
      * @param compressionType the compression type
      * @param numberOfMessages the number of messages
+     * @param additionalKafkaProps
      */
     public static void produceMessages(String namespace, String topicName, String bootstrap, String message, @NonNull CompressionType compressionType,
-                                       int numberOfMessages) {
-        KafkaClients.getKafkaClient().inNamespace(namespace).produceMessages(topicName, bootstrap, message, compressionType, numberOfMessages);
+                                       int numberOfMessages, Map<String, String> additionalKafkaProps) {
+        KafkaClients.getKafkaClient().inNamespace(namespace).produceMessages(topicName, bootstrap, message, compressionType, numberOfMessages, additionalKafkaProps);
     }
 
     /**
@@ -60,10 +64,12 @@ public class KroxyliciousSteps {
      * @param bootstrap the bootstrap
      * @param numberOfMessages the number of messages
      * @param timeout the timeout
+     * @param additionalKafkaProps
      * @return the list of ConsumerRecords
      */
-    public static List<ConsumerRecord> consumeMessages(String namespace, String topicName, String bootstrap, int numberOfMessages, Duration timeout) {
-        return KafkaClients.getKafkaClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages, timeout);
+    public static List<ConsumerRecord> consumeMessages(String namespace, String topicName, String bootstrap, int numberOfMessages, Duration timeout,
+                                                       Map<String, String> additionalKafkaProps) {
+        return KafkaClients.getKafkaClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages, timeout, additionalKafkaProps);
     }
 
     /**
@@ -75,12 +81,13 @@ public class KroxyliciousSteps {
      * @param kafkaNamespace the namespace in which the broker is operating
      * @param numberOfMessages the number of messages
      * @param timeout maximum time to wait for the expectedMessage to appear
+     * @param additionalKafkaProps
      * @return the list of consumer records
      */
     public static List<ConsumerRecord> consumeMessageFromKafkaCluster(String clientNamespace, String topicName, String kafkaClusterName,
                                                                       String kafkaNamespace, int numberOfMessages,
-                                                                      Duration timeout) {
+                                                                      Duration timeout, Map<String, String> additionalKafkaProps) {
         String kafkaBootstrap = kafkaClusterName + "-kafka-bootstrap." + kafkaNamespace + ".svc.cluster.local:9092";
-        return consumeMessages(clientNamespace, topicName, kafkaBootstrap, numberOfMessages, timeout);
+        return consumeMessages(clientNamespace, topicName, kafkaBootstrap, numberOfMessages, timeout, additionalKafkaProps);
     }
 }

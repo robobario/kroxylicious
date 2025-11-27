@@ -8,6 +8,7 @@ package io.kroxylicious.systemtests;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.kafka.common.record.CompressionType;
 import org.junit.jupiter.api.AfterAll;
@@ -117,10 +118,10 @@ class KroxyliciousST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 1, 1, compressionType);
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfMessages).addArgument(MESSAGE).addArgument(topicName).log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, compressionType, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, compressionType, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -148,12 +149,12 @@ class KroxyliciousST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 3, 1);
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfMessages).addArgument(MESSAGE).addArgument(topicName).log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
         LOGGER.atInfo().setMessage("And a kafka broker is restarted").log();
         KafkaSteps.restartKafkaBroker(clusterName);
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(5));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(5), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -184,10 +185,10 @@ class KroxyliciousST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 3, 1);
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfMessages).addArgument(MESSAGE).addArgument(topicName).log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -221,7 +222,7 @@ class KroxyliciousST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 3, 1);
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfMessages).addArgument(MESSAGE).addArgument(topicName).log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("And kroxylicious is scaled to {}").addArgument(scaleTo).log();
         kroxylicious.scaleReplicasTo(scaleTo, Duration.ofMinutes(2));
@@ -229,7 +230,7 @@ class KroxyliciousST extends AbstractST {
         assertThat(currentReplicas).withFailMessage("unexpected current scaled replicas").isEqualTo(scaleTo);
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")

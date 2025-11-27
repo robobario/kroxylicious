@@ -14,6 +14,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.apache.kafka.common.security.scram.internals.ScramMechanism;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,7 +91,7 @@ class AuthorizationST extends AbstractST {
     @Test
     void produceAndConsumeMessage(String namespace) {
         int numberOfMessages = 1;
-        String user = "Bob";
+        String user = "bob";
         generatePasswordForNewUser(user);
         aclRules.add(generateAllowAclRule(user, topicName));
 
@@ -101,10 +105,12 @@ class AuthorizationST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 1, 1, usernamePasswords);
 
         LOGGER.atInfo().setMessage("When {} messages '{}' are sent to the topic '{}'").addArgument(numberOfMessages).addArgument(MESSAGE).addArgument(topicName).log();
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        String jaasConfig = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"%s\" password=\"%s\" algorithm=SHA-512;".formatted(user, usernamePasswords.get(user));
+        Map<String, String> additionalKafkaProps = Map.of(SaslConfigs.SASL_JAAS_CONFIG , jaasConfig, SaslConfigs.SASL_MECHANISM, ScramMechanism.SCRAM_SHA_512.mechanismName(), CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, additionalKafkaProps);
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), additionalKafkaProps);
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")

@@ -8,6 +8,7 @@ package io.kroxylicious.systemtests;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,11 +56,11 @@ class NonJVMClientsST extends AbstractST {
         checkKcatCompatibility();
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.kcat().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.kcat().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.kcat().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -77,11 +78,11 @@ class NonJVMClientsST extends AbstractST {
     void produceAndConsumeWithPythonClients(String namespace) {
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.pythonTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.pythonTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.pythonTestClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -99,11 +100,11 @@ class NonJVMClientsST extends AbstractST {
     void produceAndConsumeWithKafkaGoClients(String namespace) {
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.kaf().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.kaf().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.kaf().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -122,11 +123,11 @@ class NonJVMClientsST extends AbstractST {
         checkKcatCompatibility();
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.kcat().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.kcat().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.strimziTestClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -144,11 +145,11 @@ class NonJVMClientsST extends AbstractST {
     void produceWithPythonAndConsumeWithTestClients(String namespace) {
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.pythonTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.pythonTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.strimziTestClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -167,11 +168,11 @@ class NonJVMClientsST extends AbstractST {
         checkKcatCompatibility();
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.strimziTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.strimziTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.kcat().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -189,11 +190,11 @@ class NonJVMClientsST extends AbstractST {
     void produceWithTestClientsAndConsumeWithPython(String namespace) {
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.strimziTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.strimziTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.pythonTestClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -211,11 +212,11 @@ class NonJVMClientsST extends AbstractST {
     void produceWithKafkaGoAndConsumeWithTestClients(String namespace) {
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.kaf().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.kaf().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.strimziTestClient().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -233,11 +234,11 @@ class NonJVMClientsST extends AbstractST {
     void produceWithTestClientsAndConsumeWithKafkaGo(String namespace) {
         int numberOfMessages = 2;
         LOGGER.atInfo().setMessage("When the message '{}' is sent to the topic '{}'").addArgument(MESSAGE).addArgument(topicName).log();
-        KafkaClients.strimziTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages);
+        KafkaClients.strimziTestClient().inNamespace(namespace).produceMessages(topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.atInfo().setMessage("Then the messages are consumed").log();
         List<ConsumerRecord> result = KafkaClients.kaf().inNamespace(namespace).consumeMessages(topicName, bootstrap, numberOfMessages,
-                Duration.ofMinutes(2));
+                Duration.ofMinutes(2), Map.of());
         LOGGER.atInfo().setMessage("Received: {}").addArgument(result).log();
 
         assertThat(result).withFailMessage("expected messages have not been received!")

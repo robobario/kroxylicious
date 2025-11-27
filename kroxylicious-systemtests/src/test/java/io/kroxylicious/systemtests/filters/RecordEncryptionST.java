@@ -9,6 +9,7 @@ package io.kroxylicious.systemtests.filters;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.kafka.common.record.CompressionType;
 import org.junit.jupiter.api.AfterAll;
@@ -122,11 +123,11 @@ class RecordEncryptionST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 1, 1);
 
         LOGGER.info("When {} messages '{}' are sent to the topic '{}'", numberOfMessages, MESSAGE, topicName);
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.info("Then the messages are consumed");
         List<ConsumerRecord> resultEncrypted = KroxyliciousSteps.consumeMessageFromKafkaCluster(namespace, topicName, clusterName,
-                Constants.KAFKA_DEFAULT_NAMESPACE, numberOfMessages, Duration.ofMinutes(2));
+                Constants.KAFKA_DEFAULT_NAMESPACE, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.info("Received: {}", resultEncrypted);
 
         assertAll(
@@ -166,10 +167,10 @@ class RecordEncryptionST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 1, 1, compressionType);
 
         LOGGER.info("When {} messages '{}' are sent to the topic '{}'", numberOfMessages, MESSAGE, topicName);
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, compressionType, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, compressionType, numberOfMessages, Map.of());
 
         LOGGER.info("Then the messages are consumed");
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.info("Received: {}", result);
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -200,11 +201,11 @@ class RecordEncryptionST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 1, 1);
 
         LOGGER.info("When {} messages '{}' are sent to the topic '{}'", numberOfMessages, MESSAGE, topicName);
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.info("Then the messages are consumed");
         List<ConsumerRecord> resultEncrypted = KroxyliciousSteps.consumeMessageFromKafkaCluster(namespace, topicName, clusterName,
-                Constants.KAFKA_DEFAULT_NAMESPACE, numberOfMessages, Duration.ofMinutes(2));
+                Constants.KAFKA_DEFAULT_NAMESPACE, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.info("Received: {}", resultEncrypted);
 
         assertKekVersionWithinParcel(resultEncrypted, ":v1:", testKekManager);
@@ -220,11 +221,11 @@ class RecordEncryptionST extends AbstractST {
         }
 
         LOGGER.info("And {} messages '{}' are sent to the topic '{}'", numberOfMessages, MESSAGE, topicName);
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.info("Then the messages are consumed");
         List<ConsumerRecord> resultEncryptedRotatedKek = KroxyliciousSteps.consumeMessageFromKafkaCluster(namespace, topicName, clusterName,
-                Constants.KAFKA_DEFAULT_NAMESPACE, numberOfMessages, Duration.ofMinutes(2));
+                Constants.KAFKA_DEFAULT_NAMESPACE, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.info("Received: {}", resultEncryptedRotatedKek);
 
         List<ConsumerRecord> finalEncryptedResults = new ArrayList<>(resultEncryptedRotatedKek);
@@ -268,10 +269,10 @@ class RecordEncryptionST extends AbstractST {
         KafkaSteps.createTopic(namespace, topicName, bootstrap, 1, 1);
 
         LOGGER.info("When {} messages '{}' are sent to the topic '{}'", numberOfMessages, MESSAGE, topicName);
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.info("Then the messages are consumed");
-        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> result = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.info("Received: {}", result);
 
         assertThat(result).withFailMessage("expected messages have not been received!")
@@ -290,10 +291,10 @@ class RecordEncryptionST extends AbstractST {
         }
 
         LOGGER.info("And {} messages '{}' are sent to the topic '{}'", numberOfMessages, MESSAGE, topicName);
-        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages);
+        KroxyliciousSteps.produceMessages(namespace, topicName, bootstrap, MESSAGE, numberOfMessages, Map.of());
 
         LOGGER.info("Then the messages are consumed");
-        List<ConsumerRecord> resultRotatedKek = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2));
+        List<ConsumerRecord> resultRotatedKek = KroxyliciousSteps.consumeMessages(namespace, topicName, bootstrap, numberOfMessages, Duration.ofMinutes(2), Map.of());
         LOGGER.info("Received: {}", resultRotatedKek);
 
         assertThat(resultRotatedKek).withFailMessage("expected messages have not been received!")
