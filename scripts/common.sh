@@ -9,6 +9,9 @@ set -Eu
 
 OS=$(uname)
 
+my_var="some value"
+[ -f $my_var ]
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
