@@ -55,6 +55,10 @@ jobs:
           git checkout -B ${{ fromJson(steps.get_pr_data.outputs.data).base.ref }} upstream/${{ fromJson(steps.get_pr_data.outputs.data).base.ref }}
           git checkout "${HEAD_BRANCH}"
           git clean -ffdx && git reset --hard HEAD
+      - name: set PR env var
+        id: set PR env var
+        run: |
+          echo "CI_PULL_REQUEST=${{ steps.pr_number.outputs.content }}" >> $GITHUB_ENV
       - name: shellcheck
         uses: reviewdog/action-shellcheck@4c07458293ac342d477251099501a718ae5ef86e
         with:
