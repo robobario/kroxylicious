@@ -1,5 +1,8 @@
 # GitHub Automation
 
+anythin
+gi
+
 ## Password Safe
 
 The project uses a password safe as the system of record for project's secrets.  The [CODEOWNERS](./CODEOWNERS) know the

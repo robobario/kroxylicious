@@ -27,6 +27,8 @@ concurrency:
 jobs:
   discover_integration_test_chunks:
     runs-on: ubuntu-latest
+    outputs:
+      test_chunks: ${{ steps.discover.outputs.test_chunks }}
     steps:
       - name: 'Check out repository'
         uses: actions/checkout@v6
@@ -34,8 +36,10 @@ jobs:
           fetch-depth: 0
       - name: 'Discover ITs'
         working-directory: kroxylicious-integration-tests
+        id: discover
         run: |
-          TEST_CHUNKS="[$(find . -type f -name "*IT.java" -exec basename {} .java \; | xargs -L 10 | tr ' ' , | sed 's/.*/"&"/' | sed -z 's/\n/,/g;s/,$/\n/')]"
+          TESTS_PER_CHUNK=5
+          TEST_CHUNKS="[$(find . -type f -name "*IT.java" -exec basename {} .java \; | xargs -L ${TESTS_PER_CHUNK} | tr ' ' , | sed 's/.*/"&"/' | sed -z 's/\n/,/g;s/,$/\n/')]"
           echo "test_chunks=$TEST_CHUNKS" >> $GITHUB_OUTPUT
   run_integration_tests:
     needs: discover_integration_test_chunks
