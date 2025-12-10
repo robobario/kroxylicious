@@ -37,6 +37,7 @@ jobs:
         run: |
           TEST_CHUNKS="[$(find . -type f -name "*IT.java" -exec basename {} .java \; | xargs -L 10 | tr ' ' , | sed 's/.*/"&"/' | sed -z 's/\n/,/g;s/,$/\n/')]"
           echo "test_chunks=$TEST_CHUNKS" >> $GITHUB_OUTPUT
+          echo "test_chunks=$TEST_CHUNKS" 
   run_integration_tests:
     needs: discover_integration_test_chunks
     runs-on: ubuntu-latest
