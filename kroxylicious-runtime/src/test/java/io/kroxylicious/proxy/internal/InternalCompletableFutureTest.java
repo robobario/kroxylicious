@@ -62,13 +62,6 @@ class InternalCompletableFutureTest {
     }
 
     @Test
-    void minimalStageComposesAsParameter() {
-        CompletionStage<Object> stage = InternalCompletableFuture.completedFuture(executor, null).minimalCompletionStage();
-        CompletableFuture<Object> thenCompose = CompletableFuture.completedFuture(null).thenCompose(f -> stage);
-        assertThat(thenCompose).succeedsWithin(Duration.ZERO);
-    }
-
-    @Test
     void asyncChainingMethodExecutesOnThreadOfExecutorEither() throws Exception {
         var threadOfExecutor = executor.submit(Thread::currentThread).get();
         var future = new InternalCompletableFuture<>(executor);
@@ -99,6 +92,76 @@ class InternalCompletableFutureTest {
                 argumentSet("exceptionallyComposeAsync(E)",
                         (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> s.exceptionallyComposeAsync(
                                 InternalCompletableFutureTest::captureThreadChainedResult, e)));
+    }
+
+    static Stream<Arguments> allCompositionMethods() {
+        var other = CompletableFuture.<Void> completedFuture(null);
+        return Stream.of(
+                argumentSet("thenCombine", (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.thenCombine(s,
+                        (unused, unused2) -> null)),
+                argumentSet("thenCombineAsync",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.thenCombineAsync(s,
+                                (unused, unused2) -> null)),
+                argumentSet("thenCombineAsync(E)",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.thenCombineAsync(s,
+                                (unused, unused2) -> null, e)),
+                argumentSet("acceptEither", (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.acceptEither(s,
+                        unused -> {
+                        })),
+                argumentSet("acceptEitherAsync",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.acceptEitherAsync(s,
+                                unused -> {
+                                })),
+                argumentSet("acceptEitherAsync(E)",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.acceptEitherAsync(s,
+                                unused -> {
+                                }, e)),
+
+                argumentSet("applyToEither", (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.applyToEither(s,
+                        unused -> null)),
+                argumentSet("applyToEitherAsync",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.applyToEitherAsync(s,
+                                unused -> null)),
+                argumentSet("applyToEitherAsync(E)",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.applyToEitherAsync(s,
+                                unused -> null, e)),
+
+                argumentSet("runAfterEither", (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.runAfterEither(s,
+                        () -> {
+                        })),
+                argumentSet("runAfterEitherAsync",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.runAfterEitherAsync(s,
+                                () -> {
+                                })),
+                argumentSet("runAfterEitherAsync(E)",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.runAfterEitherAsync(s,
+                                () -> {
+                                }, e)),
+
+                argumentSet("theAcceptBoth",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.thenAcceptBoth(s,
+                                (unused, unused2) -> {
+                                })),
+                argumentSet("thenAcceptBothAsync",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.thenAcceptBothAsync(s,
+                                (unused, unused2) -> {
+                                })),
+                argumentSet("thenAcceptBothAsync(E)",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.thenAcceptBothAsync(s,
+                                (unused, unused2) -> {
+                                }, e)),
+
+                argumentSet("runAfterBoth", (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.runAfterBoth(s,
+                        () -> {
+                        })),
+                argumentSet("runAfterBothAsync",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.runAfterBothAsync(s,
+                                () -> {
+                                })),
+                argumentSet("runAfterBothAsync(E)",
+                        (BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>>) (s, e) -> other.runAfterBothAsync(s,
+                                () -> {
+                                }, e)));
     }
 
     static Stream<Arguments> allChainingMethods() {
@@ -204,6 +267,27 @@ class InternalCompletableFutureTest {
     }
 
     @ParameterizedTest()
+    @MethodSource("allCompositionMethods")
+    void minimalStageCanCompose(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        var future = new InternalCompletableFuture<Void>(executor);
+        var stage = future.minimalCompletionStage();
+        var result = func.apply(stage, executor);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        future.complete(null);
+        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+    }
+
+    @ParameterizedTest()
+    @MethodSource("allCompositionMethods")
+    void futureCanCompose(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        var future = new InternalCompletableFuture<Void>(executor);
+        var result = func.apply(future, executor);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        future.complete(null);
+        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+    }
+
+    @ParameterizedTest()
     @MethodSource("allChainingMethods")
     void chainedWorkIsExecutedOnEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) throws ExecutionException, InterruptedException {
         var threadOfExecutor = executor.submit(Thread::currentThread).get();
@@ -219,6 +303,21 @@ class InternalCompletableFutureTest {
 
     @ParameterizedTest()
     @MethodSource("allChainingMethods")
+    void chainedWorkIsExecutedOnEventLoop_CompletionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
+            throws ExecutionException, InterruptedException {
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        var future = new InternalCompletableFuture<Void>(executor);
+        var stage = future.minimalCompletionStage();
+        var result = func.apply(stage, executor);
+        assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        executor.execute(() -> future.complete(null));
+        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    @ParameterizedTest()
+    @MethodSource("allChainingMethods")
     void chainedWorkIsExecutedOnEventLoopFuture(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) throws ExecutionException, InterruptedException {
         var threadOfExecutor = executor.submit(Thread::currentThread).get();
         var future = new InternalCompletableFuture<Void>(executor);
@@ -226,6 +325,22 @@ class InternalCompletableFutureTest {
         assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
         CompletableFuture<Void> future1 = result.toCompletableFuture();
         future.complete(null);
+        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(future1).isInstanceOf(InternalCompletableFuture.class);
+        // actualThread should populated by one of the `captureThread` family of methods.
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    @ParameterizedTest()
+    @MethodSource("allChainingMethods")
+    void chainedWorkIsExecutedOnEventLoopFuture_CompletionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
+            throws ExecutionException, InterruptedException {
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        var future = new InternalCompletableFuture<Void>(executor);
+        var result = func.apply(future, executor);
+        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        executor.execute(() -> future.complete(null));
         assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
         assertThat(future1).isInstanceOf(InternalCompletableFuture.class);
         // actualThread should populated by one of the `captureThread` family of methods.
@@ -255,6 +370,27 @@ class InternalCompletableFutureTest {
 
     @ParameterizedTest()
     @MethodSource("allExceptionalMethods")
+    void exceptionHandlingWorkIsExecutedOnEventLoop_completionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
+            throws ExecutionException, InterruptedException {
+        // Given
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        var future = new InternalCompletableFuture<Void>(executor);
+        var stage = future.minimalCompletionStage();
+        var result = func.apply(stage, executor);
+        assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
+
+        // When
+        executor.execute(() -> future.completeExceptionally(new IllegalStateException("Whoops it went wrong")));
+
+        // Then
+        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        // actualThread should populated by one of the `captureThread` family of methods.
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    @ParameterizedTest()
+    @MethodSource("allExceptionalMethods")
     void exceptionHandlingWorkIsExecutedOnEventLoopFuture(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
             throws ExecutionException, InterruptedException {
         // Given
@@ -266,6 +402,27 @@ class InternalCompletableFutureTest {
 
         // When
         future.completeExceptionally(new IllegalStateException("Whoops it went wrong"));
+
+        // Then
+        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+
+        // actualThread should populated by one of the `captureThread` family of methods.
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    @ParameterizedTest()
+    @MethodSource("allExceptionalMethods")
+    void exceptionHandlingWorkIsExecutedOnEventLoopFuture_completionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
+            throws ExecutionException, InterruptedException {
+        // Given
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        var future = new InternalCompletableFuture<Void>(executor);
+        var result = func.apply(future, executor);
+        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
+        CompletableFuture<Void> future1 = result.toCompletableFuture();
+
+        // When
+        executor.execute(() -> future.completeExceptionally(new IllegalStateException("Whoops it went wrong")));
 
         // Then
         assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
