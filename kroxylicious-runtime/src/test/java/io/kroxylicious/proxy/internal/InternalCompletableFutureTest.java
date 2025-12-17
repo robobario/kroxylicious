@@ -15,8 +15,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import org.assertj.core.api.CompletableFutureAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -428,6 +430,49 @@ class InternalCompletableFutureTest {
         assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
 
         // actualThread should populated by one of the `captureThread` family of methods.
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    static Stream<Arguments> futureCompletionAlternatives() {
+        return Stream.of(Arguments.argumentSet("success on eventloop",
+                (Consumer<CompletableFuture<?>>) completableFuture -> executor.execute(() -> completableFuture.complete(null)), false),
+                Arguments.argumentSet("immediate success",
+                        (Consumer<CompletableFuture<?>>) completableFuture -> completableFuture.complete(null), false),
+                Arguments.argumentSet("failure on eventloop",
+                        (Consumer<CompletableFuture<?>>) completableFuture -> executor.execute(
+                                () -> completableFuture.completeExceptionally(new IllegalStateException("Whoops it went wrong"))),
+                        true),
+                Arguments.argumentSet("immediate failure",
+                        (Consumer<CompletableFuture<?>>) completableFuture -> completableFuture.completeExceptionally(new IllegalStateException("Whoops it went wrong")),
+                        true));
+    }
+
+    @MethodSource("futureCompletionAlternatives")
+    @ParameterizedTest
+    void whenComplete(Consumer<CompletableFuture<?>> futureConsumer, boolean futureCompletesExceptionally) throws ExecutionException, InterruptedException {
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        CompletableFuture<Void> future = new InternalCompletableFuture<>(executor);
+        CompletableFuture<Void> whenCompleteFuture = future.whenComplete(InternalCompletableFutureTest::captureThread);
+        futureConsumer.accept(future);
+        CompletableFutureAssert<Void> assertThatWhenComplete = assertThat(whenCompleteFuture);
+        if (futureCompletesExceptionally) {
+            assertThatWhenComplete.failsWithin(2, TimeUnit.SECONDS);
+        }
+        else {
+            assertThatWhenComplete.succeedsWithin(2, TimeUnit.SECONDS);
+        }
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    @MethodSource("futureCompletionAlternatives")
+    @ParameterizedTest
+    void handle(Consumer<CompletableFuture<?>> futureConsumer, boolean ignored) throws ExecutionException, InterruptedException {
+        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+        CompletableFuture<Void> future = new InternalCompletableFuture<>(executor);
+        CompletableFuture<Void> handleFuture = future.handle(InternalCompletableFutureTest::captureThreadWithResult);
+        futureConsumer.accept(future);
+        CompletableFutureAssert<Void> assertThatHandle = assertThat(handleFuture);
+        assertThatHandle.succeedsWithin(2, TimeUnit.SECONDS);
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
