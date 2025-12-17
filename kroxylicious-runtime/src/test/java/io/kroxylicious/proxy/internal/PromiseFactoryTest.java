@@ -99,7 +99,7 @@ class PromiseFactoryTest {
                 timeoutFuture.set(newValue);
                 return newValue;
             });
-            when(executorService.inEventLoop()).thenReturn(true);
+            when(executorService.isExecutorThread(any())).thenReturn(true);
 
             final CompletableFuture<Object> promise = promiseFactory.newTimeLimitedPromise(() -> "");
 

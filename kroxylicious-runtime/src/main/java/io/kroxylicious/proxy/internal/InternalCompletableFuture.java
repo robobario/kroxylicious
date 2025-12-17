@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import io.netty.channel.EventLoop;
+import io.netty.util.concurrent.ThreadAwareExecutor;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -29,10 +30,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  */
 class InternalCompletableFuture<T> extends CompletableFuture<T> {
 
-    private final EventLoop eventLoop;
+    private final ThreadAwareExecutor executor;
 
-    InternalCompletableFuture(EventLoop eventLoop) {
-        this.eventLoop = Objects.requireNonNull(eventLoop);
+    InternalCompletableFuture(ThreadAwareExecutor executor) {
+        this.executor = Objects.requireNonNull(executor);
     }
 
     /**
@@ -44,7 +45,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      */
     @Override
     public <U> CompletableFuture<U> newIncompleteFuture() {
-        return new InternalCompletableFuture<>(eventLoop);
+        return new InternalCompletableFuture<>(executor);
     }
 
     /**
@@ -54,7 +55,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      */
     @Override
     public Executor defaultExecutor() {
-        return eventLoop;
+        return executor;
     }
 
     /**
@@ -98,7 +99,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
     }
 
     private boolean isInEventLoop() {
-        return eventLoop.inEventLoop();
+        return executor.isExecutorThread(Thread.currentThread());
     }
 
     @Override
@@ -137,26 +138,30 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
         }
         CompletableFuture<U> incompleteFuture = newIncompleteFuture();
         other.whenComplete((u, throwable) -> {
-            if (eventLoop.inEventLoop()) {
+            dispatch(u, throwable, incompleteFuture);
+        });
+        return incompleteFuture;
+    }
+
+    private <U> void dispatch(U u, Throwable throwable, CompletableFuture<U> incompleteFuture) {
+        if (isInEventLoop()) {
+            if (throwable != null) {
+                incompleteFuture.completeExceptionally(throwable);
+            }
+            else {
+                incompleteFuture.complete(u);
+            }
+        }
+        else {
+            executor.execute(() -> {
                 if (throwable != null) {
                     incompleteFuture.completeExceptionally(throwable);
                 }
                 else {
                     incompleteFuture.complete(u);
                 }
-            }
-            else {
-                eventLoop.execute(() -> {
-                    if (throwable != null) {
-                        incompleteFuture.completeExceptionally(throwable);
-                    }
-                    else {
-                        incompleteFuture.complete(u);
-                    }
-                });
-            }
-        });
-        return incompleteFuture;
+            });
+        }
     }
 
     @Override
@@ -248,10 +253,10 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
 
     @Override
     public <U> CompletableFuture<U> handle(BiFunction<? super T, Throwable, ? extends U> fn) {
-        InternalCompletableFuture<T> tCompletableFuture = new InternalCompletableFuture<>(eventLoop);
-        CompletableFuture<U> incompleteFuture = tCompletableFuture.underlyingHandle(fn);
-        dispatchOnEventLoop(tCompletableFuture);
-        return incompleteFuture;
+        InternalCompletableFuture<T> internalFuture = new InternalCompletableFuture<>(executor);
+        CompletableFuture<U> handleFuture = internalFuture.underlyingHandle(fn);
+        dispatchOnEventLoop(internalFuture);
+        return handleFuture;
     }
 
     private <U> CompletableFuture<U> underlyingHandle(BiFunction<? super T, Throwable, ? extends U> fn) {
@@ -260,10 +265,10 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
 
     @Override
     public CompletableFuture<T> whenComplete(BiConsumer<? super T, ? super Throwable> action) {
-        InternalCompletableFuture<T> tCompletableFuture = new InternalCompletableFuture<>(eventLoop);
-        CompletableFuture<T> incompleteFuture = tCompletableFuture.underlyingWhenComplete(action);
-        dispatchOnEventLoop(tCompletableFuture);
-        return incompleteFuture;
+        InternalCompletableFuture<T> internalFuture = new InternalCompletableFuture<>(executor);
+        CompletableFuture<T> whenCompleteFuture = internalFuture.underlyingWhenComplete(action);
+        dispatchOnEventLoop(internalFuture);
+        return whenCompleteFuture;
     }
 
     private CompletableFuture<T> underlyingWhenComplete(BiConsumer<? super T, ? super Throwable> action) {
@@ -272,24 +277,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
 
     private void dispatchOnEventLoop(CompletableFuture<T> incompleteFuture) {
         super.whenComplete((t, throwable) -> {
-            if (isInEventLoop()) {
-                if (throwable != null) {
-                    incompleteFuture.completeExceptionally(throwable);
-                }
-                else {
-                    incompleteFuture.complete(t);
-                }
-            }
-            else {
-                eventLoop.execute(() -> {
-                    if (throwable != null) {
-                        incompleteFuture.completeExceptionally(throwable);
-                    }
-                    else {
-                        incompleteFuture.complete(t);
-                    }
-                });
-            }
+            dispatch(t, throwable, incompleteFuture);
         });
     }
 
