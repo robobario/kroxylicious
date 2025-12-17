@@ -17,6 +17,8 @@ import java.util.function.Function;
 
 import io.netty.channel.EventLoop;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 /**
  * Implementation of CompletableFuture that executes all chained work on a specific
  * event loop.
@@ -77,7 +79,7 @@ class InternalCompletableFuture<T> extends CompletableFuture<T> {
      * @param <U> the type of the value
      * @return the completed CompletableFuture
      */
-    public static <U> CompletableFuture<U> completedFuture(EventLoop executor, U value) {
+    public static <U> CompletableFuture<U> completedFuture(EventLoop executor, @Nullable U value) {
         var f = new InternalCompletableFuture<U>(executor);
         f.complete(value);
         return f;
