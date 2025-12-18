@@ -61,7 +61,7 @@ public class NettyFilterDispatchExecutor implements FilterDispatchExecutor {
         return future.minimalCompletionStage();
     }
 
-    private static <T> void forward(T value, @Nullable Throwable throwable, CompletableFuture<T> future) {
+    private static <T> void forward(@Nullable T value, @Nullable Throwable throwable, CompletableFuture<T> future) {
         if (throwable != null) {
             future.completeExceptionally(throwable);
         }

@@ -33,10 +33,12 @@ import io.netty.channel.EventLoop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
+// we are asserting actual and expected in the correct order, the static actualThread triggers this warning
+@SuppressWarnings("java:S3415")
 class InternalCompletableFutureTest {
 
     private static EventLoop executor;
-    private final static AtomicReference<Thread> actualThread = new AtomicReference<>();
+    private static final AtomicReference<Thread> actualThread = new AtomicReference<>();
 
     @BeforeAll
     static void beforeAll() {
@@ -69,7 +71,7 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<>(executor);
 
         assertThat(future.acceptEitherAsync(CompletableFuture.completedFuture(null),
-                (u) -> {
+                u -> {
                 }).thenAcceptAsync(InternalCompletableFutureTest::captureThread))
                 .succeedsWithin(Duration.ofMillis(100));
 
@@ -274,9 +276,9 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<Void>(executor);
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
         future.complete(null);
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
     }
 
     @ParameterizedTest()
@@ -284,9 +286,9 @@ class InternalCompletableFutureTest {
     void futureCanCompose(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
         future.complete(null);
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
     }
 
     @ParameterizedTest()
@@ -297,9 +299,9 @@ class InternalCompletableFutureTest {
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
         future.complete(null);
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
@@ -312,9 +314,9 @@ class InternalCompletableFutureTest {
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
         executor.execute(() -> future.complete(null));
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
@@ -325,10 +327,10 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
         future.complete(null);
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
-        assertThat(future1).isInstanceOf(InternalCompletableFuture.class);
+        assertThat(resultFuture).isInstanceOf(InternalCompletableFuture.class)
+                .succeedsWithin(2, TimeUnit.SECONDS);
         // actualThread should populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
@@ -341,10 +343,10 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
         executor.execute(() -> future.complete(null));
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
-        assertThat(future1).isInstanceOf(InternalCompletableFuture.class);
+        assertThat(resultFuture).isInstanceOf(InternalCompletableFuture.class)
+                .succeedsWithin(2, TimeUnit.SECONDS);
         // actualThread should populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
@@ -359,13 +361,13 @@ class InternalCompletableFutureTest {
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
         future.completeExceptionally(new IllegalStateException("Whoops it went wrong"));
 
         // Then
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
         // actualThread should populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
@@ -380,13 +382,13 @@ class InternalCompletableFutureTest {
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
         executor.execute(() -> future.completeExceptionally(new IllegalStateException("Whoops it went wrong")));
 
         // Then
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
         // actualThread should populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
@@ -400,13 +402,13 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
         future.completeExceptionally(new IllegalStateException("Whoops it went wrong"));
 
         // Then
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
 
         // actualThread should populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
@@ -421,13 +423,13 @@ class InternalCompletableFutureTest {
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
-        CompletableFuture<Void> future1 = result.toCompletableFuture();
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
         executor.execute(() -> future.completeExceptionally(new IllegalStateException("Whoops it went wrong")));
 
         // Then
-        assertThat(future1).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
 
         // actualThread should populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);

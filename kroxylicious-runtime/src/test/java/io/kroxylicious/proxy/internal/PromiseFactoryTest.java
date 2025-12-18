@@ -16,6 +16,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -36,10 +37,17 @@ class PromiseFactoryTest {
     private static final TimeUnit TIMEOUT_UNIT = TimeUnit.MILLISECONDS;
     public static final String TEST_LOGGER = "TestLogger";
     private PromiseFactory promiseFactory;
+    private DefaultEventLoop eventLoop;
 
     @BeforeEach
     void setUp() {
-        promiseFactory = new PromiseFactory(new DefaultEventLoop(Executors.newSingleThreadScheduledExecutor()), TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
+        eventLoop = new DefaultEventLoop(Executors.newSingleThreadScheduledExecutor());
+        promiseFactory = new PromiseFactory(eventLoop, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
+    }
+
+    @AfterEach
+    void tearDown() {
+        eventLoop.shutdownGracefully(0, 0, TimeUnit.SECONDS);
     }
 
     @Test
@@ -84,35 +92,27 @@ class PromiseFactoryTest {
     @Test
     void shouldCancelTimeoutWhenTaskCompletes() {
 
-        // ScheduledExecutorService is only auto closeable in JDK 19+
-        @SuppressWarnings("resource")
-        final EventLoop eventLoop = new DefaultEventLoop(Executors.newSingleThreadScheduledExecutor());
-        try {
-            final EventLoop executorService = mock(EventLoop.class);
-            promiseFactory = new PromiseFactory(executorService, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
+        final EventLoop executorService = mock(EventLoop.class);
+        promiseFactory = new PromiseFactory(executorService, TIMEOUT, TIMEOUT_UNIT, TEST_LOGGER);
 
-            final AtomicReference<io.netty.util.concurrent.ScheduledFuture<?>> timeoutFuture = new AtomicReference<>();
-            when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenAnswer(invocationOnMock -> {
-                final io.netty.util.concurrent.ScheduledFuture<?> newValue = eventLoop.schedule((Runnable) invocationOnMock.getArgument(0),
-                        invocationOnMock.getArgument(1),
-                        invocationOnMock.getArgument(2));
-                timeoutFuture.set(newValue);
-                return newValue;
-            });
-            when(executorService.isExecutorThread(any())).thenReturn(true);
+        final AtomicReference<io.netty.util.concurrent.ScheduledFuture<?>> timeoutFuture = new AtomicReference<>();
+        when(executorService.schedule(any(Runnable.class), anyLong(), any())).thenAnswer(invocationOnMock -> {
+            final io.netty.util.concurrent.ScheduledFuture<?> newValue = eventLoop.schedule((Runnable) invocationOnMock.getArgument(0),
+                    invocationOnMock.getArgument(1),
+                    invocationOnMock.getArgument(2));
+            timeoutFuture.set(newValue);
+            return newValue;
+        });
+        when(executorService.isExecutorThread(any())).thenReturn(true);
 
-            final CompletableFuture<Object> promise = promiseFactory.newTimeLimitedPromise(() -> "");
+        final CompletableFuture<Object> promise = promiseFactory.newTimeLimitedPromise(() -> "");
 
-            // When
-            promise.complete(null);
+        // When
+        promise.complete(null);
 
-            // Then
-            assertThat(timeoutFuture).satisfies(atomicRef -> assertThat(atomicRef).hasValueMatching(Objects::nonNull)
-                    .hasValueSatisfying(scheduledFuture -> Assertions.FUTURE.createAssert(scheduledFuture).isCancelled()));
-        }
-        finally {
-            eventLoop.shutdownNow();
-        }
+        // Then
+        assertThat(timeoutFuture).satisfies(atomicRef -> assertThat(atomicRef).hasValueMatching(Objects::nonNull)
+                .hasValueSatisfying(scheduledFuture -> Assertions.FUTURE.createAssert(scheduledFuture).isCancelled()));
     }
 
     @SuppressWarnings("unchecked")
