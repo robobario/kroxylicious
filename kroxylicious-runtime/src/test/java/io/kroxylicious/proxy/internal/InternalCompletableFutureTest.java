@@ -9,7 +9,6 @@ package io.kroxylicious.proxy.internal;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +29,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.EventLoop;
 
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 
@@ -37,12 +38,14 @@ import static org.junit.jupiter.params.provider.Arguments.argumentSet;
 @SuppressWarnings("java:S3415")
 class InternalCompletableFutureTest {
 
-    private static EventLoop executor;
     private static final AtomicReference<Thread> actualThread = new AtomicReference<>();
+    private static EventLoop executor;
+    private static Thread threadOfExecutor;
 
     @BeforeAll
-    static void beforeAll() {
+    static void beforeAll() throws Exception {
         executor = new DefaultEventLoop(Executors.newSingleThreadExecutor());
+        threadOfExecutor = executor.submit(Thread::currentThread).get();
     }
 
     @AfterAll
@@ -56,25 +59,30 @@ class InternalCompletableFutureTest {
     }
 
     @Test
-    void asyncChainingMethodExecutesOnThreadOfExecutor() throws Exception {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void asyncChainingMethodExecutesOnThreadOfExecutor() {
+        // Given
         var future = InternalCompletableFuture.completedFuture(executor, null);
 
+        // When
         assertThat(future.thenAcceptAsync(InternalCompletableFutureTest::captureThread))
                 .succeedsWithin(Duration.ofMillis(100));
+
+        // Then
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @Test
-    void asyncChainingMethodExecutesOnThreadOfExecutorEither() throws Exception {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void asyncChainingMethodExecutesOnThreadOfExecutorEither() {
+        // Given
         var future = new InternalCompletableFuture<>(executor);
 
+        // When
         assertThat(future.acceptEitherAsync(CompletableFuture.completedFuture(null),
                 u -> {
                 }).thenAcceptAsync(InternalCompletableFutureTest::captureThread))
                 .succeedsWithin(Duration.ofMillis(100));
 
+        // Then
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
@@ -273,90 +281,136 @@ class InternalCompletableFutureTest {
     @ParameterizedTest()
     @MethodSource("allCompositionMethods")
     void minimalStageCanCompose(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
         var future = new InternalCompletableFuture<Void>(executor);
-        var stage = future.minimalCompletionStage();
-        var result = func.apply(stage, executor);
+        var minimalStage = future.minimalCompletionStage();
+        var result = func.apply(minimalStage, executor);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
+
+        // When
         future.complete(null);
+
+        // Then
         assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
     }
 
     @ParameterizedTest()
     @MethodSource("allCompositionMethods")
     void futureCanCompose(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
+
+        // When
         future.complete(null);
+
+        // Then
         assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
     }
 
     @ParameterizedTest()
     @MethodSource("allChainingMethods")
-    void chainedWorkIsExecutedOnEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) throws ExecutionException, InterruptedException {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void chainedWorkIsExecutedOnEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
+        var future = new InternalCompletableFuture<Void>(executor);
+        var stage = future.minimalCompletionStage();
+        var result = func.apply(stage, executor);
+        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
+
+        // When
+        future.complete(null);
+
+        // Then
+        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
+        assertThat(actualThread).hasValue(threadOfExecutor);
+    }
+
+    @ParameterizedTest()
+    @MethodSource({ "allChainingMethods", "allExceptionalMethods" })
+    void chainingToStageProducesFutureOfExpectedType(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
+        var future = new InternalCompletableFuture<Void>(executor);
+        var stage = future.minimalCompletionStage();
+
+        // When
+        var result = func.apply(stage, executor);
+
+        // Then
+        assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
+    }
+
+    @ParameterizedTest()
+    @MethodSource({ "allChainingMethods", "allExceptionalMethods" })
+    void chainingToFutureProducesFutureOfExpectedType(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
+        var future = new InternalCompletableFuture<Void>(executor);
+
+        // When
+        var result = func.apply(future, executor);
+
+        // Then
+        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
+    }
+
+    @ParameterizedTest()
+    @MethodSource("allChainingMethods")
+    void chainedWorkIsExecutedOnEventLoop_CompletionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
         var future = new InternalCompletableFuture<Void>(executor);
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
         assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
-        future.complete(null);
+
+        // When
+        executor.execute(() -> future.complete(null));
+
+        // Then
         assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @ParameterizedTest()
     @MethodSource("allChainingMethods")
-    void chainedWorkIsExecutedOnEventLoop_CompletionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
-            throws ExecutionException, InterruptedException {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
-        var future = new InternalCompletableFuture<Void>(executor);
-        var stage = future.minimalCompletionStage();
-        var result = func.apply(stage, executor);
-        assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
-        CompletableFuture<Void> resultFuture = result.toCompletableFuture();
-        executor.execute(() -> future.complete(null));
-        assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
-        assertThat(actualThread).hasValue(threadOfExecutor);
-    }
-
-    @ParameterizedTest()
-    @MethodSource("allChainingMethods")
-    void chainedWorkIsExecutedOnEventLoopFuture(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) throws ExecutionException, InterruptedException {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void chainedWorkIsExecutedOnEventLoopFuture(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
-        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
+
+        // When
         future.complete(null);
+
+        // Then
         assertThat(resultFuture).isInstanceOf(InternalCompletableFuture.class)
                 .succeedsWithin(2, TimeUnit.SECONDS);
-        // actualThread should populated by one of the `captureThread` family of methods.
+        // actualThread should be populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @ParameterizedTest()
     @MethodSource("allChainingMethods")
-    void chainedWorkIsExecutedOnEventLoopFuture_CompletionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
-            throws ExecutionException, InterruptedException {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void chainedWorkIsExecutedOnEventLoopFuture_CompletionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
+        // Given
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
-        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
+
+        // When
         executor.execute(() -> future.complete(null));
+
+        // Then
         assertThat(resultFuture).isInstanceOf(InternalCompletableFuture.class)
                 .succeedsWithin(2, TimeUnit.SECONDS);
-        // actualThread should populated by one of the `captureThread` family of methods.
+        // actualThread should be populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @ParameterizedTest()
     @MethodSource("allExceptionalMethods")
-    void exceptionHandlingWorkIsExecutedOnEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
-            throws ExecutionException, InterruptedException {
+    void exceptionHandlingWorkIsExecutedOnEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
         // Given
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
         var future = new InternalCompletableFuture<Void>(executor);
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
@@ -368,20 +422,17 @@ class InternalCompletableFutureTest {
 
         // Then
         assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
-        // actualThread should populated by one of the `captureThread` family of methods.
+        // actualThread should be populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @ParameterizedTest()
     @MethodSource("allExceptionalMethods")
-    void exceptionHandlingWorkIsExecutedOnEventLoop_completionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
-            throws ExecutionException, InterruptedException {
+    void exceptionHandlingWorkIsExecutedOnEventLoop_completionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
         // Given
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
         var future = new InternalCompletableFuture<Void>(executor);
         var stage = future.minimalCompletionStage();
         var result = func.apply(stage, executor);
-        assertThat(result.getClass()).isAssignableTo(InternalCompletionStage.class);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
@@ -389,19 +440,16 @@ class InternalCompletableFutureTest {
 
         // Then
         assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
-        // actualThread should populated by one of the `captureThread` family of methods.
+        // actualThread should be populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @ParameterizedTest()
     @MethodSource("allExceptionalMethods")
-    void exceptionHandlingWorkIsExecutedOnEventLoopFuture(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
-            throws ExecutionException, InterruptedException {
+    void exceptionHandlingWorkIsExecutedOnEventLoopFuture(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
         // Given
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
-        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
@@ -410,19 +458,16 @@ class InternalCompletableFutureTest {
         // Then
         assertThat(resultFuture).succeedsWithin(2, TimeUnit.SECONDS);
 
-        // actualThread should populated by one of the `captureThread` family of methods.
+        // actualThread should be populated by one of the `captureThread` family of methods.
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @ParameterizedTest()
     @MethodSource("allExceptionalMethods")
-    void exceptionHandlingWorkIsExecutedOnEventLoopFuture_completionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func)
-            throws ExecutionException, InterruptedException {
+    void exceptionHandlingWorkIsExecutedOnEventLoopFuture_completionDrivenByEventLoop(BiFunction<CompletionStage<Void>, Executor, CompletionStage<Void>> func) {
         // Given
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
         var future = new InternalCompletableFuture<Void>(executor);
         var result = func.apply(future, executor);
-        assertThat(result.getClass()).isAssignableTo(InternalCompletableFuture.class);
         CompletableFuture<Void> resultFuture = result.toCompletableFuture();
 
         // When
@@ -451,30 +496,37 @@ class InternalCompletableFutureTest {
 
     @MethodSource("futureCompletionAlternatives")
     @ParameterizedTest
-    void whenComplete(Consumer<CompletableFuture<?>> futureConsumer, boolean futureCompletesExceptionally) throws ExecutionException, InterruptedException {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void whenComplete(Consumer<CompletableFuture<?>> futureConsumer, boolean futureCompletesExceptionally) {
+        // Given
         CompletableFuture<Void> future = new InternalCompletableFuture<>(executor);
         CompletableFuture<Void> whenCompleteFuture = future.whenComplete(InternalCompletableFutureTest::captureThread);
         futureConsumer.accept(future);
         CompletableFutureAssert<Void> assertThatWhenComplete = assertThat(whenCompleteFuture);
+
+        // When
         if (futureCompletesExceptionally) {
             assertThatWhenComplete.failsWithin(2, TimeUnit.SECONDS);
         }
         else {
             assertThatWhenComplete.succeedsWithin(2, TimeUnit.SECONDS);
         }
+
+        // Then
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
     @MethodSource("futureCompletionAlternatives")
     @ParameterizedTest
-    void handle(Consumer<CompletableFuture<?>> futureConsumer, boolean ignored) throws ExecutionException, InterruptedException {
-        var threadOfExecutor = executor.submit(Thread::currentThread).get();
+    void handle(Consumer<CompletableFuture<?>> futureConsumer, boolean ignored) {
+        // Given
         CompletableFuture<Void> future = new InternalCompletableFuture<>(executor);
         CompletableFuture<Void> handleFuture = future.handle(InternalCompletableFutureTest::captureThreadWithResult);
+
+        // When
         futureConsumer.accept(future);
-        CompletableFutureAssert<Void> assertThatHandle = assertThat(handleFuture);
-        assertThatHandle.succeedsWithin(2, TimeUnit.SECONDS);
+
+        // Then
+        assertThat(handleFuture).succeedsWithin(2, TimeUnit.SECONDS);
         assertThat(actualThread).hasValue(threadOfExecutor);
     }
 
@@ -495,6 +547,7 @@ class InternalCompletableFutureTest {
         return ignored;
     }
 
+    @Nullable
     private static <T> T captureThreadWithResult(Throwable ignored) {
         assertThread();
         return null;
