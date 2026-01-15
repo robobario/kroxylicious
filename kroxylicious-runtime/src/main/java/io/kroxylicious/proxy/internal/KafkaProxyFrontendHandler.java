@@ -126,6 +126,8 @@ public class KafkaProxyFrontendHandler
         }
     }
 
+    private List<FilterAndInvoker> filters = null;
+
     /**
      * @return the SSL session, or null if a session does not (currently) exist.
      */
@@ -219,8 +221,26 @@ public class KafkaProxyFrontendHandler
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         this.clientCtx = ctx;
+        this.filters = getFilterAndInvokers();
         this.proxyChannelStateMachine.onClientActive(this);
+    }
 
+    private List<FilterAndInvoker> getFilterAndInvokers() {
+        List<FilterAndInvoker> apiVersionFilters = FilterAndInvoker.build("ApiVersionsIntersect (internal)", apiVersionsIntersectFilter);
+        var filterAndInvokers = new ArrayList<>(apiVersionFilters);
+        filterAndInvokers.addAll(FilterAndInvoker.build("ApiVersionsDowngrade (internal)", apiVersionsDowngradeFilter));
+
+        NettyFilterContext filterContext = new NettyFilterContext(clientCtx().channel().eventLoop(), pfr);
+        List<FilterAndInvoker> filterChain = filterChainFactory.createFilters(filterContext, this.namedFilterDefinitions);
+        filterAndInvokers.addAll(filterChain);
+
+        if (endpointBinding.restrictUpstreamToMetadataDiscovery()) {
+            filterAndInvokers.addAll(FilterAndInvoker.build("EagerMetadataLearner (internal)", new EagerMetadataLearner()));
+        }
+        List<FilterAndInvoker> brokerAddressFilters = FilterAndInvoker.build("BrokerAddress (internal)",
+                new BrokerAddressFilter(endpointBinding.endpointGateway(), endpointReconciler));
+        filterAndInvokers.addAll(brokerAddressFilters);
+        return filterAndInvokers;
     }
 
     /**
@@ -288,14 +308,16 @@ public class KafkaProxyFrontendHandler
     void inClientActive() {
         Channel clientChannel = clientCtx().channel();
         LOGGER.trace("{}: channelActive", clientChannel.id());
-        // Initially the channel is not auto reading
-        clientChannel.config().setAutoRead(false);
-        clientChannel.read();
         this.clientSubjectManager = new ClientSubjectManager();
         this.progressionLatch = 2; // we require two events before unblocking
         if (!this.endpointBinding.endpointGateway().isUseTls()) {
             this.clientSubjectManager.subjectFromTransport(null, this.subjectBuilder, this::onTransportSubjectBuilt);
         }
+        // install filters before first read
+        addFiltersToPipeline(filters, clientCtx().pipeline(), clientCtx().channel());
+        // Initially the channel is not auto reading
+        clientChannel.config().setAutoRead(true);
+        clientChannel.read();
     }
 
     private void onTransportSubjectBuilt() {
@@ -326,23 +348,8 @@ public class KafkaProxyFrontendHandler
      * Called by the {@link ProxyChannelStateMachine} on entry to the {@link SelectingServer} state.
      */
     void inSelectingServer() {
-        List<FilterAndInvoker> apiVersionFilters = FilterAndInvoker.build("ApiVersionsIntersect (internal)", apiVersionsIntersectFilter);
-        var filterAndInvokers = new ArrayList<>(apiVersionFilters);
-        filterAndInvokers.addAll(FilterAndInvoker.build("ApiVersionsDowngrade (internal)", apiVersionsDowngradeFilter));
-
-        NettyFilterContext filterContext = new NettyFilterContext(clientCtx().channel().eventLoop(), pfr);
-        List<FilterAndInvoker> filterChain = filterChainFactory.createFilters(filterContext, this.namedFilterDefinitions);
-        filterAndInvokers.addAll(filterChain);
-
-        if (endpointBinding.restrictUpstreamToMetadataDiscovery()) {
-            filterAndInvokers.addAll(FilterAndInvoker.build("EagerMetadataLearner (internal)", new EagerMetadataLearner()));
-        }
-        List<FilterAndInvoker> brokerAddressFilters = FilterAndInvoker.build("BrokerAddress (internal)",
-                new BrokerAddressFilter(endpointBinding.endpointGateway(), endpointReconciler));
-        filterAndInvokers.addAll(brokerAddressFilters);
-
         var target = Objects.requireNonNull(endpointBinding.upstreamTarget());
-        initiateConnect(target, filterAndInvokers);
+        initiateConnect(target, filters);
     }
 
     /**
@@ -426,7 +433,6 @@ public class KafkaProxyFrontendHandler
         if (logFrames) {
             pipeline.addFirst("frameLogger", new LoggingHandler("io.kroxylicious.proxy.internal.UpstreamFrameLogger", LogLevel.INFO));
         }
-        addFiltersToPipeline(filters, pipeline, inboundChannel);
 
         var encoderListener = buildMetricsMessageListenerForEncode();
         var decoderListener = buildMetricsMessageListenerForDecode();
@@ -592,7 +598,7 @@ public class KafkaProxyFrontendHandler
             // TODO configurable timeout
             // Handler name must be unique, but filters are allowed to appear multiple times
             String handlerName = "filter-" + ++num + "-" + protocolFilter.filterName();
-            pipeline.addFirst(
+            pipeline.addBefore(clientCtx().name(),
                     handlerName,
                     new FilterHandler(
                             protocolFilter,
