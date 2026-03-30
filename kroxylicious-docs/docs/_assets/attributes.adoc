@@ -138,9 +138,9 @@ ifndef::DocRoot[:DocRoot: ..]
 :DeveloperGuideText: Kroxylicious Developer guide
 :DeveloperGuide: link:{DeveloperGuideUrl}[{DeveloperGuideText}]
 
-:DeveloperQuickstartUrl: {DocRoot}/developer-quick-start/
-:DeveloperQuickstartText: Kroxylicious Developer Quickstart
-:DeveloperQuickstart: link:{DeveloperQuickstartUrl}[{DeveloperQuickstartText}]
+:DeveloperQuickStartUrl: {DocRoot}/developer-quick-start/
+:DeveloperQuickStartText: Kroxylicious Developer Quick Start
+:DeveloperQuickStart: link:{DeveloperQuickStartUrl}[{DeveloperQuickStartText}]
 
 :OperatorGuideUrl: {DocRoot}/kroxylicious-operator/
 :OperatorGuideText: Kroxylicious Operator for Kubernetes guide

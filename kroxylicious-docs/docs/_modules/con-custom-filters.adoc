@@ -21,7 +21,7 @@ The following sections explain in more detail how to write your own filters.
 == Custom Filter Project Generation
 
 You can generate a standalone filter project. This bootstraps a project to allow you to build your own Custom Filters.
-You can follow the {DeveloperQuickstart} for a hands-on introduction to creating your own custom filters.
+You can follow the {DeveloperQuickStart} for a hands-on introduction to creating your own custom filters.
 
 == API docs
 
