@@ -55,6 +55,7 @@ import io.kroxylicious.it.testplugins.GenericRequestSpecificResponseFilter;
 import io.kroxylicious.it.testplugins.GenericRequestSpecificResponseFilterFactory;
 import io.kroxylicious.it.testplugins.GenericResponseSpecificRequestFilter;
 import io.kroxylicious.it.testplugins.GenericResponseSpecificRequestFilterFactory;
+import io.kroxylicious.it.testplugins.MetadataVersionLimiter;
 import io.kroxylicious.it.testplugins.RejectingCreateTopicFilter;
 import io.kroxylicious.it.testplugins.RejectingCreateTopicFilterFactory;
 import io.kroxylicious.it.testplugins.RequestResponseMarkingFilter;
@@ -153,6 +154,34 @@ class FilterIT {
             Response response = client.getSync(new Request(METADATA, METADATA.latestVersion(), "client", message));
             // checking that the request/response flows through despite requesting an empty topic id list
             assertThat(response).isNotNull();
+        }
+    }
+
+    @Test
+    void reproduceBadInteraction(KafkaCluster cluster) {
+        NamedFilterDefinition namedFilterDefinition = new NamedFilterDefinitionBuilder("metadata-version-limiter",
+                MetadataVersionLimiter.class.getName())
+                .build();
+        var config = proxy(cluster)
+                .addToFilterDefinitions(namedFilterDefinition)
+                .addToDefaultFilters(namedFilterDefinition.name());
+
+        try (var tester = kroxyliciousTester(config);
+                var client = tester.simpleTestClient()) {
+            ApiVersionsRequestData message = new ApiVersionsRequestData();
+            Response response = client.getSync(new Request(API_VERSIONS, (short) 0, "client", message));
+            assertThat(response.payload().message()).isInstanceOfSatisfying(ApiVersionsResponseData.class, apiVersionsResponseData -> {
+                ApiVersionsResponseData.ApiVersion apiVersion = apiVersionsResponseData.apiKeys().find(METADATA.id);
+                assertThat(apiVersion.minVersion()).isEqualTo((short) 0);
+                assertThat(apiVersion.maxVersion()).isEqualTo((short) 0);
+            });
+
+            MetadataRequestData metadataRequestData = new MetadataRequestData();
+            short versionAboveMinimum = (short) 1;
+            Response metadataResponse = client.getSync(new Request(METADATA, versionAboveMinimum, "client", metadataRequestData));
+            assertThat(metadataResponse.payload().message()).isInstanceOfSatisfying(MetadataResponseData.class, metadataResponseData -> {
+                assertThat(Errors.forCode(metadataResponseData.errorCode())).isEqualTo(Errors.UNSUPPORTED_VERSION);
+            });
         }
     }
 
