@@ -1403,7 +1403,7 @@
                 <sonar.organization>kroxylicious</sonar.organization>
                 <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <sonar.projectName>Proxy Runtime</sonar.projectName>
-                <sonar.projectKey>kroxylicious_kroxylicious</sonar.projectKey>
+                <sonar.projectKey>robobario_kroxylicious</sonar.projectKey>
                 <impsort-maven-plugin.goal>check</impsort-maven-plugin.goal>
                 <skip-validate-yaml-snippets>false</skip-validate-yaml-snippets>
             </properties>
