@@ -23,7 +23,7 @@ Kroxylicious is a Kafka protocol proxy, addressing use cases such as encryption,
 
 ## Build status
 ![Maven Central Version](https://img.shields.io/maven-central/v/io.kroxylicious/kroxylicious-parent)
- [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=kroxylicious_kroxylicious&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kroxylicious_kroxylicious) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kroxylicious_kroxylicious&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kroxylicious_kroxylicious)
+ [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=robobario_kroxylicious&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=robobario_kroxylicious) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=robobario_kroxylicious&metric=coverage)](https://sonarcloud.io/summary/new_code?id=robobario_kroxylicious)
 
 ## License
 

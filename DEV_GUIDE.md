@@ -45,7 +45,7 @@ This document gives a detailed breakdown of the various build processes and opti
 <!-- TOC -->
 
 ## Build status
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=kroxylicious_kroxylicious&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=kroxylicious_kroxylicious) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=kroxylicious_kroxylicious&metric=coverage)](https://sonarcloud.io/summary/new_code?id=kroxylicious_kroxylicious)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=robobario_kroxylicious&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=robobario_kroxylicious) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=robobario_kroxylicious&metric=coverage)](https://sonarcloud.io/summary/new_code?id=robobario_kroxylicious)
 
 ## Build Prerequisites
 
