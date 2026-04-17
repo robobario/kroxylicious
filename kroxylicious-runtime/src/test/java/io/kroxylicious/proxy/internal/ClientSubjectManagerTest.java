@@ -108,7 +108,7 @@ class ClientSubjectManagerTest {
     void transitionInitialToAuthorized() {
         // Given
         ClientSubjectManager impl = new ClientSubjectManager();
-        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), () -> {
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), Runnable::run, () -> {
         });
         // When
         impl.clientSaslAuthenticationSuccess("FOO", new Subject(new User("bob")));
@@ -123,7 +123,7 @@ class ClientSubjectManagerTest {
     void transitionInitialToFailed() {
         // Given
         ClientSubjectManager impl = new ClientSubjectManager();
-        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), () -> {
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), Runnable::run, () -> {
         });
         // When
         impl.clientSaslAuthenticationFailure();
@@ -135,7 +135,7 @@ class ClientSubjectManagerTest {
     void transitionAuthorizedToAuthorized() {
         // Given
         ClientSubjectManager impl = new ClientSubjectManager();
-        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), () -> {
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), Runnable::run, () -> {
         });
         impl.clientSaslAuthenticationSuccess("FOO", new Subject(new User("bob")));
         // When
@@ -151,7 +151,7 @@ class ClientSubjectManagerTest {
     void transitionAuthorizedToFailed() {
         // Given
         ClientSubjectManager impl = new ClientSubjectManager();
-        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), () -> {
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), Runnable::run, () -> {
         });
         impl.clientSaslAuthenticationSuccess("FOO", new Subject(new User("bob")));
         // When
@@ -164,7 +164,7 @@ class ClientSubjectManagerTest {
     void transitionFailedToAuthorized() {
         // Given
         ClientSubjectManager impl = new ClientSubjectManager();
-        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), () -> {
+        impl.subjectFromTransport(null, context -> CompletableFuture.completedStage(Subject.anonymous()), Runnable::run, () -> {
         });
         impl.clientSaslAuthenticationFailure();
 
