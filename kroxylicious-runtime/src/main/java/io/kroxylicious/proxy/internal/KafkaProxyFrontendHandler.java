@@ -560,7 +560,7 @@ public class KafkaProxyFrontendHandler
     }
 
     Executor eventLoopExecutor() {
-        return clientCtx().executor();
+        return Objects.requireNonNull(clientCtx().executor(), "executor must not be null");
     }
 
     private ChannelHandlerContext clientCtx() {

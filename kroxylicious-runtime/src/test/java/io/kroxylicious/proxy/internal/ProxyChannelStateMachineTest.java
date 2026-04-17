@@ -114,6 +114,8 @@ class ProxyChannelStateMachineTest {
         when(endpointGateway.virtualCluster()).thenReturn(VIRTUAL_CLUSTER_MODEL);
         proxyChannelStateMachine = new ProxyChannelStateMachine(endpointBinding, new DefaultSubjectBuilder(List.of()));
         when(frontendHandler.channelId()).thenReturn(DefaultChannelId.newInstance());
+        // Make the executor run tasks synchronously for tests
+        when(frontendHandler.eventLoopExecutor()).thenReturn(Runnable::run);
     }
 
     @AfterEach

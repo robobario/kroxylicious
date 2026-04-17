@@ -19,6 +19,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.mockito.Mockito.doAnswer;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -28,6 +30,7 @@ import io.netty.handler.codec.haproxy.HAProxyMessage;
 import io.netty.handler.codec.haproxy.HAProxyProtocolVersion;
 import io.netty.handler.codec.haproxy.HAProxyProxiedProtocol;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.util.concurrent.EventExecutor;
 
 import io.kroxylicious.proxy.authentication.Subject;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
@@ -90,6 +93,9 @@ class KafkaProxyFrontendHandlerMockCollaboratorsTest {
     @Mock(strictness = Mock.Strictness.LENIENT)
     TransportSubjectBuilder subjectBuilder;
 
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    EventExecutor executor;
+
     private KafkaProxyFrontendHandler handler;
 
     @BeforeEach
@@ -99,6 +105,14 @@ class KafkaProxyFrontendHandlerMockCollaboratorsTest {
         when(endpointBinding.endpointGateway()).thenReturn(endpointGateway);
         when(proxyChannelStateMachine.endpointBinding()).thenReturn(endpointBinding);
         when(proxyChannelStateMachine.virtualCluster()).thenReturn(virtualCluster);
+        // Make the executor run tasks synchronously
+        doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        when(clientCtx.executor()).thenReturn(executor);
+
         handler = new KafkaProxyFrontendHandler(
                 pfr,
                 filterChainFactory,
