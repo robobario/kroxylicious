@@ -93,6 +93,7 @@ public class ClientSubjectManager implements
         this.proxyCertificate = localTlsCertificate(session);
         transportSubjectBuilder.buildTransportSubject(this).whenCompleteAsync((newSubject, error) -> {
             if (error == null) {
+                LOGGER.atInfo().addArgument(newSubject).addArgument(subject).log("setting non-error subject: {}, prior: {}");
                 this.subject = newSubject;
             }
             else {
@@ -110,15 +111,19 @@ public class ClientSubjectManager implements
                                          String mechanism,
                                          Subject subject) {
         this.mechanismName = Objects.requireNonNull(mechanism, "mechanism");
+        LOGGER.atInfo().addArgument(subject).log("sasl auth success, setting subject to {}");
         this.subject = Objects.requireNonNull(subject, "subject");
     }
 
     public Subject authenticatedSubject() {
-        return this.subject;
+        Subject subject1 = this.subject;
+        LOGGER.atInfo().addArgument(subject1).log("authenticatedSubject: {}");
+        return subject1;
     }
 
     void clientSaslAuthenticationFailure() {
         this.mechanismName = null;
+        LOGGER.atInfo().log("sasl auth failure, setting subject to anonymous");
         this.subject = Subject.anonymous();
     }
 

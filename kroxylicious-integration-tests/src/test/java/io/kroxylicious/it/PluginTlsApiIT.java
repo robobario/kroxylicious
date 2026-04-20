@@ -60,6 +60,8 @@ class PluginTlsApiIT extends AbstractTlsIT {
                 Arguments.of(new Object[]{ null }),
                 Arguments.of(new MyTransportSubjectBuilderService.Config(0, true)),
                 Arguments.of(new MyTransportSubjectBuilderService.Config(100, true)),
+                Arguments.of(new MyTransportSubjectBuilderService.Config(500, true)),
+                Arguments.of(new MyTransportSubjectBuilderService.Config(1000, true)),
                 Arguments.of(new MyTransportSubjectBuilderService.Config(0, false)),
                 Arguments.of(new MyTransportSubjectBuilderService.Config(100, false)));
     }

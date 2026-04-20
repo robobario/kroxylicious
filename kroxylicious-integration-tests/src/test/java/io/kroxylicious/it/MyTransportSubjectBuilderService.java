@@ -13,6 +13,9 @@ import java.util.concurrent.TimeUnit;
 
 import javax.security.auth.x500.X500Principal;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.kroxylicious.proxy.authentication.Subject;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilder;
 import io.kroxylicious.proxy.authentication.TransportSubjectBuilderService;
@@ -24,6 +27,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 @Plugin(configType = MyTransportSubjectBuilderService.Config.class)
 public class MyTransportSubjectBuilderService implements TransportSubjectBuilderService<MyTransportSubjectBuilderService.Config> {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MyTransportSubjectBuilderService.class);
 
     public record Config(int delayMs, boolean completeSuccessfully) {}
 
@@ -44,7 +49,7 @@ public class MyTransportSubjectBuilderService implements TransportSubjectBuilder
                     .map(tls -> delayed(new Subject(new User(tls.getSubjectX500Principal()
                             .getName(X500Principal.RFC1779,
                                     Map.of("1.2.840.113549.1.9.1", "emailAddress"))))))
-                    .orElse(delayed(Subject.anonymous()));
+                    .orElseGet(() -> delayed(Subject.anonymous()));
         }
 
         CompletionStage<Subject> delayed(Subject subject) {
@@ -58,7 +63,11 @@ public class MyTransportSubjectBuilderService implements TransportSubjectBuilder
             }
             else {
                 if (completeSuccessfully) {
-                    return CompletableFuture.supplyAsync(() -> subject,
+                    LOGGER.atInfo().log("delay successful subject");
+                    return CompletableFuture.supplyAsync(() -> {
+                        LOGGER.atInfo().log("supply successful subject");
+                        return subject;
+                    },
                             CompletableFuture.delayedExecutor(delayMs, TimeUnit.MILLISECONDS));
                 }
                 else {

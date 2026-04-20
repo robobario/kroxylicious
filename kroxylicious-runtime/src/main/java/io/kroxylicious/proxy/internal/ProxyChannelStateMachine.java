@@ -575,6 +575,9 @@ public class ProxyChannelStateMachine {
     }
 
     public void onClientTlsHandshakeSuccess(SSLSession sslSession) {
+        LOGGER.atInfo().addArgument(sessionId()).log("{}: onClientTlsHandshakeSuccess called");
+        LOGGER.atInfo().addArgument(sessionId())
+                .log("{}: CALLING subjectFromTransport from onClientTlsHandshakeSuccess");
         this.clientSubjectManager.subjectFromTransport(sslSession, transportSubjectBuilder,
                 Objects.requireNonNull(frontendHandler).eventLoopExecutor(), this::onTransportSubjectBuilt);
     }
@@ -583,6 +586,7 @@ public class ProxyChannelStateMachine {
     private void toClientActive(
                                 ProxyChannelState.ClientActive clientActive,
                                 KafkaProxyFrontendHandler frontendHandler) {
+        LOGGER.atInfo().addArgument(sessionId()).log("{}: toClientActive called");
         setState(clientActive);
         // we require two events before unblocking (making reads from) the client:
         // 1. the completion of the building of the transport subject
@@ -590,12 +594,20 @@ public class ProxyChannelStateMachine {
         // (completion of the connection to the backend)
         // these can happen in either order
         this.progressionLatch = 2;
+        LOGGER.atInfo().addArgument(sessionId()).addArgument(isTlsListener())
+                .log("{}: isTlsListener() returns {}");
         if (!this.isTlsListener()) {
+            LOGGER.atInfo().addArgument(sessionId())
+                    .log("{}: CALLING subjectFromTransport from toClientActive (non-TLS)");
             this.clientSubjectManager.subjectFromTransport(null, this.transportSubjectBuilder,
                     frontendHandler.eventLoopExecutor(), this::onTransportSubjectBuilt);
         }
+        else {
+            LOGGER.atInfo().addArgument(sessionId())
+                    .log("{}: NOT calling subjectFromTransport from toClientActive (TLS)");
+        }
         frontendHandler.inClientActive();
-
+        LOGGER.atInfo().addArgument(sessionId()).log("{}: inClientActive called (installs filters)");
         clientToProxyConnectionCounter.increment();
         clientToProxyConnectionToken.acquire();
     }
@@ -604,6 +616,7 @@ public class ProxyChannelStateMachine {
         if (!authenticatedSubject().isAnonymous()) {
             onSessionTransportAuthenticated();
         }
+        LOGGER.atInfo().log("maybe unblock client on transport subject build: " + sessionId());
         maybeUnblock();
     }
 
@@ -613,6 +626,7 @@ public class ProxyChannelStateMachine {
 
     private void maybeUnblock() {
         if (--this.progressionLatch == 0) {
+            LOGGER.atInfo().log("unblock client: " + sessionId());
             Objects.requireNonNull(frontendHandler).unblockClient();
         }
     }
@@ -638,6 +652,7 @@ public class ProxyChannelStateMachine {
         kafkaSession.transitionTo(KafkaSessionState.NOT_AUTHENTICATED);
         Objects.requireNonNull(frontendHandler).inForwarding();
         // once buffered message has been forwarded we enable auto-read to start accepting further messages
+        LOGGER.atInfo().log("maybe unblock client on toForwarding: " + sessionId());
         maybeUnblock();
         proxyToServerConnectionToken.acquire();
     }

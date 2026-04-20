@@ -284,6 +284,7 @@ public class KafkaProxyFrontendHandler
         dp.setDelegate(DecodePredicate.forFilters(filters));
         // Initially the channel is not auto reading
         clientChannel.config().setAutoRead(false);
+        LOGGER.atInfo().addArgument(clientChannel.id()).log("{}: call clientChannel read");
         clientChannel.read();
     }
 

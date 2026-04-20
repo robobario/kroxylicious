@@ -9,6 +9,7 @@ package io.kroxylicious.it.testplugins;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -16,6 +17,8 @@ import java.util.function.Function;
 import javax.security.auth.x500.X500Principal;
 
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.proxy.authentication.ClientSaslContext;
 import io.kroxylicious.proxy.filter.FilterContext;
@@ -32,6 +35,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public class ClientAuthAwareLawyerFilter
         extends AbstractProduceHeaderInjectionFilter {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ClientAuthAwareLawyerFilter.class);
     public static final String HEADER_KEY_CLIENT_TLS_IS_PRESENT = headerName(ClientAuthAwareLawyerFilter.class, "#clientTlsContext.isPresent");
     public static final String HEADER_KEY_CLIENT_TLS_PROXY_X500PRINCIPAL_NAME = headerName(ClientAuthAwareLawyerFilter.class,
             "#clientTlsContext.proxyServerCertificate.principalName");
@@ -93,10 +97,21 @@ public class ClientAuthAwareLawyerFilter
     @NonNull
     @Override
     protected List<RecordHeader> headersToAdd(FilterContext context) {
+        LOGGER.atInfo().addArgument(context.sessionId()).log("getting headers to add for {}");
         var headers = new ArrayList<RecordHeader>();
         for (var entry : HEADERS.entrySet()) {
-            headers.add(new RecordHeader(entry.getKey(), entry.getValue().apply(context)));
+            byte[] apply = entry.getValue().apply(context);
+            try {
+                LOGGER.atInfo().addArgument(context.sessionId()).addArgument(entry.getKey()).addArgument(new String(apply, StandardCharsets.UTF_8))
+                        .log("{}: got header {}: {}");
+            }
+            catch (Exception e) {
+                LOGGER.atInfo().addArgument(context.sessionId()).addArgument(entry.getKey()).addArgument(Arrays.toString(apply))
+                        .log("{}: got header bytes {}: {}");
+            }
+            headers.add(new RecordHeader(entry.getKey(), apply));
         }
+        LOGGER.atInfo().addArgument(context.sessionId()).log("got headers to add for {}");
         return headers;
     }
 
