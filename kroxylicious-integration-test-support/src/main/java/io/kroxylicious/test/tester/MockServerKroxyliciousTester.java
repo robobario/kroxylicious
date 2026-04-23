@@ -14,6 +14,8 @@ import org.apache.kafka.common.protocol.ApiKeys;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.kroxylicious.proxy.config.Configuration;
 import io.kroxylicious.proxy.config.ConfigurationBuilder;
@@ -33,6 +35,8 @@ import static org.apache.kafka.common.protocol.ApiKeys.PRODUCE;
  * and see anything useful happen.</p>
  */
 public class MockServerKroxyliciousTester extends DefaultKroxyliciousTester {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MockServerKroxyliciousTester.class);
 
     private final MockServer mockServer;
 
@@ -122,6 +126,7 @@ public class MockServerKroxyliciousTester extends DefaultKroxyliciousTester {
      */
     @Override
     public void close() {
+        LOGGER.warn("close mock server tester");
         mockServer.close();
         super.close();
     }

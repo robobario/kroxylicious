@@ -248,6 +248,7 @@ public class KafkaProxyFrontendHandler
     public void channelRead(
                             ChannelHandlerContext ctx,
                             Object msg) {
+        LOGGER.warn("channel read!");
         proxyChannelStateMachine.onClientRequest(msg);
     }
 
@@ -283,6 +284,7 @@ public class KafkaProxyFrontendHandler
         // Set the decode predicate now that we have the filters
         dp.setDelegate(DecodePredicate.forFilters(filters));
         // Initially the channel is not auto reading
+        LOGGER.warn("disabling autoread until state machine signals upstream is connected");
         clientChannel.config().setAutoRead(false);
         clientChannel.read();
     }
@@ -324,6 +326,7 @@ public class KafkaProxyFrontendHandler
      */
     @Override
     public void channelReadComplete(ChannelHandlerContext clientCtx) {
+        LOGGER.warn("channel read complete");
         proxyChannelStateMachine.clientReadComplete();
     }
 
@@ -448,7 +451,10 @@ public class KafkaProxyFrontendHandler
     /** Ugly hack used for testing */
     @VisibleForTesting
     ChannelFuture initConnection(String remoteHost, int remotePort, Bootstrap bootstrap) {
-        return bootstrap.connect(remoteHost, remotePort);
+        LOGGER.warn("init connection!");
+        ChannelFuture connect = bootstrap.connect(remoteHost, remotePort);
+        LOGGER.warn("return channel future!");
+        return connect;
     }
 
     /**

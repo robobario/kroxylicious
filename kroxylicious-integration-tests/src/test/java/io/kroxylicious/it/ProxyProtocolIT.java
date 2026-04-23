@@ -121,7 +121,7 @@ class ProxyProtocolIT {
 
                 // Remove encoder after sending (PROXY header is one-shot)
                 channel.pipeline().remove(HAProxyMessageEncoder.class);
-
+                Thread.sleep(500);
                 // Send ApiVersions request
                 var apiVersionsRequest = toRequestFrame(new Request(ApiKeys.API_VERSIONS,
                         ApiVersionsRequestData.HIGHEST_SUPPORTED_VERSION, "test-client", new ApiVersionsRequestData()));

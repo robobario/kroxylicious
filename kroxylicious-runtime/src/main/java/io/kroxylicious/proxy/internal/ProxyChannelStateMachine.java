@@ -337,7 +337,10 @@ public class ProxyChannelStateMachine {
             // If an HaProxy context was stored in KafkaSession (by the detection/message
             // handlers before PCSM was created), transition ClientActive → HaProxy.
             if (kafkaSession.haProxyContext() != null) {
+                LOGGER.warn("non null haProxyContext transition to HA Proxy");
                 toHaProxy(clientActive.toHaProxy());
+            } else {
+                LOGGER.warn("null haProxyContext");
             }
         }
         else {
@@ -496,7 +499,7 @@ public class ProxyChannelStateMachine {
     void onServerException(@Nullable Throwable cause) {
         LOGGER.atWarn()
                 .addKeyValue("error", cause != null ? cause.getMessage() : "")
-                .setCause(LOGGER.isDebugEnabled() ? cause : null)
+                .setCause(cause)
                 .log(LOGGER.isDebugEnabled()
                         ? "exception from server channel"
                         : "exception from server channel, increase log level to DEBUG for stacktrace");
@@ -710,6 +713,9 @@ public class ProxyChannelStateMachine {
     private void toClosed(@Nullable Throwable errorCodeEx, @Nullable DisconnectCause disconnectCause) {
         if (state instanceof Closed) {
             return;
+        }
+        if (errorCodeEx != null) {
+            errorCodeEx.printStackTrace();
         }
 
         setState(new Closed());
