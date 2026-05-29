@@ -74,7 +74,6 @@ class ServerConnectionStateMachine {
 
     private final ClientConnectionStateMachine ccsm;
     private final KafkaProxyBackendHandler backendHandler;
-    private final boolean upstreamRequiresTls;
     private final VirtualClusterModel virtualCluster;
     private final String clusterName;
     @Nullable
@@ -106,7 +105,6 @@ class ServerConnectionStateMachine {
         this.virtualCluster = Objects.requireNonNull(virtualCluster);
         this.clusterName = Objects.requireNonNull(clusterName);
         this.nodeId = nodeId;
-        this.upstreamRequiresTls = virtualCluster.getUpstreamSslContext().isPresent();
         this.ccsm = Objects.requireNonNull(ccsm);
         this.backendHandler = new KafkaProxyBackendHandler(this);
 
@@ -126,10 +124,8 @@ class ServerConnectionStateMachine {
     }
 
     boolean isUpstreamTls() {
-        return upstreamRequiresTls;
+        return virtualCluster.getUpstreamSslContext().isPresent();
     }
-
-    // === Connection setup ===
 
     /**
      * Initiates the TCP connection to the upstream broker.
@@ -270,7 +266,7 @@ class ServerConnectionStateMachine {
             onServerException(new IllegalStateException("TLS credential supplier returned null"));
             return;
         }
-        applySslContextToChannel(credentials, remote, outboundChannel, pipeline);
+        applyTlsContextToChannel(credentials, remote, outboundChannel, pipeline);
     }
 
     private void handleTlsCredentialSupplierFailure(
@@ -287,7 +283,7 @@ class ServerConnectionStateMachine {
     }
 
     @VisibleForTesting
-    void applySslContextToChannel(
+    void applyTlsContextToChannel(
                                   TlsCredentials credentials,
                                   HostPort remote,
                                   Channel outboundChannel,
@@ -345,8 +341,6 @@ class ServerConnectionStateMachine {
         return new MetricEmittingKafkaMessageListener(serverToProxyMessageCounterProvider, serverToProxyMessageSizeDistributionProvider);
     }
 
-    // === Events from KafkaProxyBackendHandler ===
-
     void onServerActive() {
         if (state instanceof ServerConnectionState.Connecting connecting) {
             setState(connecting.toActive());
@@ -397,8 +391,6 @@ class ServerConnectionStateMachine {
     void onServerWritable() {
         ccsm.onServerWritable();
     }
-
-    // === Called by ClientConnectionStateMachine ===
 
     void sendRequest(Object msg) {
         if (state instanceof ServerConnectionState.Connecting) {
