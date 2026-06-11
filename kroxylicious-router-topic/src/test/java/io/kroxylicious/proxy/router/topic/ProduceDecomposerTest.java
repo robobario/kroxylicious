@@ -8,6 +8,7 @@ package io.kroxylicious.proxy.router.topic;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.message.ProduceRequestData.PartitionProduceData;
 import org.apache.kafka.common.message.ProduceRequestData.TopicProduceData;
@@ -50,7 +51,7 @@ class ProduceDecomposerTest {
     void shouldDecomposeByTopicRoute() {
         var request = produceRequest("a.orders", "b.logs", "a.payments");
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a", "route-b");
         assertThat(parts.get("route-a").topicData()).extracting("name")
@@ -63,7 +64,7 @@ class ProduceDecomposerTest {
     void shouldReturnSingleEntryWhenAllTopicsOnOneRoute() {
         var request = produceRequest("a.orders", "a.payments");
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topicData()).hasSize(2);
@@ -76,7 +77,7 @@ class ProduceDecomposerTest {
         request.setTimeoutMs(5000);
         request.setTransactionalId("tx-1");
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         for (var sub : parts.values()) {
             assertThat(sub.acks()).isEqualTo((short) -1);
@@ -89,7 +90,7 @@ class ProduceDecomposerTest {
     void shouldExcludeUnroutableTopicsFromDecomposition() {
         var request = produceRequest("a.orders", "unknown.topic");
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topicData()).extracting("name")
@@ -100,7 +101,7 @@ class ProduceDecomposerTest {
     void shouldReturnEmptyMapWhenAllTopicsUnroutable() {
         var request = produceRequest("unknown.one", "unknown.two");
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).isEmpty();
     }
@@ -113,7 +114,7 @@ class ProduceDecomposerTest {
         td.partitionData().add(new PartitionProduceData().setIndex(1));
         request.topicData().add(td);
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(findTopic(parts.get("route-a"), "a.orders").partitionData())
                 .extracting("index")
@@ -125,7 +126,7 @@ class ProduceDecomposerTest {
         var request = produceRequest("a.orders", "b.logs");
         int originalSize = request.topicData().size();
 
-        decomposer.decompose(request, table);
+        decomposer.decompose(request, table, (short) 0);
 
         assertThat(request.topicData()).hasSize(originalSize);
     }
@@ -142,7 +143,7 @@ class ProduceDecomposerTest {
         respB.responses().add(topicResponse("b.logs", 0, Errors.NONE));
 
         ProduceResponseData merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.responses()).extracting("name")
                 .containsExactlyInAnyOrder("a.orders", "b.logs");
@@ -158,7 +159,7 @@ class ProduceDecomposerTest {
         respB.responses().add(topicResponse("b.logs", 0, Errors.NONE));
 
         ProduceResponseData merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.throttleTimeMs()).isEqualTo(300);
     }
@@ -171,7 +172,7 @@ class ProduceDecomposerTest {
         resp.responses().add(topicResponse("a.orders", 0, Errors.NOT_LEADER_OR_FOLLOWER));
 
         ProduceResponseData merged = decomposer.recompose(
-                Map.of("route-a", resp), request);
+                Map.of("route-a", resp), request, (short) 0);
 
         assertThat(findResponse(merged, "a.orders").partitionResponses().get(0).errorCode())
                 .isEqualTo(Errors.NOT_LEADER_OR_FOLLOWER.code());
@@ -192,7 +193,7 @@ class ProduceDecomposerTest {
                 .setNodeId(1).setHost("hostB").setPort(9093));
 
         ProduceResponseData merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.nodeEndpoints()).hasSize(2);
         assertThat(merged.nodeEndpoints().find(0)).isNotNull();
@@ -209,7 +210,7 @@ class ProduceDecomposerTest {
         td.partitionData().add(new PartitionProduceData().setIndex(1));
         request.topicData().add(td);
 
-        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(request, table);
+        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(request, table, (short) 12);
 
         assertThat(error.responses()).hasSize(1);
         var topicResp = findResponse(error, "unknown.topic");
@@ -222,7 +223,7 @@ class ProduceDecomposerTest {
     void shouldOnlyIncludeUnroutableTopicsInErrorResponse() {
         var request = produceRequest("a.orders", "unknown.topic");
 
-        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(request, table);
+        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(request, table, (short) 12);
 
         assertThat(error.responses()).extracting("name")
                 .containsExactly("unknown.topic");
@@ -232,7 +233,63 @@ class ProduceDecomposerTest {
     void shouldReturnEmptyErrorResponseWhenAllTopicsRoutable() {
         var request = produceRequest("a.orders", "b.logs");
 
-        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(request, table);
+        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(request, table, (short) 12);
+
+        assertThat(error.responses()).isEmpty();
+    }
+
+    // --- v13 topicId error responses ---
+
+    @Test
+    void shouldReturnUnknownTopicIdForUnresolvedTopicIdAtV13() {
+        Uuid topicId = Uuid.randomUuid();
+        var request = new ProduceRequestData();
+        var td = new TopicProduceData().setTopicId(topicId);
+        td.partitionData().add(new PartitionProduceData().setIndex(0));
+        request.topicData().add(td);
+
+        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(
+                request, table, (short) 13);
+
+        assertThat(error.responses()).hasSize(1);
+        var topicResp = error.responses().iterator().next();
+        assertThat(topicResp.topicId()).isEqualTo(topicId);
+        assertThat(topicResp.partitionResponses()).allSatisfy(
+                pr -> assertThat(pr.errorCode()).isEqualTo(Errors.UNKNOWN_TOPIC_ID.code()));
+    }
+
+    @Test
+    void shouldReturnUnknownTopicOrPartitionForEnrichedButUnroutableAtV13() {
+        Uuid topicId = Uuid.randomUuid();
+        var request = new ProduceRequestData();
+        var td = new TopicProduceData()
+                .setTopicId(topicId)
+                .setName("unknown.topic");
+        td.partitionData().add(new PartitionProduceData().setIndex(0));
+        request.topicData().add(td);
+
+        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(
+                request, table, (short) 13);
+
+        assertThat(error.responses()).hasSize(1);
+        var topicResp = error.responses().iterator().next();
+        assertThat(topicResp.topicId()).isEqualTo(topicId);
+        assertThat(topicResp.partitionResponses()).allSatisfy(
+                pr -> assertThat(pr.errorCode()).isEqualTo(Errors.UNKNOWN_TOPIC_OR_PARTITION.code()));
+    }
+
+    @Test
+    void shouldNotIncludeRoutableEnrichedTopicsInV13ErrorResponse() {
+        Uuid topicId = Uuid.randomUuid();
+        var request = new ProduceRequestData();
+        var td = new TopicProduceData()
+                .setTopicId(topicId)
+                .setName("a.orders");
+        td.partitionData().add(new PartitionProduceData().setIndex(0));
+        request.topicData().add(td);
+
+        ProduceResponseData error = ProduceDecomposer.errorResponseForUnroutableTopics(
+                request, table, (short) 13);
 
         assertThat(error.responses()).isEmpty();
     }

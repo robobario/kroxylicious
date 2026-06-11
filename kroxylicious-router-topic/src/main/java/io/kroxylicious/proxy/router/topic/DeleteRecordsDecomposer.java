@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.router.topic;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.DeleteRecordsRequestData;
 import org.apache.kafka.common.message.DeleteRecordsResponseData;
 import org.apache.kafka.common.message.DeleteRecordsResponseData.DeleteRecordsPartitionResult;
@@ -27,7 +29,9 @@ class DeleteRecordsDecomposer implements RequestDecomposer<DeleteRecordsRequestD
 
     @Override
     public Map<String, DeleteRecordsRequestData> decompose(DeleteRecordsRequestData request,
-                                                           TopicRoutingTable table) {
+                                                           TopicRoutingTable table,
+                                                           short apiVersion,
+                                                           Function<Uuid, String> topicNameResolver) {
         var result = new LinkedHashMap<String, DeleteRecordsRequestData>();
         for (var topic : request.topics()) {
             String route = table.routeForTopic(topic.name());
@@ -41,7 +45,8 @@ class DeleteRecordsDecomposer implements RequestDecomposer<DeleteRecordsRequestD
 
     @Override
     public DeleteRecordsResponseData recompose(Map<String, DeleteRecordsResponseData> responses,
-                                               DeleteRecordsRequestData originalRequest) {
+                                               DeleteRecordsRequestData originalRequest,
+                                               short apiVersion) {
         var merged = new DeleteRecordsResponseData();
         int maxThrottle = 0;
         for (var resp : responses.values()) {
@@ -58,7 +63,7 @@ class DeleteRecordsDecomposer implements RequestDecomposer<DeleteRecordsRequestD
                                                                       TopicRoutingTable table) {
         var errorResponse = new DeleteRecordsResponseData();
         for (var topic : request.topics()) {
-            if (table.routeForTopic(topic.name()) == null) {
+            if (!table.isRoutable(topic.name())) {
                 var topicResult = new DeleteRecordsTopicResult().setName(topic.name());
                 for (var partition : topic.partitions()) {
                     topicResult.partitions().add(

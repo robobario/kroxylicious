@@ -150,7 +150,7 @@ class TopicPartitionRouterTest {
     // --- API_VERSIONS capping ---
 
     @Test
-    void shouldCapProduceVersionInApiVersionsResponse() {
+    void shouldNotCapProduceVersionInApiVersionsResponse() {
         var responseData = apiVersionsResponse();
         setMaxVersion(responseData, ApiKeys.PRODUCE, (short) 13);
 
@@ -159,11 +159,11 @@ class TopicPartitionRouterTest {
                 (short) 3, ApiKeys.API_VERSIONS, new RequestHeaderData(), responseData, ctx).toCompletableFuture().join());
 
         assertThat(findMaxVersion((ApiVersionsResponseData) ctx.sentResponseBody(), ApiKeys.PRODUCE))
-                .isEqualTo((short) 12);
+                .isEqualTo((short) 13);
     }
 
     @Test
-    void shouldCapFetchVersionInApiVersionsResponse() {
+    void shouldNotCapFetchVersionInApiVersionsResponse() {
         var responseData = apiVersionsResponse();
         setMaxVersion(responseData, ApiKeys.FETCH, (short) 16);
 
@@ -171,7 +171,7 @@ class TopicPartitionRouterTest {
         ctx.captureResult(router.onRequest((short) 3, ApiKeys.API_VERSIONS, new RequestHeaderData(), responseData, ctx).toCompletableFuture().join());
 
         assertThat(findMaxVersion((ApiVersionsResponseData) ctx.sentResponseBody(), ApiKeys.FETCH))
-                .isEqualTo((short) 12);
+                .isEqualTo((short) 16);
     }
 
     @Test

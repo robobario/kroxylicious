@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.AddOffsetsToTxnRequestData;
 import org.apache.kafka.common.message.AddOffsetsToTxnResponseData;
 import org.apache.kafka.common.message.AddPartitionsToTxnRequestData;
@@ -140,15 +141,11 @@ class TopicPartitionRouter implements Router {
     private static final Logger LOGGER = LoggerFactory.getLogger(TopicPartitionRouter.class);
 
     /**
-     * API keys whose wire format transitions from topic names to topic IDs
-     * at certain versions. We cap these to force name-based addressing.
+     * API keys whose wire format changes structurally at certain versions.
+     * TopicId-bearing APIs (PRODUCE, FETCH, OFFSET_COMMIT, OFFSET_FETCH,
+     * DELETE_TOPICS) are handled by the router's topicId cache — no cap needed.
      */
     static final Map<ApiKeys, Short> VERSION_CAPS = Map.of(
-            ApiKeys.PRODUCE, (short) 12,
-            ApiKeys.FETCH, (short) 12,
-            ApiKeys.OFFSET_COMMIT, (short) 9,
-            ApiKeys.OFFSET_FETCH, (short) 9,
-            ApiKeys.DELETE_TOPICS, (short) 5,
             ApiKeys.ADD_PARTITIONS_TO_TXN, (short) 3,
             ApiKeys.FIND_COORDINATOR, (short) 3);
 
@@ -221,9 +218,11 @@ class TopicPartitionRouter implements Router {
      * Netty event loop thread (see {@link Router#onRequest} threading contract).
      */
     private final Map<String, Map<Integer, Integer>> partitionLeaders = new HashMap<>();
+
     @Nullable
     private String activeTransactionRoute;
 
+    private static final short INTERNAL_METADATA_API_VERSION = 12;
     private static final short FIND_COORDINATOR_API_VERSION = 3;
 
     /**
@@ -291,7 +290,7 @@ class TopicPartitionRouter implements Router {
             return handleApiVersions(header, request, context);
         }
         if (apiKey == ApiKeys.PRODUCE) {
-            return handleProduce(header, (ProduceRequestData) request, context);
+            return handleProduce(apiVersion, header, (ProduceRequestData) request, context);
         }
         if (apiKey == ApiKeys.INIT_PRODUCER_ID) {
             return handleInitProducerId(header, (InitProducerIdRequestData) request, context);
@@ -303,28 +302,28 @@ class TopicPartitionRouter implements Router {
             return handleFetch(apiVersion, header, (FetchRequestData) request, context);
         }
         if (apiKey == ApiKeys.LIST_OFFSETS) {
-            return handleListOffsets(header, (ListOffsetsRequestData) request, context);
+            return handleListOffsets(apiVersion, header, (ListOffsetsRequestData) request, context);
         }
         if (apiKey == ApiKeys.OFFSET_FOR_LEADER_EPOCH) {
             return handleOffsetForLeaderEpoch(header, (OffsetForLeaderEpochRequestData) request, context);
         }
         if (apiKey == ApiKeys.OFFSET_COMMIT) {
-            return handleOffsetCommit(header, (OffsetCommitRequestData) request, context);
+            return handleOffsetCommit(apiVersion, header, (OffsetCommitRequestData) request, context);
         }
         if (apiKey == ApiKeys.OFFSET_FETCH) {
             return handleOffsetFetch(apiVersion, header, (OffsetFetchRequestData) request, context);
         }
         if (apiKey == ApiKeys.CREATE_TOPICS) {
-            return handleCreateTopics(header, (CreateTopicsRequestData) request, context);
+            return handleCreateTopics(apiVersion, header, (CreateTopicsRequestData) request, context);
         }
         if (apiKey == ApiKeys.DELETE_TOPICS) {
-            return handleDeleteTopics(header, (DeleteTopicsRequestData) request, context);
+            return handleDeleteTopics(apiVersion, header, (DeleteTopicsRequestData) request, context);
         }
         if (apiKey == ApiKeys.CREATE_PARTITIONS) {
-            return handleCreatePartitions(header, (CreatePartitionsRequestData) request, context);
+            return handleCreatePartitions(apiVersion, header, (CreatePartitionsRequestData) request, context);
         }
         if (apiKey == ApiKeys.DELETE_RECORDS) {
-            return handleDeleteRecords(header, (DeleteRecordsRequestData) request, context);
+            return handleDeleteRecords(apiVersion, header, (DeleteRecordsRequestData) request, context);
         }
         if (apiKey == ApiKeys.ADD_PARTITIONS_TO_TXN) {
             return handleAddPartitionsToTxn(header,
@@ -379,19 +378,20 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleProduce(
+                                                        short apiVersion,
                                                         RequestHeaderData header,
                                                         ProduceRequestData request,
                                                         RouterContext context) {
         ProduceResponseData errorResponse = ProduceDecomposer.errorResponseForUnroutableTopics(
-                request, routingTable);
+                request, routingTable, apiVersion);
         Map<String, ProduceRequestData> subRequests = produceDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
         boolean subjectRouted = subjectRouteFor(context.authenticatedSubject()) != null;
         if (!subjectRouted && !rewriteProducerIdsForRoutes(subRequests)) {
             LOGGER.atDebug()
                     .addKeyValue("sessionId", context.sessionId())
                     .log("Producer ID mapping not found, returning UNKNOWN_PRODUCER_ID");
-            return CompletableFuture.completedFuture(syntheticResult(unknownProducerIdResponse(request)));
+            return CompletableFuture.completedFuture(syntheticResult(unknownProducerIdResponse(request, apiVersion)));
         }
 
         boolean isAcksZero = request.acks() == 0;
@@ -400,12 +400,12 @@ class TopicPartitionRouter implements Router {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
         }
 
-        // acks=0: fire-and-forget to route bootstrap (sendRequestToNode doesn't support fire-and-forget)
+        // acks=0: fire-and-forget to route bootstrap
         if (isAcksZero) {
             for (var entry : subRequests.entrySet()) {
                 context.sendRequestToNode(entry.getKey(), context.bootstrapNodeId(entry.getKey()), header, entry.getValue());
             }
-            return CompletableFuture.completedFuture(syntheticResult(mergeWithErrors(Map.of(), errorResponse, request)));
+            return CompletableFuture.completedFuture(syntheticResult(mergeWithErrors(Map.of(), errorResponse, request, apiVersion)));
         }
 
         return ensureLeadersCached(subRequests, context).thenCompose(v -> {
@@ -431,7 +431,7 @@ class TopicPartitionRouter implements Router {
                     bodies.put(String.valueOf(entry.getKey()),
                             (ProduceResponseData) entry.getValue().body());
                 }
-                ProduceResponseData merged = mergeWithErrors(bodies, capturedErrors, request);
+                ProduceResponseData merged = mergeWithErrors(bodies, capturedErrors, request, apiVersion);
                 return syntheticResult(merged);
             });
         });
@@ -516,7 +516,7 @@ class TopicPartitionRouter implements Router {
                                                          RouterContext context) {
         var mdHeader = new RequestHeaderData()
                 .setRequestApiKey(ApiKeys.METADATA.id)
-                .setRequestApiVersion((short) 9);
+                .setRequestApiVersion(INTERNAL_METADATA_API_VERSION);
         var mdReq = new MetadataRequestData();
 
         return context.sendRequestToNode(route, context.bootstrapNodeId(route), mdHeader, mdReq).thenCompose(mdResponse -> {
@@ -684,10 +684,17 @@ class TopicPartitionRouter implements Router {
         return null;
     }
 
-    private static ProduceResponseData unknownProducerIdResponse(ProduceRequestData request) {
+    private static ProduceResponseData unknownProducerIdResponse(ProduceRequestData request,
+                                                                 short apiVersion) {
         var response = new ProduceResponseData();
         for (var td : request.topicData()) {
-            var topicResponse = new TopicProduceResponse().setName(td.name());
+            var topicResponse = new TopicProduceResponse();
+            if (apiVersion >= 13) {
+                topicResponse.setTopicId(td.topicId());
+            }
+            else {
+                topicResponse.setName(td.name());
+            }
             for (var pd : td.partitionData()) {
                 topicResponse.partitionResponses().add(
                         new PartitionProduceResponse()
@@ -701,8 +708,9 @@ class TopicPartitionRouter implements Router {
 
     private ProduceResponseData mergeWithErrors(Map<String, ProduceResponseData> routeResponses,
                                                 ProduceResponseData errorResponse,
-                                                ProduceRequestData originalRequest) {
-        ProduceResponseData merged = produceDecomposer.recompose(routeResponses, originalRequest);
+                                                ProduceRequestData originalRequest,
+                                                short apiVersion) {
+        ProduceResponseData merged = produceDecomposer.recompose(routeResponses, originalRequest, apiVersion);
         for (var tr : errorResponse.responses()) {
             merged.responses().add(tr.duplicate());
         }
@@ -785,6 +793,8 @@ class TopicPartitionRouter implements Router {
                                                       RequestHeaderData header,
                                                       FetchRequestData request,
                                                       RouterContext context) {
+        boolean usesTopicIds = apiVersion >= 13;
+
         var clientResult = fetchSessionManager.processClientRequest(request, apiVersion);
         if (clientResult instanceof FetchSessionManager.ClientRequestResult.SessionError error) {
             return CompletableFuture.completedFuture(syntheticResult(error.response()));
@@ -792,9 +802,9 @@ class TopicPartitionRouter implements Router {
         var fullRequest = ((FetchSessionManager.ClientRequestResult.FullFetch) clientResult).request();
 
         FetchResponseData errorResponse = FetchDecomposer.errorResponseForUnroutableTopics(
-                fullRequest, routingTable);
+                fullRequest, routingTable, usesTopicIds);
         Map<String, FetchRequestData> subRequests = fetchDecomposer.decompose(
-                fullRequest, routingTable);
+                fullRequest, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             var clientResponse = fetchSessionManager.computeClientResponse(errorResponse);
@@ -802,8 +812,6 @@ class TopicPartitionRouter implements Router {
         }
 
         return ensureLeadersCached(subRequests, context).thenCompose(v -> {
-            // Group by leader — each leader is a distinct backend connection
-            // and gets its own fetch session keyed by String.valueOf(nodeId)
             Map<Integer, FetchRequestData> byLeader = groupFetchByLeader(subRequests, fullRequest);
             Map<Integer, String> leaderToRoute = mapLeadersToRoutes(subRequests);
             Map<String, FetchRequestData> byLeaderStr = new HashMap<>();
@@ -833,7 +841,7 @@ class TopicPartitionRouter implements Router {
                             (FetchResponseData) entry.getValue().body());
                 }
                 fetchSessionManager.processServerResponses(bodies);
-                FetchResponseData merged = fetchDecomposer.recompose(bodies, fullRequest);
+                FetchResponseData merged = fetchDecomposer.recompose(bodies, fullRequest, apiVersion);
                 for (var tr : capturedErrors.responses()) {
                     merged.responses().add(tr.duplicate());
                 }
@@ -844,13 +852,14 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleListOffsets(
+                                                            short apiVersion,
                                                             RequestHeaderData header,
                                                             ListOffsetsRequestData request,
                                                             RouterContext context) {
         ListOffsetsResponseData errorResponse = ListOffsetsDecomposer.errorResponseForUnroutableTopics(
                 request, routingTable);
         Map<String, ListOffsetsRequestData> subRequests = listOffsetsDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -880,7 +889,7 @@ class TopicPartitionRouter implements Router {
                     bodies.put(String.valueOf(entry.getKey()),
                             (ListOffsetsResponseData) entry.getValue().body());
                 }
-                ListOffsetsResponseData merged = listOffsetsDecomposer.recompose(bodies, request);
+                ListOffsetsResponseData merged = listOffsetsDecomposer.recompose(bodies, request, apiVersion);
                 for (var tr : capturedErrors.topics()) {
                     merged.topics().add(tr.duplicate());
                 }
@@ -986,6 +995,7 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleOffsetCommit(
+                                                             short apiVersion,
                                                              RequestHeaderData header,
                                                              OffsetCommitRequestData request,
                                                              RouterContext context) {
@@ -994,9 +1004,9 @@ class TopicPartitionRouter implements Router {
         }
 
         OffsetCommitResponseData errorResponse = OffsetCommitDecomposer.errorResponseForUnroutableTopics(
-                request, routingTable);
+                request, routingTable, apiVersion);
         Map<String, OffsetCommitRequestData> subRequests = offsetCommitDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -1019,7 +1029,7 @@ class TopicPartitionRouter implements Router {
             for (var entry : responses.entrySet()) {
                 bodies.put(entry.getKey(), (OffsetCommitResponseData) entry.getValue().body());
             }
-            OffsetCommitResponseData merged = offsetCommitDecomposer.recompose(bodies, request);
+            OffsetCommitResponseData merged = offsetCommitDecomposer.recompose(bodies, request, apiVersion);
             for (var tr : capturedErrors.topics()) {
                 merged.topics().add(tr.duplicate());
             }
@@ -1086,6 +1096,7 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleCreateTopics(
+                                                             short apiVersion,
                                                              RequestHeaderData header,
                                                              CreateTopicsRequestData request,
                                                              RouterContext context) {
@@ -1103,7 +1114,7 @@ class TopicPartitionRouter implements Router {
                     .log("Rejecting CreateTopics with explicit replica assignments");
         }
         Map<String, CreateTopicsRequestData> subRequests = createTopicsDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -1138,7 +1149,7 @@ class TopicPartitionRouter implements Router {
             for (var entry : responses.entrySet()) {
                 bodies.put(entry.getKey(), (CreateTopicsResponseData) entry.getValue().body());
             }
-            CreateTopicsResponseData merged = createTopicsDecomposer.recompose(bodies, request);
+            CreateTopicsResponseData merged = createTopicsDecomposer.recompose(bodies, request, apiVersion);
             for (var tr : capturedErrors.topics()) {
                 merged.topics().add(tr.duplicate());
             }
@@ -1147,13 +1158,14 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleDeleteTopics(
+                                                             short apiVersion,
                                                              RequestHeaderData header,
                                                              DeleteTopicsRequestData request,
                                                              RouterContext context) {
         DeleteTopicsResponseData errorResponse = DeleteTopicsDecomposer.errorResponseForUnroutableTopics(
-                request, routingTable);
+                request, routingTable, apiVersion);
         Map<String, DeleteTopicsRequestData> subRequests = deleteTopicsDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -1188,7 +1200,7 @@ class TopicPartitionRouter implements Router {
             for (var entry : responses.entrySet()) {
                 bodies.put(entry.getKey(), (DeleteTopicsResponseData) entry.getValue().body());
             }
-            DeleteTopicsResponseData merged = deleteTopicsDecomposer.recompose(bodies, request);
+            DeleteTopicsResponseData merged = deleteTopicsDecomposer.recompose(bodies, request, apiVersion);
             for (var tr : capturedErrors.responses()) {
                 merged.responses().add(tr.duplicate());
             }
@@ -1197,6 +1209,7 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleCreatePartitions(
+                                                                 short apiVersion,
                                                                  RequestHeaderData header,
                                                                  CreatePartitionsRequestData request,
                                                                  RouterContext context) {
@@ -1214,7 +1227,7 @@ class TopicPartitionRouter implements Router {
                     .log("Rejecting CreatePartitions with explicit partition assignments");
         }
         Map<String, CreatePartitionsRequestData> subRequests = createPartitionsDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -1249,7 +1262,7 @@ class TopicPartitionRouter implements Router {
             for (var entry : responses.entrySet()) {
                 bodies.put(entry.getKey(), (CreatePartitionsResponseData) entry.getValue().body());
             }
-            CreatePartitionsResponseData merged = createPartitionsDecomposer.recompose(bodies, request);
+            CreatePartitionsResponseData merged = createPartitionsDecomposer.recompose(bodies, request, apiVersion);
             for (var tr : capturedErrors.results()) {
                 merged.results().add(tr.duplicate());
             }
@@ -1258,13 +1271,14 @@ class TopicPartitionRouter implements Router {
     }
 
     private CompletionStage<RouterResult> handleDeleteRecords(
+                                                              short apiVersion,
                                                               RequestHeaderData header,
                                                               DeleteRecordsRequestData request,
                                                               RouterContext context) {
         DeleteRecordsResponseData errorResponse = DeleteRecordsDecomposer.errorResponseForUnroutableTopics(
                 request, routingTable);
         Map<String, DeleteRecordsRequestData> subRequests = deleteRecordsDecomposer.decompose(
-                request, routingTable);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -1294,7 +1308,7 @@ class TopicPartitionRouter implements Router {
                     bodies.put(String.valueOf(entry.getKey()),
                             (DeleteRecordsResponseData) entry.getValue().body());
                 }
-                DeleteRecordsResponseData merged = deleteRecordsDecomposer.recompose(bodies, request);
+                DeleteRecordsResponseData merged = deleteRecordsDecomposer.recompose(bodies, request, apiVersion);
                 for (var tr : capturedErrors.topics()) {
                     merged.topics().add(tr.duplicate());
                 }
@@ -1755,7 +1769,7 @@ class TopicPartitionRouter implements Router {
         OffsetFetchResponseData errorResponse = OffsetFetchDecomposer.errorResponseForUnroutableTopics(
                 request, routingTable, apiVersion);
         Map<String, OffsetFetchRequestData> subRequests = offsetFetchDecomposer.decompose(
-                request, routingTable, apiVersion);
+                request, routingTable, apiVersion, context::topicName);
 
         if (subRequests.isEmpty()) {
             return CompletableFuture.completedFuture(syntheticResult(errorResponse));
@@ -2005,7 +2019,7 @@ class TopicPartitionRouter implements Router {
                                                          RouterContext context) {
         var mdHeader = new RequestHeaderData()
                 .setRequestApiKey(ApiKeys.METADATA.id)
-                .setRequestApiVersion((short) 9);
+                .setRequestApiVersion(INTERNAL_METADATA_API_VERSION);
         var mdReq = new MetadataRequestData();
         for (var name : topicNames) {
             mdReq.topics().add(new MetadataRequestData.MetadataRequestTopic().setName(name));
@@ -2174,7 +2188,7 @@ class TopicPartitionRouter implements Router {
                             .setAcks(original.acks())
                             .setTimeoutMs(original.timeoutMs())
                             .setTransactionalId(routeReq.transactionalId()));
-                    var leaderTopic = findOrCreateProduceTopic(leaderReq, topic.name());
+                    var leaderTopic = findOrCreateProduceTopic(leaderReq, topic.name(), topic.topicId());
                     leaderTopic.partitionData().add(partition.duplicate());
                 }
             }
@@ -2184,13 +2198,16 @@ class TopicPartitionRouter implements Router {
 
     private static ProduceRequestData.TopicProduceData findOrCreateProduceTopic(
                                                                                 ProduceRequestData data,
-                                                                                String topicName) {
+                                                                                String topicName,
+                                                                                Uuid topicId) {
         for (var t : data.topicData()) {
             if (t.name().equals(topicName)) {
                 return t;
             }
         }
-        var t = new ProduceRequestData.TopicProduceData().setName(topicName);
+        var t = new ProduceRequestData.TopicProduceData()
+                .setName(topicName)
+                .setTopicId(topicId);
         data.topicData().add(t);
         return t;
     }
@@ -2213,7 +2230,7 @@ class TopicPartitionRouter implements Router {
                             .setMinBytes(original.minBytes())
                             .setIsolationLevel(original.isolationLevel())
                             .setReplicaId(original.replicaId()));
-                    var leaderTopic = findOrCreateFetchTopic(leaderReq, topic.topic());
+                    var leaderTopic = findOrCreateFetchTopic(leaderReq, topic.topic(), topic.topicId());
                     leaderTopic.partitions().add(partition.duplicate());
                 }
             }
@@ -2223,13 +2240,16 @@ class TopicPartitionRouter implements Router {
 
     private static FetchRequestData.FetchTopic findOrCreateFetchTopic(
                                                                       FetchRequestData data,
-                                                                      String topicName) {
+                                                                      String topicName,
+                                                                      Uuid topicId) {
         for (var t : data.topics()) {
             if (t.topic().equals(topicName)) {
                 return t;
             }
         }
-        var t = new FetchRequestData.FetchTopic().setTopic(topicName);
+        var t = new FetchRequestData.FetchTopic()
+                .setTopic(topicName)
+                .setTopicId(topicId);
         data.topics().add(t);
         return t;
     }

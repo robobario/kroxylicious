@@ -54,19 +54,38 @@ Synthetic error responses for unroutable topics (and, where applicable, topics w
 
 When multiple backends return throttle times, the router takes the maximum across all responses. This ensures the client respects the most restrictive backend's rate limit.
 
+## TopicId support
+
+Several Kafka API keys transition from topic-name-based addressing to topic-ID-based addressing at certain versions (PRODUCE v13, FETCH v13, OFFSET_COMMIT v10, OFFSET_FETCH v10, DELETE_TOPICS v6). Topic IDs are cluster-specific -- the same topic on two independent clusters has different UUIDs.
+
+TopicId resolution is handled by two internal filters installed by the runtime, not by the router itself. The router always sees topic names on both requests and responses.
+
+### Request enrichment (`TopicIdRequestEnrichmentFilter`)
+
+A per-connection filter on the frontend pipeline, positioned before user filters and routing. On the request path, it resolves topicIds to names from a local cache. On cache miss (e.g. the client learned topicIds from a different proxy instance, or has reconnected), it sends an internal METADATA-by-topicId request through the topology, waits for the response, caches the result, and then continues with the enriched request. On the response path, it learns topicId→name mappings from METADATA and other responses flowing back to the client. The cache is per-connection to avoid poisoning from subject-dependent name transforms in per-route filters.
+
+### Response enrichment (`TopicIdResponseEnrichmentFilter`)
+
+A shared filter installed immediately before the `routingTerminalHandler`. It enriches backend responses with topic names from a shared `ConcurrentHashMap` cache (one per virtual cluster, stored on `VirtualClusterModel`). On cache miss, it sends an internal METADATA-by-topicId to resolve the name. It is also installed in `buildFilters()` for non-routing configurations. Because this filter sees raw backend responses before any subject-dependent name transforms, the shared cache is safe.
+
+### FetchSessionManager topicId propagation
+
+The `FetchSessionManager` maintains client-side fetch session state using `TopicPartition` (name-based). When it creates new `FetchTopic` objects (in `buildFullRequestFromState` for session reconstruction, and `wrapForBackend` for incremental fetch), it preserves topicIds from a `clientTopicIds` map learned from incoming requests.
+
+### Cache poisoning caveat
+
+The response enrichment cache is shared and safe (it sees raw backend names). The request enrichment cache is per-connection (it sees post-transform names from per-route filters). If per-route filters transform names in a subject-dependent way, a shared request cache would be poisoned. A future optimisation could share the request cache when the topology is known to be "name-preserving", selectable via a filter property declaration.
+
 ## Version capping
 
-Several Kafka API keys transition from topic-name-based addressing to topic-ID-based addressing at certain versions. Topic IDs are cluster-specific -- the same topic on two independent clusters has different UUIDs. The router must force name-based addressing to maintain routing correctness.
+Some API keys have structural changes unrelated to topicId that require version capping:
 
 | API key | Capped to version | Reason |
 |---|---|---|
-| PRODUCE | v12 | v13 (KIP-516) uses TopicId instead of Name |
-| FETCH | v12 | v13 uses TopicId |
-| OFFSET_COMMIT | v9 | v10+ uses TopicId |
-| OFFSET_FETCH | v9 | v10+ uses TopicId |
-| DELETE_TOPICS | v5 | v6+ uses TopicId |
+| ADD_PARTITIONS_TO_TXN | v3 | v4+ is broker-only batch format |
+| FIND_COORDINATOR | v3 | v4+ adds batched coordinator keys (KIP-699) |
 
-The router intercepts `API_VERSIONS` responses and applies these caps via `ApiVersionsResponseTransformers.limitMaxVersionForApiKeys()`, so clients negotiate down to versions that use topic names on the wire.
+The router intercepts `API_VERSIONS` responses and applies these caps via `ApiVersionsResponseTransformers.limitMaxVersionForApiKeys()`.
 
 ## Idempotent produce
 
@@ -147,7 +166,7 @@ Subject-routed users have all coordinator-bound operations (transactions, consum
 
 - **Inadequate testing**: **DO NOT RELY ON THIS CODE IN ANY WAY WHATSOEVER**. Really, we mean it. It's not been reviewed. It's been only lightly tested, in very limited environments. 
 - **No classic consumer groups**: Only the "new" KIP-848 consumer group protocol is supported.
-- **No support topic ids**: We're capping API versions so a client cannot use a version the router doesn't support. That can prevent using more modern Kafka functionality.
+- **TopicId support is new and lightly tested**: TopicId-bearing API versions (PRODUCE v13, FETCH v13, OFFSET_COMMIT v10, OFFSET_FETCH v10, DELETE_TOPICS v6) are supported via internal enrichment filters, but this has not been extensively tested in production environments.
 - **Cross-route transactions**: A transactional producer whose topics span multiple backends will not get correct exactly-once semantics. Subject-based routing ensures each user's transactions target a single backend.
 - **Cross-route consumer groups**: Consumer groups whose subscriptions span routes will see incomplete behaviour. Subject-based routing ensures each user's groups target a single backend.
 - **No topic migration**: Once a topic is assigned to a route by prefix or explicit name, it cannot be moved without reconfiguration and data migration.

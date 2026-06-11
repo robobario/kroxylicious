@@ -50,7 +50,7 @@ class CreatePartitionsDecomposerTest {
     void shouldDecomposeByTopicRoute() {
         var request = createPartitionsRequest("a.orders", "b.logs", "a.payments");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a", "route-b");
         assertThat(parts.get("route-a").topics()).extracting("name")
@@ -63,7 +63,7 @@ class CreatePartitionsDecomposerTest {
     void shouldReturnSingleEntryWhenAllTopicsOnOneRoute() {
         var request = createPartitionsRequest("a.orders", "a.payments");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).hasSize(2);
@@ -75,7 +75,7 @@ class CreatePartitionsDecomposerTest {
         request.setTimeoutMs(20000);
         request.setValidateOnly(true);
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         for (var sub : parts.values()) {
             assertThat(sub.timeoutMs()).isEqualTo(20000);
@@ -87,7 +87,7 @@ class CreatePartitionsDecomposerTest {
     void shouldExcludeUnroutableTopics() {
         var request = createPartitionsRequest("a.orders", "unknown.topic");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).extracting("name")
@@ -98,7 +98,7 @@ class CreatePartitionsDecomposerTest {
     void shouldReturnEmptyMapWhenAllTopicsUnroutable() {
         var request = createPartitionsRequest("unknown.one", "unknown.two");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).isEmpty();
     }
@@ -110,7 +110,7 @@ class CreatePartitionsDecomposerTest {
                 .setName("a.orders")
                 .setCount(6));
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts.get("route-a").topics().iterator().next().count()).isEqualTo(6);
     }
@@ -127,7 +127,7 @@ class CreatePartitionsDecomposerTest {
         respB.results().add(topicResult("b.logs", Errors.NONE));
 
         var merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.results()).extracting("name")
                 .containsExactlyInAnyOrder("a.orders", "b.logs");
@@ -143,7 +143,7 @@ class CreatePartitionsDecomposerTest {
         respB.results().add(topicResult("b.logs", Errors.NONE));
 
         var merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.throttleTimeMs()).isEqualTo(400);
     }
@@ -155,7 +155,7 @@ class CreatePartitionsDecomposerTest {
         var resp = new CreatePartitionsResponseData();
         resp.results().add(topicResult("a.orders", Errors.INVALID_PARTITIONS));
 
-        var merged = decomposer.recompose(Map.of("route-a", resp), request);
+        var merged = decomposer.recompose(Map.of("route-a", resp), request, (short) 0);
 
         var topic = merged.results().stream()
                 .filter(t -> t.name().equals("a.orders"))
@@ -197,7 +197,7 @@ class CreatePartitionsDecomposerTest {
         request.topics().add(new CreatePartitionsTopic()
                 .setName("a.payments").setCount(3).setAssignments(null));
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).extracting("name")
@@ -209,7 +209,7 @@ class CreatePartitionsDecomposerTest {
         var request = new CreatePartitionsRequestData();
         request.topics().add(topicWithAssignments("a.orders"));
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).isEmpty();
     }
@@ -255,7 +255,7 @@ class CreatePartitionsDecomposerTest {
         request.topics().add(new CreatePartitionsTopic()
                 .setName("a.orders").setCount(3).setAssignments(null));
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).extracting("name")

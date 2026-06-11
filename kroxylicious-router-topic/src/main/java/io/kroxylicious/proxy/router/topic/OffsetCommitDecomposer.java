@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.router.topic;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.OffsetCommitRequestData;
 import org.apache.kafka.common.message.OffsetCommitResponseData;
 import org.apache.kafka.common.message.OffsetCommitResponseData.OffsetCommitResponsePartition;
@@ -27,10 +29,16 @@ class OffsetCommitDecomposer implements RequestDecomposer<OffsetCommitRequestDat
 
     @Override
     public Map<String, OffsetCommitRequestData> decompose(OffsetCommitRequestData request,
-                                                          TopicRoutingTable table) {
+                                                          TopicRoutingTable table,
+                                                          short apiVersion,
+                                                          Function<Uuid, String> topicNameResolver) {
         var result = new LinkedHashMap<String, OffsetCommitRequestData>();
         for (var topic : request.topics()) {
-            String route = table.routeForTopic(topic.name());
+            String topicName = topic.name();
+            if ((topicName == null || topicName.isEmpty()) && !Uuid.ZERO_UUID.equals(topic.topicId())) {
+                topicName = topicNameResolver.apply(topic.topicId());
+            }
+            String route = table.routeForTopic(topicName);
             if (route != null) {
                 result.computeIfAbsent(route, k -> copyEnvelope(request))
                         .topics().add(topic.duplicate());
@@ -41,7 +49,8 @@ class OffsetCommitDecomposer implements RequestDecomposer<OffsetCommitRequestDat
 
     @Override
     public OffsetCommitResponseData recompose(Map<String, OffsetCommitResponseData> responses,
-                                              OffsetCommitRequestData originalRequest) {
+                                              OffsetCommitRequestData originalRequest,
+                                              short apiVersion) {
         var merged = new OffsetCommitResponseData();
         int maxThrottle = 0;
         for (var resp : responses.values()) {
@@ -55,16 +64,29 @@ class OffsetCommitDecomposer implements RequestDecomposer<OffsetCommitRequestDat
     }
 
     static OffsetCommitResponseData errorResponseForUnroutableTopics(OffsetCommitRequestData request,
-                                                                     TopicRoutingTable table) {
+                                                                     TopicRoutingTable table,
+                                                                     short apiVersion) {
         var errorResponse = new OffsetCommitResponseData();
         for (var topic : request.topics()) {
-            if (table.routeForTopic(topic.name()) == null) {
-                var topicResponse = new OffsetCommitResponseTopic().setName(topic.name());
+            if (!table.isRoutable(topic.name())) {
+                boolean hasName = topic.name() != null && !topic.name().isEmpty();
+                var topicResponse = new OffsetCommitResponseTopic();
+                short errorCode;
+                if (apiVersion >= 10) {
+                    topicResponse.setTopicId(topic.topicId());
+                    errorCode = hasName
+                            ? Errors.UNKNOWN_TOPIC_OR_PARTITION.code()
+                            : Errors.UNKNOWN_TOPIC_ID.code();
+                }
+                else {
+                    topicResponse.setName(topic.name());
+                    errorCode = Errors.UNKNOWN_TOPIC_OR_PARTITION.code();
+                }
                 for (var partition : topic.partitions()) {
                     topicResponse.partitions().add(
                             new OffsetCommitResponsePartition()
                                     .setPartitionIndex(partition.partitionIndex())
-                                    .setErrorCode(Errors.UNKNOWN_TOPIC_OR_PARTITION.code()));
+                                    .setErrorCode(errorCode));
                 }
                 errorResponse.topics().add(topicResponse);
             }

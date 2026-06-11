@@ -50,7 +50,7 @@ class ListOffsetsDecomposerTest {
     void shouldDecomposeByTopicRoute() {
         var request = listOffsetsRequest("a.orders", "b.logs", "a.payments");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a", "route-b");
         assertThat(parts.get("route-a").topics()).extracting("name")
@@ -63,7 +63,7 @@ class ListOffsetsDecomposerTest {
     void shouldReturnSingleEntryWhenAllTopicsOnOneRoute() {
         var request = listOffsetsRequest("a.orders", "a.payments");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).hasSize(2);
@@ -75,7 +75,7 @@ class ListOffsetsDecomposerTest {
         request.setReplicaId(-1);
         request.setIsolationLevel((byte) 1);
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         for (var sub : parts.values()) {
             assertThat(sub.replicaId()).isEqualTo(-1);
@@ -87,7 +87,7 @@ class ListOffsetsDecomposerTest {
     void shouldExcludeUnroutableTopics() {
         var request = listOffsetsRequest("a.orders", "unknown.topic");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).extracting("name")
@@ -98,7 +98,7 @@ class ListOffsetsDecomposerTest {
     void shouldReturnEmptyMapWhenAllTopicsUnroutable() {
         var request = listOffsetsRequest("unknown.one", "unknown.two");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).isEmpty();
     }
@@ -111,7 +111,7 @@ class ListOffsetsDecomposerTest {
         topic.partitions().add(new ListOffsetsPartition().setPartitionIndex(1).setTimestamp(-2));
         request.topics().add(topic);
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         var decomposed = parts.get("route-a").topics().stream()
                 .filter(t -> t.name().equals("a.orders"))
@@ -132,7 +132,7 @@ class ListOffsetsDecomposerTest {
         respB.topics().add(topicResponse("b.logs", 0, Errors.NONE));
 
         var merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.topics()).extracting("name")
                 .containsExactlyInAnyOrder("a.orders", "b.logs");
@@ -148,7 +148,7 @@ class ListOffsetsDecomposerTest {
         respB.topics().add(topicResponse("b.logs", 0, Errors.NONE));
 
         var merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.throttleTimeMs()).isEqualTo(300);
     }
@@ -160,7 +160,7 @@ class ListOffsetsDecomposerTest {
         var resp = new ListOffsetsResponseData();
         resp.topics().add(topicResponse("a.orders", 0, Errors.NOT_LEADER_OR_FOLLOWER));
 
-        var merged = decomposer.recompose(Map.of("route-a", resp), request);
+        var merged = decomposer.recompose(Map.of("route-a", resp), request, (short) 0);
 
         var partition = merged.topics().stream()
                 .filter(t -> t.name().equals("a.orders"))

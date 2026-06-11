@@ -8,6 +8,7 @@ package io.kroxylicious.proxy.router.topic;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchRequestData.FetchPartition;
 import org.apache.kafka.common.message.FetchRequestData.FetchTopic;
@@ -51,7 +52,7 @@ class FetchDecomposerTest {
     void shouldDecomposeByTopicRoute() {
         var request = fetchRequest("a.orders", "b.logs", "a.payments");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a", "route-b");
         assertThat(parts.get("route-a").topics()).extracting("topic")
@@ -64,7 +65,7 @@ class FetchDecomposerTest {
     void shouldReturnSingleEntryWhenAllTopicsOnOneRoute() {
         var request = fetchRequest("a.orders", "a.payments");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).hasSize(2);
@@ -79,7 +80,7 @@ class FetchDecomposerTest {
         request.setIsolationLevel((byte) 1);
         request.setRackId("rack-1");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         for (var sub : parts.values()) {
             assertThat(sub.maxWaitMs()).isEqualTo(500);
@@ -96,7 +97,7 @@ class FetchDecomposerTest {
         request.setSessionId(42);
         request.setSessionEpoch(3);
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         for (var sub : parts.values()) {
             assertThat(sub.sessionId())
@@ -114,7 +115,7 @@ class FetchDecomposerTest {
         request.forgottenTopicsData().add(
                 new ForgottenTopic().setTopic("old.topic").setPartitions(java.util.List.of(0)));
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         for (var sub : parts.values()) {
             assertThat(sub.forgottenTopicsData())
@@ -127,7 +128,7 @@ class FetchDecomposerTest {
     void shouldExcludeUnroutableTopics() {
         var request = fetchRequest("a.orders", "unknown.topic");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topics()).extracting("topic")
@@ -138,7 +139,7 @@ class FetchDecomposerTest {
     void shouldReturnEmptyMapWhenAllTopicsUnroutable() {
         var request = fetchRequest("unknown.one", "unknown.two");
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).isEmpty();
     }
@@ -151,7 +152,7 @@ class FetchDecomposerTest {
         topic.partitions().add(new FetchPartition().setPartition(1).setFetchOffset(200));
         request.topics().add(topic);
 
-        var parts = decomposer.decompose(request, table);
+        var parts = decomposer.decompose(request, table, (short) 0);
 
         var decomposed = parts.get("route-a").topics().stream()
                 .filter(t -> t.topic().equals("a.orders"))
@@ -174,7 +175,7 @@ class FetchDecomposerTest {
         respB.responses().add(topicResponse("b.logs", 0, Errors.NONE));
 
         var merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.responses()).extracting("topic")
                 .containsExactlyInAnyOrder("a.orders", "b.logs");
@@ -190,7 +191,7 @@ class FetchDecomposerTest {
         respB.responses().add(topicResponse("b.logs", 0, Errors.NONE));
 
         var merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.throttleTimeMs()).isEqualTo(300);
     }
@@ -202,7 +203,7 @@ class FetchDecomposerTest {
         var resp = new FetchResponseData().setSessionId(42);
         resp.responses().add(topicResponse("a.orders", 0, Errors.NONE));
 
-        var merged = decomposer.recompose(Map.of("route-a", resp), request);
+        var merged = decomposer.recompose(Map.of("route-a", resp), request, (short) 0);
 
         assertThat(merged.sessionId())
                 .as("recompose should not override session ID — FetchSessionManager handles that")
@@ -216,7 +217,7 @@ class FetchDecomposerTest {
         var resp = new FetchResponseData();
         resp.responses().add(topicResponse("a.orders", 0, Errors.NOT_LEADER_OR_FOLLOWER));
 
-        var merged = decomposer.recompose(Map.of("route-a", resp), request);
+        var merged = decomposer.recompose(Map.of("route-a", resp), request, (short) 0);
 
         var partition = merged.responses().stream()
                 .filter(t -> t.topic().equals("a.orders"))
@@ -235,7 +236,7 @@ class FetchDecomposerTest {
         topic.partitions().add(new FetchPartition().setPartition(1));
         request.topics().add(topic);
 
-        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table);
+        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table, false);
 
         assertThat(error.responses()).hasSize(1);
         var topicResp = error.responses().stream()
@@ -250,7 +251,60 @@ class FetchDecomposerTest {
     void shouldReturnEmptyErrorResponseWhenAllTopicsRoutable() {
         var request = fetchRequest("a.orders", "b.logs");
 
-        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table);
+        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table, false);
+
+        assertThat(error.responses()).isEmpty();
+    }
+
+    // --- v13 topicId error responses ---
+
+    @Test
+    void shouldReturnUnknownTopicIdForUnresolvedTopicIdAtV13() {
+        Uuid topicId = Uuid.randomUuid();
+        var request = new FetchRequestData();
+        var topic = new FetchTopic().setTopicId(topicId);
+        topic.partitions().add(new FetchPartition().setPartition(0));
+        request.topics().add(topic);
+
+        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table, true);
+
+        assertThat(error.responses()).hasSize(1);
+        var topicResp = error.responses().stream().findFirst().orElseThrow();
+        assertThat(topicResp.topicId()).isEqualTo(topicId);
+        assertThat(topicResp.partitions()).allSatisfy(
+                pr -> assertThat(pr.errorCode()).isEqualTo(Errors.UNKNOWN_TOPIC_ID.code()));
+    }
+
+    @Test
+    void shouldReturnUnknownTopicOrPartitionForEnrichedButUnroutableAtV13() {
+        Uuid topicId = Uuid.randomUuid();
+        var request = new FetchRequestData();
+        var topic = new FetchTopic()
+                .setTopicId(topicId)
+                .setTopic("unknown.topic");
+        topic.partitions().add(new FetchPartition().setPartition(0));
+        request.topics().add(topic);
+
+        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table, true);
+
+        assertThat(error.responses()).hasSize(1);
+        var topicResp = error.responses().stream().findFirst().orElseThrow();
+        assertThat(topicResp.topicId()).isEqualTo(topicId);
+        assertThat(topicResp.partitions()).allSatisfy(
+                pr -> assertThat(pr.errorCode()).isEqualTo(Errors.UNKNOWN_TOPIC_OR_PARTITION.code()));
+    }
+
+    @Test
+    void shouldNotIncludeRoutableEnrichedTopicsInV13ErrorResponse() {
+        Uuid topicId = Uuid.randomUuid();
+        var request = new FetchRequestData();
+        var topic = new FetchTopic()
+                .setTopicId(topicId)
+                .setTopic("a.orders");
+        topic.partitions().add(new FetchPartition().setPartition(0).setFetchOffset(0));
+        request.topics().add(topic);
+
+        var error = FetchDecomposer.errorResponseForUnroutableTopics(request, table, true);
 
         assertThat(error.responses()).isEmpty();
     }
