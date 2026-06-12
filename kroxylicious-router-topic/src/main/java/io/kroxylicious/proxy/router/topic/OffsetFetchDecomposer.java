@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.router.topic;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.OffsetFetchRequestData;
 import org.apache.kafka.common.message.OffsetFetchRequestData.OffsetFetchRequestGroup;
 import org.apache.kafka.common.message.OffsetFetchResponseData;
@@ -23,27 +25,30 @@ import org.apache.kafka.common.protocol.Errors;
  * the per-route responses. Handles both v1-7 (single group) and
  * v8-9 (multi-group) wire formats.
  */
-class OffsetFetchDecomposer {
+class OffsetFetchDecomposer implements RequestDecomposer<OffsetFetchRequestData, OffsetFetchResponseData> {
 
     static final OffsetFetchDecomposer INSTANCE = new OffsetFetchDecomposer();
 
     private OffsetFetchDecomposer() {
     }
 
-    Map<String, OffsetFetchRequestData> decompose(OffsetFetchRequestData request,
-                                                  TopicRoutingTable table,
-                                                  short apiVersion) {
+    @Override
+    public Map<String, OffsetFetchRequestData> decompose(OffsetFetchRequestData request,
+                                                         TopicRoutingTable table,
+                                                         short apiVersion,
+                                                         Function<Uuid, String> topicNameResolver) {
         if (apiVersion <= 7) {
             return decomposeV1to7(request, table);
         }
         else {
-            return decomposeV8plus(request, table);
+            return decomposeV8plus(request, table, topicNameResolver);
         }
     }
 
-    OffsetFetchResponseData recompose(Map<String, OffsetFetchResponseData> responses,
-                                      OffsetFetchRequestData originalRequest,
-                                      short apiVersion) {
+    @Override
+    public OffsetFetchResponseData recompose(Map<String, OffsetFetchResponseData> responses,
+                                             OffsetFetchRequestData originalRequest,
+                                             short apiVersion) {
         if (apiVersion <= 7) {
             return recomposeV1to7(responses);
         }
@@ -59,7 +64,7 @@ class OffsetFetchDecomposer {
             return errorResponseV1to7(request, table);
         }
         else {
-            return errorResponseV8plus(request, table);
+            return errorResponseV8plus(request, table, apiVersion);
         }
     }
 
@@ -101,7 +106,7 @@ class OffsetFetchDecomposer {
             return errorResponse;
         }
         for (var topic : request.topics()) {
-            if (table.routeForTopic(topic.name()) == null) {
+            if (!table.isRoutable(topic.name())) {
                 var topicResponse = new OffsetFetchResponseTopic().setName(topic.name());
                 for (int partitionIndex : topic.partitionIndexes()) {
                     topicResponse.partitions().add(
@@ -126,14 +131,19 @@ class OffsetFetchDecomposer {
     // --- v8-9: multi-group with Groups array ---
 
     private Map<String, OffsetFetchRequestData> decomposeV8plus(OffsetFetchRequestData request,
-                                                                TopicRoutingTable table) {
+                                                                TopicRoutingTable table,
+                                                                Function<Uuid, String> topicNameResolver) {
         var result = new LinkedHashMap<String, OffsetFetchRequestData>();
         for (var group : request.groups()) {
             if (group.topics() == null) {
                 continue;
             }
             for (var topic : group.topics()) {
-                String route = table.routeForTopic(topic.name());
+                String topicName = topic.name();
+                if ((topicName == null || topicName.isEmpty()) && !Uuid.ZERO_UUID.equals(topic.topicId())) {
+                    topicName = topicNameResolver.apply(topic.topicId());
+                }
+                String route = table.routeForTopic(topicName);
                 if (route != null) {
                     var routeReq = result.computeIfAbsent(route, k -> new OffsetFetchRequestData()
                             .setRequireStable(request.requireStable()));
@@ -173,7 +183,8 @@ class OffsetFetchDecomposer {
     }
 
     private static OffsetFetchResponseData errorResponseV8plus(OffsetFetchRequestData request,
-                                                               TopicRoutingTable table) {
+                                                               TopicRoutingTable table,
+                                                               short apiVersion) {
         var errorResponse = new OffsetFetchResponseData();
         for (var group : request.groups()) {
             if (group.topics() == null) {
@@ -181,17 +192,29 @@ class OffsetFetchDecomposer {
             }
             OffsetFetchResponseGroup errorGroup = null;
             for (var topic : group.topics()) {
-                if (table.routeForTopic(topic.name()) == null) {
+                if (!table.isRoutable(topic.name())) {
+                    boolean hasName = topic.name() != null && !topic.name().isEmpty();
                     if (errorGroup == null) {
                         errorGroup = new OffsetFetchResponseGroup()
                                 .setGroupId(group.groupId());
                     }
-                    var topicResponse = new OffsetFetchResponseTopics().setName(topic.name());
+                    var topicResponse = new OffsetFetchResponseTopics();
+                    short errorCode;
+                    if (apiVersion >= 10) {
+                        topicResponse.setTopicId(topic.topicId());
+                        errorCode = hasName
+                                ? Errors.UNKNOWN_TOPIC_OR_PARTITION.code()
+                                : Errors.UNKNOWN_TOPIC_ID.code();
+                    }
+                    else {
+                        topicResponse.setName(topic.name());
+                        errorCode = Errors.UNKNOWN_TOPIC_OR_PARTITION.code();
+                    }
                     for (int partitionIndex : topic.partitionIndexes()) {
                         topicResponse.partitions().add(
                                 new OffsetFetchResponsePartitions()
                                         .setPartitionIndex(partitionIndex)
-                                        .setErrorCode(Errors.UNKNOWN_TOPIC_OR_PARTITION.code())
+                                        .setErrorCode(errorCode)
                                         .setCommittedOffset(-1));
                     }
                     errorGroup.topics().add(topicResponse);

@@ -13,10 +13,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.compress.Compression;
+import org.apache.kafka.common.errors.ApiException;
 import org.apache.kafka.common.message.AddPartitionsToTxnRequestData;
 import org.apache.kafka.common.message.AddPartitionsToTxnResponseData;
 import org.apache.kafka.common.message.ApiVersionsResponseData;
@@ -79,9 +82,12 @@ import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.proxy.authentication.Subject;
 import io.kroxylicious.proxy.authentication.User;
-import io.kroxylicious.proxy.router.Response;
+import io.kroxylicious.proxy.router.CloseOrTerminalStage;
 import io.kroxylicious.proxy.router.RouterContext;
-import io.kroxylicious.proxy.router.RouterResult;
+import io.kroxylicious.proxy.router.RouterResponse;
+import io.kroxylicious.proxy.router.TerminalStage;
+
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -150,7 +156,7 @@ class TopicPartitionRouterTest {
     // --- API_VERSIONS capping ---
 
     @Test
-    void shouldCapProduceVersionInApiVersionsResponse() {
+    void shouldNotCapProduceVersionInApiVersionsResponse() {
         var responseData = apiVersionsResponse();
         setMaxVersion(responseData, ApiKeys.PRODUCE, (short) 13);
 
@@ -159,11 +165,11 @@ class TopicPartitionRouterTest {
                 (short) 3, ApiKeys.API_VERSIONS, new RequestHeaderData(), responseData, ctx).toCompletableFuture().join());
 
         assertThat(findMaxVersion((ApiVersionsResponseData) ctx.sentResponseBody(), ApiKeys.PRODUCE))
-                .isEqualTo((short) 12);
+                .isEqualTo((short) 13);
     }
 
     @Test
-    void shouldCapFetchVersionInApiVersionsResponse() {
+    void shouldNotCapFetchVersionInApiVersionsResponse() {
         var responseData = apiVersionsResponse();
         setMaxVersion(responseData, ApiKeys.FETCH, (short) 16);
 
@@ -171,7 +177,7 @@ class TopicPartitionRouterTest {
         ctx.captureResult(router.onRequest((short) 3, ApiKeys.API_VERSIONS, new RequestHeaderData(), responseData, ctx).toCompletableFuture().join());
 
         assertThat(findMaxVersion((ApiVersionsResponseData) ctx.sentResponseBody(), ApiKeys.FETCH))
-                .isEqualTo((short) 12);
+                .isEqualTo((short) 16);
     }
 
     @Test
@@ -184,6 +190,49 @@ class TopicPartitionRouterTest {
 
         assertThat(findMaxVersion((ApiVersionsResponseData) ctx.sentResponseBody(), ApiKeys.PRODUCE))
                 .isEqualTo((short) 10);
+    }
+
+    @Test
+    void shouldRouteApiVersionsToVirtualNodeWhenPresent() {
+        // Given
+        var responseData = apiVersionsResponse();
+        var ctx = new CapturingRouterContext(responseData)
+                .withVirtualNodeId(42)
+                .withNodeResponses(Map.of(42, apiVersionsResponse()));
+
+        // When
+        ctx.captureResult(router.onRequest(
+                (short) 3, ApiKeys.API_VERSIONS, new RequestHeaderData(),
+                responseData, ctx).toCompletableFuture().join());
+
+        // Then
+        assertThat(ctx.sentNodeRequests())
+                .as("API_VERSIONS should be sent to the connected node")
+                .hasSize(1);
+        assertThat(ctx.sentNodeRequests().get(0).virtualNodeId()).isEqualTo(42);
+        assertThat(ctx.sentRequests())
+                .as("should not use anyNodeId path")
+                .isEmpty();
+    }
+
+    @Test
+    void shouldRouteApiVersionsToAnyNodeWhenVirtualNodeEmpty() {
+        // Given
+        var responseData = apiVersionsResponse();
+        var ctx = new CapturingRouterContext(responseData);
+
+        // When
+        ctx.captureResult(router.onRequest(
+                (short) 3, ApiKeys.API_VERSIONS, new RequestHeaderData(),
+                responseData, ctx).toCompletableFuture().join());
+
+        // Then
+        assertThat(ctx.sentRequests())
+                .as("API_VERSIONS should use anyNodeId when virtualNodeId is empty")
+                .hasSize(1);
+        assertThat(ctx.sentNodeRequests())
+                .as("should not use specific node path")
+                .isEmpty();
     }
 
     // --- PRODUCE: single route ---
@@ -1804,11 +1853,49 @@ class TopicPartitionRouterTest {
      * fan-out testing.
      */
     record SentNodeRequest(int virtualNodeId,
-                           String route,
                            RequestHeaderData header,
                            ApiMessage body) {}
 
+    /**
+     * Test-specific router response that exposes the body for assertion.
+     */
+    record TestRouterResponse(
+                              @Nullable ApiMessage body,
+                              boolean closeConnection)
+            implements RouterResponse {}
+
+    /**
+     * Test-specific builder implementing the stage interfaces.
+     */
+    static class TestRouterResponseBuilder implements CloseOrTerminalStage {
+
+        private final @Nullable ApiMessage body;
+        private boolean closeConnection;
+
+        TestRouterResponseBuilder(@Nullable ApiMessage body) {
+            this.body = body;
+        }
+
+        @Override
+        public TerminalStage withCloseConnection() {
+            closeConnection = true;
+            return this;
+        }
+
+        @Override
+        public RouterResponse build() {
+            return new TestRouterResponse(body, closeConnection);
+        }
+
+        @Override
+        public CompletionStage<RouterResponse> completed() {
+            return CompletableFuture.completedStage(build());
+        }
+    }
+
     static class CapturingRouterContext implements RouterContext {
+
+        private static final int ANY_NODE_SENTINEL = Integer.MIN_VALUE;
 
         private final Map<String, ApiMessage> backendResponses;
         private final List<SentRequest> sentRequests = new ArrayList<>();
@@ -1816,6 +1903,8 @@ class TopicPartitionRouterTest {
         private ApiMessage sentResponseBody;
         private Map<Integer, ApiMessage> nodeResponses = Map.of();
         private Subject subject = Subject.anonymous();
+        private OptionalInt virtualNodeId = OptionalInt.empty();
+        private final Map<String, Integer> routeAnyNodeIds = new HashMap<>();
 
         CapturingRouterContext(ApiMessage singleBackendResponse) {
             this.backendResponses = null;
@@ -1829,13 +1918,19 @@ class TopicPartitionRouterTest {
 
         private final ApiMessage backendResponses_single;
 
-        CapturingRouterContext withNodeResponses(Map<Integer, ? extends ApiMessage> nodeResponses) {
+        CapturingRouterContext withNodeResponses(
+                                                 Map<Integer, ? extends ApiMessage> nodeResponses) {
             this.nodeResponses = new HashMap<>(nodeResponses);
             return this;
         }
 
         CapturingRouterContext withSubject(Subject subject) {
             this.subject = subject;
+            return this;
+        }
+
+        CapturingRouterContext withVirtualNodeId(int nodeId) {
+            this.virtualNodeId = OptionalInt.of(nodeId);
             return this;
         }
 
@@ -1851,10 +1946,35 @@ class TopicPartitionRouterTest {
             return sentResponseBody;
         }
 
-        void captureResult(RouterResult result) {
-            if (result instanceof RouterResult.Completed c) {
-                sentResponseBody = c.response().body();
+        void captureResult(RouterResponse result) {
+            if (result instanceof TestRouterResponse tr && tr.body() != null) {
+                sentResponseBody = tr.body();
             }
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWith(ApiMessage body) {
+            return new TestRouterResponseBuilder(body);
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWith(
+                                                ResponseHeaderData header,
+                                                ApiMessage body) {
+            return new TestRouterResponseBuilder(body);
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWithError(
+                                                     RequestHeaderData header,
+                                                     ApiMessage request,
+                                                     ApiException exception) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWithoutReply() {
+            return new TestRouterResponseBuilder(null);
         }
 
         private MetadataResponseData defaultMetadataResponse = emptyMetadataResponse();
@@ -1865,50 +1985,66 @@ class TopicPartitionRouterTest {
             return this;
         }
 
-        CapturingRouterContext withFindCoordinatorNodeIds(Map<String, Integer> nodeIds) {
+        CapturingRouterContext withFindCoordinatorNodeIds(
+                                                          Map<String, Integer> nodeIds) {
             this.findCoordinatorNodeIds = new HashMap<>(nodeIds);
             return this;
         }
 
         @Override
-        public int bootstrapNodeId(String route) {
-            return Integer.MIN_VALUE;
+        public OptionalInt virtualNodeId() {
+            return virtualNodeId;
         }
 
         @Override
-        public CompletionStage<Response> sendRequestToNode(String route,
-                                                           int virtualNodeId,
-                                                           RequestHeaderData header,
-                                                           ApiMessage request) {
-            if (virtualNodeId == bootstrapNodeId(route)) {
-                sentRequests.add(new SentRequest(route, header, request));
+        public int anyNodeId(String route) {
+            return routeAnyNodeIds.computeIfAbsent(route,
+                    r -> ANY_NODE_SENTINEL + routeAnyNodeIds.size());
+        }
+
+        private String routeForAnyNodeId(int id) {
+            return routeAnyNodeIds.entrySet().stream()
+                    .filter(e -> e.getValue() == id)
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        @Override
+        public CompletionStage<ApiMessage> sendRequestToNode(
+                                                             int virtualNodeId,
+                                                             RequestHeaderData header,
+                                                             ApiMessage request) {
+            String bootstrapRoute = routeForAnyNodeId(virtualNodeId);
+            if (bootstrapRoute != null) {
+                sentRequests.add(new SentRequest(bootstrapRoute, header, request));
                 if (request instanceof MetadataRequestData) {
-                    ApiMessage routeResponse = backendResponses != null ? backendResponses.get(route) : null;
-                    if (routeResponse instanceof MetadataResponseData md) {
-                        Response response = new SimpleResponse(new ResponseHeaderData(), md);
-                        return CompletableFuture.completedFuture(response);
+                    ApiMessage routeResponse = backendResponses != null
+                            ? backendResponses.get(bootstrapRoute)
+                            : null;
+                    if (routeResponse instanceof MetadataResponseData) {
+                        return CompletableFuture.completedFuture(routeResponse);
                     }
-                    Response response = new SimpleResponse(new ResponseHeaderData(), defaultMetadataResponse);
-                    return CompletableFuture.completedFuture(response);
+                    return CompletableFuture.completedFuture(defaultMetadataResponse);
                 }
                 if (request instanceof FindCoordinatorRequestData) {
-                    ApiMessage routeResponse = backendResponses != null ? backendResponses.get(route) : null;
-                    if (routeResponse instanceof FindCoordinatorResponseData fc) {
-                        Response response = new SimpleResponse(new ResponseHeaderData(), fc);
-                        return CompletableFuture.completedFuture(response);
+                    ApiMessage routeResponse = backendResponses != null
+                            ? backendResponses.get(bootstrapRoute)
+                            : null;
+                    if (routeResponse instanceof FindCoordinatorResponseData) {
+                        return CompletableFuture.completedFuture(routeResponse);
                     }
-                    Integer nodeId = findCoordinatorNodeIds.get(route);
+                    Integer nodeId = findCoordinatorNodeIds.get(bootstrapRoute);
                     var findCoordResp = new FindCoordinatorResponseData()
                             .setErrorCode(Errors.NONE.code())
                             .setNodeId(nodeId != null ? nodeId : 0)
                             .setHost("localhost")
                             .setPort(9092);
-                    Response response = new SimpleResponse(new ResponseHeaderData(), findCoordResp);
-                    return CompletableFuture.completedFuture(response);
+                    return CompletableFuture.completedFuture(findCoordResp);
                 }
                 ApiMessage body;
                 if (backendResponses != null) {
-                    body = backendResponses.get(route);
+                    body = backendResponses.get(bootstrapRoute);
                 }
                 else {
                     body = backendResponses_single;
@@ -1916,18 +2052,16 @@ class TopicPartitionRouterTest {
                 if (body == null) {
                     body = new ProduceResponseData();
                 }
-                ApiMessage finalBody = body;
-                Response response = new SimpleResponse(new ResponseHeaderData(), finalBody);
-                return CompletableFuture.completedFuture(response);
+                return CompletableFuture.completedFuture(body);
             }
             else {
-                sentNodeRequests.add(new SentNodeRequest(virtualNodeId, route, header, request));
+                sentNodeRequests.add(
+                        new SentNodeRequest(virtualNodeId, header, request));
                 ApiMessage body = nodeResponses.get(virtualNodeId);
                 if (body == null) {
                     body = new ProduceResponseData();
                 }
-                Response response = new SimpleResponse(new ResponseHeaderData(), body);
-                return CompletableFuture.completedFuture(response);
+                return CompletableFuture.completedFuture(body);
             }
         }
 
@@ -1937,19 +2071,25 @@ class TopicPartitionRouterTest {
         }
 
         @Override
+        public String topicName(Uuid topicId) {
+            return null;
+        }
+
+        @Override
         public Subject authenticatedSubject() {
             return subject;
         }
     }
 
     /**
-     * Context for single-route transactional INIT_PRODUCER_ID which goes through
-     * three stages: METADATA → FIND_COORDINATOR → INIT_PRODUCER_ID (via sendRequestToNode).
+     * Context for single-route transactional INIT_PRODUCER_ID which goes
+     * through three stages: METADATA, FIND_COORDINATOR, INIT_PRODUCER_ID
+     * (via sendRequestToNode).
      */
     static class SingleRouteInitCapturingContext implements RouterContext {
 
-        private final String route;
-        private final int coordinatorNodeId;
+        private static final int ANY_NODE_SENTINEL = Integer.MIN_VALUE;
+
         private final FindCoordinatorResponseData findCoordResp;
         private final ApiMessage nodeResponse;
         private int sendRequestCount;
@@ -1960,18 +2100,41 @@ class TopicPartitionRouterTest {
             return sentResponseBody;
         }
 
-        void captureResult(RouterResult result) {
-            if (result instanceof RouterResult.Completed c) {
-                sentResponseBody = c.response().body();
+        void captureResult(RouterResponse result) {
+            if (result instanceof TestRouterResponse tr && tr.body() != null) {
+                sentResponseBody = tr.body();
             }
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWith(ApiMessage body) {
+            return new TestRouterResponseBuilder(body);
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWith(
+                                                ResponseHeaderData header,
+                                                ApiMessage body) {
+            return new TestRouterResponseBuilder(body);
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWithError(
+                                                     RequestHeaderData header,
+                                                     ApiMessage request,
+                                                     ApiException exception) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public CloseOrTerminalStage respondWithoutReply() {
+            return new TestRouterResponseBuilder(null);
         }
 
         SingleRouteInitCapturingContext(String route,
                                         int coordinatorNodeId,
                                         FindCoordinatorResponseData findCoordResp,
                                         InitProducerIdResponseData initResp) {
-            this.route = route;
-            this.coordinatorNodeId = coordinatorNodeId;
             this.findCoordResp = findCoordResp;
             this.nodeResponse = initResp;
         }
@@ -1979,8 +2142,6 @@ class TopicPartitionRouterTest {
         SingleRouteInitCapturingContext(String route,
                                         ApiMessage nodeResponse,
                                         TopicPartitionRouter router) {
-            this.route = route;
-            this.coordinatorNodeId = 1;
             this.findCoordResp = new FindCoordinatorResponseData().setNodeId(1);
             this.nodeResponse = nodeResponse;
         }
@@ -1991,16 +2152,21 @@ class TopicPartitionRouterTest {
         }
 
         @Override
-        public int bootstrapNodeId(String route) {
-            return Integer.MIN_VALUE;
+        public OptionalInt virtualNodeId() {
+            return OptionalInt.empty();
         }
 
         @Override
-        public CompletionStage<Response> sendRequestToNode(String route,
-                                                           int virtualNodeId,
-                                                           RequestHeaderData header,
-                                                           ApiMessage request) {
-            if (virtualNodeId == bootstrapNodeId(route)) {
+        public int anyNodeId(String route) {
+            return ANY_NODE_SENTINEL;
+        }
+
+        @Override
+        public CompletionStage<ApiMessage> sendRequestToNode(
+                                                             int virtualNodeId,
+                                                             RequestHeaderData header,
+                                                             ApiMessage request) {
+            if (virtualNodeId == ANY_NODE_SENTINEL) {
                 sendRequestCount++;
                 ApiMessage body;
                 if (request instanceof MetadataRequestData) {
@@ -2012,18 +2178,21 @@ class TopicPartitionRouterTest {
                 else {
                     body = new ProduceResponseData();
                 }
-                return CompletableFuture.completedFuture(
-                        new SimpleResponse(new ResponseHeaderData(), body));
+                return CompletableFuture.completedFuture(body);
             }
             else {
-                return CompletableFuture.completedFuture(
-                        new SimpleResponse(new ResponseHeaderData(), nodeResponse));
+                return CompletableFuture.completedFuture(nodeResponse);
             }
         }
 
         @Override
         public String sessionId() {
             return "test-session";
+        }
+
+        @Override
+        public String topicName(Uuid topicId) {
+            return null;
         }
 
         @Override

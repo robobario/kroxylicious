@@ -19,12 +19,15 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 class RouterTest {
 
+    private static final RouterResponse STUB_RESULT = new RouterResponse() {
+    };
+
     private final Router router = new Router() {
         @Override
-        public CompletionStage<RouterResult> onRequest(short apiVersion, ApiKeys apiKey,
-                                                       RequestHeaderData header, ApiMessage request,
-                                                       RouterContext context) {
-            return CompletableFuture.completedFuture(new RouterResult.CompletedNoResponse());
+        public CompletionStage<RouterResponse> onRequest(short apiVersion, ApiKeys apiKey,
+                                                         RequestHeaderData header, ApiMessage request,
+                                                         RouterContext context) {
+            return CompletableFuture.completedFuture(STUB_RESULT);
         }
     };
 

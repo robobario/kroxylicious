@@ -55,6 +55,7 @@ public sealed interface RoutingEvent {
                    int routingCorrelationId,
                    ApiKeys apiKey,
                    short apiVersion,
+                   int virtualNodeId,
                    RequestHeaderData header,
                    ApiMessage body)
             implements RoutingEvent {
@@ -145,7 +146,7 @@ public sealed interface RoutingEvent {
                     String route,
                     int routingCorrelationId,
                     ApiKeys apiKey,
-                    ResponseHeaderData header,
+                    @Nullable ResponseHeaderData header,
                     ApiMessage body)
             implements RoutingEvent {}
 }

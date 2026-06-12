@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.router.topic;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.message.ProduceResponseData;
 import org.apache.kafka.common.message.ProduceResponseData.TopicProduceResponse;
@@ -49,7 +51,7 @@ class RequestDecomposerTest {
         request.topicData().add(topicData("b.logs"));
         request.topicData().add(topicData("a.payments"));
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a", "route-b");
         assertThat(parts.get("route-a").topicData()).extracting("name")
@@ -64,7 +66,7 @@ class RequestDecomposerTest {
         request.topicData().add(topicData("a.orders"));
         request.topicData().add(topicData("a.payments"));
 
-        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table);
+        Map<String, ProduceRequestData> parts = decomposer.decompose(request, table, (short) 0);
 
         assertThat(parts).containsOnlyKeys("route-a");
         assertThat(parts.get("route-a").topicData()).hasSize(2);
@@ -82,7 +84,7 @@ class RequestDecomposerTest {
         respB.responses().add(topicResponse("b.logs"));
 
         ProduceResponseData merged = decomposer.recompose(
-                Map.of("route-a", respA, "route-b", respB), request);
+                Map.of("route-a", respA, "route-b", respB), request, (short) 0);
 
         assertThat(merged.responses()).extracting("name")
                 .containsExactlyInAnyOrder("a.orders", "b.logs");
@@ -105,7 +107,9 @@ class RequestDecomposerTest {
         @Override
         public Map<String, ProduceRequestData> decompose(
                                                          ProduceRequestData request,
-                                                         TopicRoutingTable table) {
+                                                         TopicRoutingTable table,
+                                                         short apiVersion,
+                                                         Function<Uuid, String> topicNameResolver) {
             var result = new java.util.LinkedHashMap<String, ProduceRequestData>();
             for (var td : request.topicData()) {
                 String route = table.routeForTopic(td.name());
@@ -120,7 +124,8 @@ class RequestDecomposerTest {
         @Override
         public ProduceResponseData recompose(
                                              Map<String, ProduceResponseData> responses,
-                                             ProduceRequestData originalRequest) {
+                                             ProduceRequestData originalRequest,
+                                             short apiVersion) {
             var merged = new ProduceResponseData();
             for (var resp : responses.values()) {
                 for (var tr : resp.responses()) {

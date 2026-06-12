@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.router.topic;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.FetchRequestData;
 import org.apache.kafka.common.message.FetchResponseData;
 import org.apache.kafka.common.message.FetchResponseData.FetchableTopicResponse;
@@ -27,10 +29,16 @@ class FetchDecomposer implements RequestDecomposer<FetchRequestData, FetchRespon
 
     @Override
     public Map<String, FetchRequestData> decompose(FetchRequestData request,
-                                                   TopicRoutingTable table) {
+                                                   TopicRoutingTable table,
+                                                   short apiVersion,
+                                                   Function<Uuid, String> topicNameResolver) {
         var result = new LinkedHashMap<String, FetchRequestData>();
         for (var topic : request.topics()) {
-            String route = table.routeForTopic(topic.topic());
+            String topicName = topic.topic();
+            if ((topicName == null || topicName.isEmpty()) && !Uuid.ZERO_UUID.equals(topic.topicId())) {
+                topicName = topicNameResolver.apply(topic.topicId());
+            }
+            String route = table.routeForTopic(topicName);
             if (route != null) {
                 result.computeIfAbsent(route, k -> copyEnvelope(request))
                         .topics().add(topic.duplicate());
@@ -41,7 +49,8 @@ class FetchDecomposer implements RequestDecomposer<FetchRequestData, FetchRespon
 
     @Override
     public FetchResponseData recompose(Map<String, FetchResponseData> responses,
-                                       FetchRequestData originalRequest) {
+                                       FetchRequestData originalRequest,
+                                       short apiVersion) {
         var merged = new FetchResponseData();
         int maxThrottle = 0;
         for (var resp : responses.values()) {
@@ -55,16 +64,32 @@ class FetchDecomposer implements RequestDecomposer<FetchRequestData, FetchRespon
     }
 
     static FetchResponseData errorResponseForUnroutableTopics(FetchRequestData request,
-                                                              TopicRoutingTable table) {
+                                                              TopicRoutingTable table,
+                                                              boolean usesTopicIds) {
         var errorResponse = new FetchResponseData();
         for (var topic : request.topics()) {
-            if (table.routeForTopic(topic.topic()) == null) {
-                var topicResponse = new FetchableTopicResponse().setTopic(topic.topic());
+            if (!table.isRoutable(topic.topic())) {
+                boolean hasName = topic.topic() != null && !topic.topic().isEmpty();
+                var topicResponse = new FetchableTopicResponse();
+                short errorCode;
+                if (usesTopicIds) {
+                    topicResponse.setTopicId(topic.topicId());
+                    if (hasName) {
+                        topicResponse.setTopic(topic.topic());
+                    }
+                    errorCode = hasName
+                            ? Errors.UNKNOWN_TOPIC_OR_PARTITION.code()
+                            : Errors.UNKNOWN_TOPIC_ID.code();
+                }
+                else {
+                    topicResponse.setTopic(topic.topic());
+                    errorCode = Errors.UNKNOWN_TOPIC_OR_PARTITION.code();
+                }
                 for (var partition : topic.partitions()) {
                     topicResponse.partitions().add(
                             new PartitionData()
                                     .setPartitionIndex(partition.partition())
-                                    .setErrorCode(Errors.UNKNOWN_TOPIC_OR_PARTITION.code()));
+                                    .setErrorCode(errorCode));
                 }
                 errorResponse.responses().add(topicResponse);
             }

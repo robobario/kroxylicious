@@ -7,7 +7,9 @@ package io.kroxylicious.proxy.router.topic;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.message.ProduceRequestData;
 import org.apache.kafka.common.message.ProduceResponseData;
 import org.apache.kafka.common.message.ProduceResponseData.PartitionProduceResponse;
@@ -28,10 +30,16 @@ class ProduceDecomposer implements RequestDecomposer<ProduceRequestData, Produce
 
     @Override
     public Map<String, ProduceRequestData> decompose(ProduceRequestData request,
-                                                     TopicRoutingTable table) {
+                                                     TopicRoutingTable table,
+                                                     short apiVersion,
+                                                     Function<Uuid, String> topicNameResolver) {
         var result = new LinkedHashMap<String, ProduceRequestData>();
         for (var td : request.topicData()) {
-            String route = table.routeForTopic(td.name());
+            String topicName = td.name();
+            if ((topicName == null || topicName.isEmpty()) && !Uuid.ZERO_UUID.equals(td.topicId())) {
+                topicName = topicNameResolver.apply(td.topicId());
+            }
+            String route = table.routeForTopic(topicName);
             if (route != null) {
                 result.computeIfAbsent(route, k -> copyEnvelope(request))
                         .topicData().add(td.duplicate());
@@ -42,7 +50,8 @@ class ProduceDecomposer implements RequestDecomposer<ProduceRequestData, Produce
 
     @Override
     public ProduceResponseData recompose(Map<String, ProduceResponseData> responses,
-                                         ProduceRequestData originalRequest) {
+                                         ProduceRequestData originalRequest,
+                                         short apiVersion) {
         var merged = new ProduceResponseData();
         int maxThrottle = 0;
         for (var resp : responses.values()) {
@@ -60,18 +69,33 @@ class ProduceDecomposer implements RequestDecomposer<ProduceRequestData, Produce
 
     /**
      * Builds a synthetic error response for topics that have no route.
+     * At v13+, topics with unresolved topicIds (name still null after enrichment)
+     * are reported as {@link Errors#UNKNOWN_TOPIC_ID}.
      */
     static ProduceResponseData errorResponseForUnroutableTopics(ProduceRequestData request,
-                                                                TopicRoutingTable table) {
+                                                                TopicRoutingTable table,
+                                                                short apiVersion) {
         var errorResponse = new ProduceResponseData();
         for (var td : request.topicData()) {
-            if (table.routeForTopic(td.name()) == null) {
-                var topicResponse = new TopicProduceResponse().setName(td.name());
+            if (!table.isRoutable(td.name())) {
+                boolean hasName = td.name() != null && !td.name().isEmpty();
+                var topicResponse = new TopicProduceResponse();
+                short errorCode;
+                if (apiVersion >= 13) {
+                    topicResponse.setTopicId(td.topicId());
+                    errorCode = hasName
+                            ? Errors.UNKNOWN_TOPIC_OR_PARTITION.code()
+                            : Errors.UNKNOWN_TOPIC_ID.code();
+                }
+                else {
+                    topicResponse.setName(td.name());
+                    errorCode = Errors.UNKNOWN_TOPIC_OR_PARTITION.code();
+                }
                 for (var pd : td.partitionData()) {
                     topicResponse.partitionResponses().add(
                             new PartitionProduceResponse()
                                     .setIndex(pd.index())
-                                    .setErrorCode(Errors.UNKNOWN_TOPIC_OR_PARTITION.code()));
+                                    .setErrorCode(errorCode));
                 }
                 errorResponse.responses().add(topicResponse);
             }
